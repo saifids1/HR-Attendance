@@ -1,19 +1,41 @@
-import React from 'react'
-const Select = ({ label, disabled, ...props }) => (
+import React from "react";
+
+const Select = ({
+  label,
+  value,
+  onChange,
+  options = [],
+  disabled,
+  placeholder = "Select",
+}) => {
+  return (
     <div>
-      <label className="block text-sm text-gray-600 mb-1">{label}</label>
+      <label className="block text-sm text-gray-600 mb-1">
+        {label}
+      </label>
+
       <select
-        {...props}
+        value={value}
+        onChange={onChange}
         disabled={disabled}
-        className={`w-full border rounded px-3 py-2 text-sm ${disabled ? "bg-gray-100 cursor-not-allowed" : ""
-          }`}
+        className={`w-full border rounded px-3 py-2 text-sm
+          ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}
+        `}
       >
-        <option>Full Time</option>
-        <option>Part Time</option>
-        <option>Internship</option>
+        {/* Placeholder */}
+        <option value="" disabled>
+          {placeholder}
+        </option>
+
+        {/* Dynamic options */}
+        {options.map((opt, index) => (
+          <option key={index} value={opt}>
+            {opt}
+          </option>
+        ))}
       </select>
     </div>
   );
-
+};
 
 export default Select;

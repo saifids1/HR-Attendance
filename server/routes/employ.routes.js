@@ -1,6 +1,6 @@
 const express = require("express");
 const auth = require("../middlewares/authMiddleware");
-const {getMyAttendance,getMyTodayAttendance} = require("../controllers/attendance.controller")
+const {getMyAttendance,getMyTodayAttendance, getMyHolidays} = require("../controllers/attendance.controller")
 
 const router = express.Router();
 
@@ -44,6 +44,10 @@ router.get("/today",auth,getMyTodayAttendance)
 // Employ all previous attendence view
 
 router.get("/history",auth,getMyAttendance);
+
+// Holiday 
+
+router.get("/holiday",auth,getMyHolidays);
 
 
 

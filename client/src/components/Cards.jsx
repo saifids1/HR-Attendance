@@ -3,6 +3,9 @@ import { EmployContext } from "../context/EmployContextProvider";
 import PeopleIcon from "@mui/icons-material/People";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import { IoEnterOutline } from "react-icons/io5";
+import { IoExit } from "react-icons/io5";
+
 
 const Cards = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -13,6 +16,8 @@ const Cards = () => {
     singleAttendance,
     loading,
   } = useContext(EmployContext);
+
+  // console.log(singleAttendance);
 
   const getTime = (dateTime) => {
     if (!dateTime) return "--";
@@ -30,12 +35,10 @@ const Cards = () => {
     });
   };
 
-  console.log("singleAttendance",singleAttendance)
-  console.log("adminAttendance",adminAttendance)
+  // console.log("singleAttendance",singleAttendance)
+  // console.log("adminAttendance",adminAttendance)
 
-  /* =======================
-     ADMIN CARDS
-  ======================== */
+  /*Admin Cards */
   const adminCards = useMemo(() => {
     if (!Array.isArray(adminAttendance) || adminAttendance.length === 0) {
       return [];
@@ -78,9 +81,7 @@ const Cards = () => {
     ];
   }, [adminAttendance]);
 
-  /* =======================
-     EMPLOYEE CARDS
-  ======================== */
+  /* Employee Cards*/
   const employeeCards = useMemo(() => {
     if (!singleAttendance) return [];
 
@@ -92,8 +93,8 @@ const Cards = () => {
         value: singleAttendance.today.punch_in
           ?getTime(singleAttendance.today.punch_in)
           : "--",
-        icon: <PeopleIcon />,
-        bgColor: "#4F46E5",
+        icon: <IoEnterOutline />,
+        bgColor: "#32a852",
       },
       {
         id: 2,
@@ -101,25 +102,21 @@ const Cards = () => {
         value: singleAttendance.today.punch_in
           ? "Working"
           : "--",
-        icon: <PeopleIcon />,
-        bgColor: "#6B7280",
+        icon: <IoExit />,
+        bgColor: "#dc2626",
       },
       {
         id: 3,
         title: "Weekly Hours",
         value: singleAttendance.weekly.total_hours ?? "--",
         icon: <CheckCircleIcon />,
-        bgColor:
-          singleAttendance.status === "Present"
-            ? "#16A34A"
-            : "#DC2626",
+        bgColor:"#2563eb"
+         
       },
     ];
   }, [singleAttendance]);
 
-  /* =======================
-     LOADING STATE
-  ======================== */
+  /*Loading */
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -137,9 +134,6 @@ const Cards = () => {
 
   if (!cardsToRender.length) return null;
 
-  /* =======================
-     RENDER
-  ======================== */
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {cardsToRender.map((data) => (

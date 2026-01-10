@@ -80,11 +80,15 @@ const EmploySidebar = ({ open, setOpen }) => {
           <SlCalender size={20} />
           {open && <span>My Leaves</span>}
         </NavLink> */}
+        <NavLink to="/employee/change-password" className={navClass}>
+          <LockKeyhole />
+          {open && <span>Change Password</span>}
+        </NavLink>
 
         <NavLink
           to="/employee/leaves"
           className={navClass}
-          onClick={() => setOpen(false)}
+          // onClick={() => setOpen(false)}
         >
           <Tooltip
             title="My Leaves"
@@ -109,7 +113,7 @@ const EmploySidebar = ({ open, setOpen }) => {
 
         {/*  Settings */}
 
-        <NavLink
+        {/* <NavLink
           to="/employee/settings"
           className={navClass}
           // onClick={() => setOpen(false)}
@@ -126,7 +130,7 @@ const EmploySidebar = ({ open, setOpen }) => {
           </Tooltip>
 
           {open && <span>Settings</span>}
-        </NavLink>
+        </NavLink> */}
 
       </nav>
     </aside>

@@ -6,6 +6,8 @@ import Cards from "../components/Cards";
 import profileImg from "../assets/avatar.webp";
 import AttendanceDoughnutChart from "../charts/Doughnut";
 import { IoPerson, IoExitOutline } from "react-icons/io5";
+import { IoEnterOutline } from "react-icons/io5";
+
 import { MdOutlineCoPresent } from "react-icons/md";
 import { BsFillPersonXFill } from "react-icons/bs";
 import { TbClockX } from "react-icons/tb";
@@ -41,7 +43,7 @@ const Overview = () => {
 
   const { singleAttendance,loading } = useContext(EmployContext);
 
-  console.log(singleAttendance);
+  // console.log(singleAttendance);
   
 
 
@@ -53,12 +55,12 @@ const empCardData = singleAttendance
   ? [
       {
         id: 1,
-        title: "Punch In",
+        title: "Punch In asdfa",
         value: singleAttendance.today?.punch_in
           ? getTime(singleAttendance.today.punch_in)
           : "--",
         description: "In Time",
-        icon: <IoExitOutline />,
+        icon: <IoEnterOutline />,
         bgColor: "#22C55E",
       },
       {
@@ -144,8 +146,8 @@ const empCardData = singleAttendance
     <div className="xl:col-span-3 space-y-6">
 
       <Cards
-        AdmincardData={adminData}
-        EmploycardData={empCardData}
+        // AdmincardData={adminData}
+        // EmploycardData={empCardData}
       />
 
       {/* Employee Leave Section */}
@@ -171,7 +173,7 @@ const empCardData = singleAttendance
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden transform hover:-translate-y-1 transition-all">
 
         {/* Cover */}
-        <div className="h-24 bg-gradient-to-r from-[#222F7D] to-[#4f63d2]" />
+        <div className="h-24 bg-[#222F7D]" />
 
         {/* Avatar */}
         <div className="-mt-14 flex justify-center">

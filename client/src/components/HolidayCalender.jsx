@@ -1,84 +1,71 @@
-import React from "react";
-import { FaCalendarDay } from "react-icons/fa6";
-import { GiPartyPopper } from "react-icons/gi";
 import { IoFlagSharp } from "react-icons/io5";
 
-const statusColors = {
-    present: "bg-green-500",
-    absent: "bg-red-500",
-    leave: "bg-yellow-400",
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 };
 
-const HolidayCalendar = ({ data = [] }) => {
-    return (
-        <div className="bg-white border rounded-xl p-6 shadow-sm max-w-3xl ">
-            {/* <h2 className="text-lg font-semibold mb-6">Holiday Calendar </h2> */}
-
-            <div className="relative border-l-2 border-gray-200 ml-4 ">
-                {data.map((item, index) => (
-                    <div key={index} className="mb-8 ml-6">
-                        {/* Date Dot */}
-                        <div className="absolute -left-2 w-6 h-6 bg-[#222f7d] rounded-full flex items-center justify-center">
-                            <IoFlagSharp className="text-white text-xs" />
-                        </div>
+const getDayName = (dateStr) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-IN", { weekday: "long" });
+};
 
 
-                        {/* Date Header */}
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="font-semibold text-gray-700">
-                                {item.date.split("-").reverse().join("-")}
-                            </span>
-                            <span className="text-sm text-gray-400">
-                                {item.day}
-                            </span>
 
-                            {/* {item.holiday && (
-                                <span className="text-xs bg-blue-100 text-[#222f7d] px-2 py-1 rounded flex items-center gap-2">
-                                    <GiPartyPopper /> <span>
-                                        {item.holidayName}
-                                    </span>
-                                </span>
-                            )} */}
-                        </div>
+export default function HolidayTimeline({ data }) {
+  return (
+    <div className="bg-white border rounded-xl p-6 shadow-sm max-w-5xl">
+      <h2 className="text-lg font-semibold mb-4">Holiday Calendar</h2>
 
-                        {/* Attendance */}
-                        {item.attendance && (
-                            <span
-                                className={`inline-block text-xs text-white px-2 py-1 rounded mb-2
-                  ${statusColors[item.attendance]}`}
-                            >
-                                {item.attendance.toUpperCase()}
-                            </span>
-                        )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 justify-between  gap-4  pb-2">
+        {data.map((item, index) => (
+          <div
+            key={index}
+            className="min-w-[240px]  text-white bg-[#3a50cc] border rounded-xl p-4 hover:shadow-md transition"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-white">
+                {formatDate(item.holiday_date)}
+              </span>
 
-                        {/* Events */}
-                        <div className="space-y-2">
-                            {item.events?.length > 0 ? (
-                                item.events.map((event, i) => (
-                                    <div
-                                        key={i}
-                                        className="bg-gray-50 border rounded-lg p-3 "
-                                    >
-                                        <p className="text-sm font-medium">
-                                            {event.title}
-                                        </p>
-                                        {/* <p className="text-xs text-gray-500 flex items-center gap-2 mt-2">
-                                            <FaCalendarDay />
-                                            <span>{event.time}</span>
-                                        </p> */}
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-xs text-gray-400">
-                                    No events
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                ))}
+              {/* {item.is_paid && (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                  Paid
+                </span>
+              )} */}
             </div>
-        </div>
-    );
-};
 
-export default HolidayCalendar;
+            {/* Holiday Info */}
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-[#222f7d] rounded-full flex items-center justify-center">
+                <IoFlagSharp className="text-white text-sm" />
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  {item.holiday_name}
+                </p>
+
+                <p className="text-xs text-white">
+                  {item.holiday_type}
+                </p>
+
+                {item.remarks && (
+                  <p className="text-xs text-white mt-1">
+                    {item.remarks}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+

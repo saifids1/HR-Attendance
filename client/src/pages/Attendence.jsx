@@ -3,6 +3,7 @@ import React, { useContext, useMemo } from "react";
 import Table from "../components/Table";
 import { EmployContext } from "../context/EmployContextProvider";
 import Loader from "../components/Loader";
+import Filters from "../components/Filters";
 
 /* helper function */
 const formatHours = (val) => {
@@ -80,11 +81,15 @@ const Attendence = () => {
     [adminAttendance]
   );
 
+  const handleFilterClick = ()=>{
+
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-3 pb-6">
 
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#222F7D] rounded-lg">
+      <div className="sticky top-0 z-0 bg-[#222F7D] rounded-lg">
         <Typography className="text-white py-2 text-2xl text-center">
           Attendance
         </Typography>
@@ -97,10 +102,13 @@ const Attendence = () => {
         </div>
       ) : (
         <div className="mt-4">
-          <Table
+          <Filters filterClick={handleFilterClick}/>
+         
+          {<Table
             headers={isAdmin ? adminTableHeader : employeeTableHeader}
             data={isAdmin ? adminTableData : employeeTableData}
-          />
+            filterClick={handleFilterClick}
+          /> }
         </div>
       )}
     </div>

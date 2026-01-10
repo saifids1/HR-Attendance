@@ -15,12 +15,13 @@ import Employleaves from "./pages/Employleaves";
 import Adminleaves from "./pages/Adminleaves";
 
 import Login from "./components/Login";
-import Register from "./components/Register";
+// import Register from "./components/Register";
 import Employelist from "./components/Employelist";
 import NotFound from "./pages/NotFound";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AdminRoute from "./routes/AdminRoute";
+import AddEmploy from "./components/AddEmploy";
 
 function App() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -56,6 +57,7 @@ function App() {
             <Route index element={<Overview />} />
             <Route path="attendance" element={<Attendence />} />
             <Route path="employees" element={<Employelist />} />
+            <Route path="add-emp" element={<AddEmploy />} />
             <Route path="leaves" element={<Adminleaves />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="settings" element={<Settings />} />
@@ -69,6 +71,7 @@ function App() {
             <Route index element={<Overview />} />
             <Route path="attendance" element={<Attendence />} />
             <Route path="holidays" element={<Holidays />} />
+            <Route path="change-password" element={<ChangePassword />} />
             <Route path="profile" element={<Profile />} />
             <Route path="settings" element={<Settings />} />
             <Route path="leaves" element={<Employleaves />} />

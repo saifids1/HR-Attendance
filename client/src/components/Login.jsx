@@ -23,11 +23,11 @@ const Login = () => {
     try {
       const resp = await loginUser(formData);
   
-      // 🔐 Save auth
+      //  Save auth
       localStorage.setItem("token", resp.token);
       localStorage.setItem("user", JSON.stringify(resp.user));
   
-      // 🔥 VERY IMPORTANT — notify context
+      //  notify context
       window.dispatchEvent(new Event("storage"));
   
       toast.success("Login Successfully");

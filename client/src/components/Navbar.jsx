@@ -73,7 +73,7 @@ const Navbar = ({ open, setOpen }) => {
 
         {/* Avatar */}
         <div
-          className="flex items-center gap-1 cursor-pointer select-none"
+          className="flex items-center md:gap-5 cursor-pointer select-none"
           onClick={(e) => setAnchorEl(e.currentTarget)}
         >
           <Avatar
@@ -81,6 +81,7 @@ const Navbar = ({ open, setOpen }) => {
             alt="Avatar"
             className="w-8 h-8"
           />
+          <p className="font-semibold hidden md:block">{user?.name.split(" ").join(" ")}</p>
           <ChevronDown
             size={18}
             className={`transition-transform duration-200 ${openMenu ? "rotate-180" : ""

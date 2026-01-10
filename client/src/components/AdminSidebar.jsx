@@ -61,7 +61,7 @@ const Sidebar = () => {
           activeBasePath="/admin/employees"
           items={[
             { label: "Employee List", path: "/admin/employees" },
-            { label: "Add Employee", path: "/employee/add" },
+            { label: "Add Employee", path: "/admin/add-emp" },
           ]}
         />
 
@@ -75,7 +75,7 @@ const Sidebar = () => {
           {open && <span>Leave Requests</span>}
         </NavLink>
 
-        <NavLink to="/admin/settings" className={navClass}>
+        {/* <NavLink to="/admin/settings" className={navClass}>
           <IoMdSettings size={18} />
           {open && <span>Settings</span>}
         </NavLink>
@@ -83,7 +83,7 @@ const Sidebar = () => {
         <NavLink to="/admin/help" className={navClass}>
           <IoIosHelpCircle />
           {open && <span>Help</span>}
-        </NavLink>
+        </NavLink> */}
       </nav>
     </>
   );

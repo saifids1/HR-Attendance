@@ -24,4 +24,11 @@
   .animate-spin988 {
     animation: spin988 2s linear infinite;
   }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
   

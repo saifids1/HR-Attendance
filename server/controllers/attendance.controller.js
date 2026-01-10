@@ -294,16 +294,11 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
 // single Emp Attendance
 
-
-
-
 exports.getMyTodayAttendance = async (req, res) => {
   try {
     const empId = req.user.emp_id;
 
-    /* -------------------------------------------------
-       TODAY ATTENDANCE (IST)
-    --------------------------------------------------*/
+
     const todayResult = await db.query(
       `
       SELECT
@@ -403,14 +398,6 @@ exports.getMyTodayAttendance = async (req, res) => {
 };
 
 
-
-
-
-
-
-
-
-
 // /*  Employee – All  attendance */ 
 exports.getMyAttendance = async (req, res) => {
   try {
@@ -446,7 +433,7 @@ exports.getMyAttendance = async (req, res) => {
         dp.punch_in,
         dp.punch_out,
 
-        -- ✅ total worked seconds (SAFE)
+        --  total worked seconds (SAFE)
         CASE
           WHEN dp.punch_in IS NOT NULL
            AND dp.punch_out IS NOT NULL
@@ -484,7 +471,7 @@ exports.getMyAttendance = async (req, res) => {
       let hours = Math.floor(totalMinutes / 60);
       let minutes = totalMinutes % 60;
 
-      // 🔁 safety carry (never exceed 59)
+      // safety carry (never exceed 59)
       if (minutes >= 60) {
         hours += Math.floor(minutes / 60);
         minutes = minutes % 60;
@@ -499,10 +486,25 @@ exports.getMyAttendance = async (req, res) => {
     res.status(200).json(formattedRows);
 
   } catch (err) {
-    console.error("❌ getMyAttendance error:", err);
+    console.error(" getMyAttendance error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+exports.getMyHolidays = async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT * FROM holidays ORDER BY holiday_date ASC`
+    );
+
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error("getMyHolidays error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 
 
 

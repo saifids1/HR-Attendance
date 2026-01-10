@@ -4,16 +4,39 @@ import axios from "axios";
 export const EmployContext = createContext();
 
 const EmployProvider = ({ children }) => {
+
+  /* Attendance  */
   const [employee, setEmployee] = useState(null);
   const [employeeAttendance, setEmployeeAttendance] = useState([]);
   const [singleAttendance, setSingleAttendance] = useState(null);
   const [adminAttendance, setAdminAttendance] = useState([]);
 
+  /*Loading State*/
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
-  /* 🔥 AUTH STATE (THIS IS THE FIX) */
+  //  Holidays
+
+  const [holidays,setHolidays] = useState([]);
+  /*  Filter State*/
+  const [filters, setFilters] = useState({
+    startDate: "",
+    endDate: "",
+  });
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+
+    setFilters((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  /* 
+    auth state
+  */
   const [auth, setAuth] = useState(() => {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -24,7 +47,7 @@ const EmployProvider = ({ children }) => {
     };
   });
 
-  /* 🔥 LISTEN TO LOGIN / LOGOUT */
+  /*Sync login */
   useEffect(() => {
     const syncAuth = () => {
       const token = localStorage.getItem("token");
@@ -36,12 +59,15 @@ const EmployProvider = ({ children }) => {
       });
     };
 
-    syncAuth(); // initial
+    syncAuth();
     window.addEventListener("storage", syncAuth);
 
     return () => window.removeEventListener("storage", syncAuth);
   }, []);
 
+  /*
+     AXIOS CONFIG
+*/
   const axiosConfig = useMemo(
     () => ({
       headers: {
@@ -51,9 +77,7 @@ const EmployProvider = ({ children }) => {
     [auth.token]
   );
 
-  /* =======================
-     EMPLOYEE DASHBOARD
-  ======================== */
+//  Employee dashboard
   const fetchEmployeeDashboard = async () => {
     try {
       setEmployeeLoading(true);
@@ -73,10 +97,11 @@ const EmployProvider = ({ children }) => {
         setEmployeeAttendance(historyRes.data);
 
         if (historyRes.data.length > 0) {
+          const emp = historyRes.data[0];
           setEmployee({
-            emp_id: historyRes.data[0].emp_id,
-            device_user_id: historyRes.data[0].device_user_id,
-            name: historyRes.data[0].name,
+            emp_id: emp.emp_id,
+            device_user_id: emp.device_user_id,
+            name: emp.name,
           });
         }
       }
@@ -92,9 +117,20 @@ const EmployProvider = ({ children }) => {
     }
   };
 
-  /* =======================
-     ADMIN DASHBOARD
-  ======================== */
+
+  // Employees Holidays
+
+
+  const fetchHolidays = async()=>{
+    try{
+      const resp = await axios.get("http://localhost:5000/api/employee/attendance/holiday");
+      setHolidays(resp.data);
+
+    }catch(err){
+      console.error(err);
+    }
+  }
+  // Admin Dashboard
   const fetchAdminAttendance = async () => {
     try {
       setAdminLoading(true);
@@ -114,9 +150,7 @@ const EmployProvider = ({ children }) => {
     }
   };
 
-  /* =======================
-     FETCH ON AUTH CHANGE
-  ======================== */
+  // Fetch On Auth
   useEffect(() => {
     if (!auth.token || !auth.role) return;
 
@@ -128,7 +162,9 @@ const EmployProvider = ({ children }) => {
 
     if (auth.role === "employee") {
       fetchEmployeeDashboard();
+      fetchHolidays()
     }
+
   }, [auth.token, auth.role]);
 
   const loading =
@@ -141,9 +177,18 @@ const EmployProvider = ({ children }) => {
         employeeAttendance,
         singleAttendance,
         adminAttendance,
+        holidays,
         loading,
         initialized,
 
+        /* Filters */
+        filters,
+        setFilters
+        ,
+        handleFilterChange,
+        
+
+        /* Refresh */
         refreshEmployeeDashboard: fetchEmployeeDashboard,
         refreshAdminAttendance: fetchAdminAttendance,
       }}
