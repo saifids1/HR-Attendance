@@ -71,7 +71,7 @@ const loginController = async (req, res) => {
 
     
     email = email.trim().toLowerCase();
-    password = String(password).trim();
+    password = String(password).trim()
 
   
     const result = await db.query(
