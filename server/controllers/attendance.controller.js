@@ -763,8 +763,34 @@ exports.getMyAttendance = async (req, res) => {
   try {
     const empId = req.user.emp_id;
 
-    const { rows } = await db.query(
-      `
+    // 1️⃣ Store last 2 days from activity_log into daily_attendance if not already present
+    await db.query(`
+      INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, expected_hours)
+      SELECT
+        emp_id,
+        attendance_date,
+        MIN(local_time) FILTER (WHERE local_time::time >= TIME '10:00') AS punch_in,
+        MAX(local_time) AS punch_out,
+        NULL AS expected_hours
+      FROM (
+        SELECT
+          emp_id,
+          punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
+          CASE
+            WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00'
+            THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
+            ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date
+          END AS attendance_date
+        FROM activity_log
+        WHERE emp_id = $1
+          AND (punch_time AT TIME ZONE 'Asia/Kolkata')::date >= CURRENT_DATE - INTERVAL '2 day'
+      ) t
+      GROUP BY emp_id, attendance_date
+      ON CONFLICT (emp_id, attendance_date) DO NOTHING; -- avoid duplicates
+    `, [empId]);
+
+    // 2️⃣ Fetch attendance for current month
+    const { rows } = await db.query(`
       WITH dates AS (
         SELECT generate_series(
           date_trunc('month', CURRENT_DATE)::date,
@@ -773,93 +799,119 @@ exports.getMyAttendance = async (req, res) => {
         )::date AS attendance_date
       ),
 
-      -- 🔥 Activity log (Today & Yesterday only)
+      /* =======================
+         ACTIVITY LOG (PRIMARY)
+      ========================*/
       activity_data AS (
         SELECT
           emp_id,
+          attendance_date,
+          MIN(local_time) FILTER (WHERE local_time::time >= TIME '10:00') AS punch_in,
+          MAX(local_time) AS punch_out
+        FROM (
+          SELECT
+            emp_id,
+            punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
+            CASE
+              WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00'
+              THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
+              ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date
+            END AS attendance_date
+          FROM activity_log
+          WHERE emp_id = $1
+        ) t
+        GROUP BY emp_id, attendance_date
+      ),
 
-          -- ✅ FIX attendance date (overnight shift safe)
-          CASE
-            WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00'
-            THEN ((punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day')
-            ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date
-          END AS attendance_date,
-
-          -- ✅ Punch In (after 10 AM)
-          MIN(punch_time AT TIME ZONE 'Asia/Kolkata') FILTER (
-            WHERE (punch_time AT TIME ZONE 'Asia/Kolkata')::time >= TIME '10:00'
-          ) AS punch_in,
-
-          -- ✅ Punch Out (last punch, even next day early morning)
-          MAX(punch_time AT TIME ZONE 'Asia/Kolkata') AS punch_out
-
-        FROM activity_log
+      /* =========================
+         DAILY ATTENDANCE
+      ==========================*/
+      daily_attendance_data AS (
+        SELECT *
+        FROM daily_attendance
         WHERE emp_id = $1
-          AND (
-            punch_time AT TIME ZONE 'Asia/Kolkata'
-          )::date >= CURRENT_DATE - INTERVAL '1 day'
+      ),
+
+      /* =========================
+         ATTENDANCE LOG (FALLBACK)
+      ==========================*/
+      attendance_log_data AS (
+        SELECT
+          emp_id,
+          attendance_date,
+          MIN(local_time) AS punch_in,
+          MAX(local_time) AS punch_out
+        FROM (
+          SELECT
+            emp_id,
+            punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
+            CASE
+              WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00'
+              THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
+              ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date
+            END AS attendance_date
+          FROM attendance_logs
+          WHERE emp_id = $1
+        ) x
         GROUP BY emp_id, attendance_date
       )
 
       SELECT
         $1 AS emp_id,
         u.name AS employee_name,
-
-        -- ✅ IMPORTANT: send date as STRING (no timezone bug)
         to_char(d.attendance_date, 'YYYY-MM-DD') AS attendance_date,
 
-        -- Priority: daily_attendance → activity_log
-        COALESCE(da.punch_in, ad.punch_in) AS punch_in,
-        COALESCE(da.punch_out, ad.punch_out) AS punch_out,
+        /* Punch In priority: activity → daily → log */
+        COALESCE(ad.punch_in, da.punch_in, al.punch_in) AS punch_in,
 
-        -- ⏱ total seconds
+        /* Punch Out priority: activity → daily → log */
+        COALESCE(ad.punch_out, da.punch_out, al.punch_out) AS punch_out,
+
+        /* Total seconds */
         CASE
-          WHEN COALESCE(da.punch_in, ad.punch_in) IS NOT NULL
-           AND COALESCE(da.punch_out, ad.punch_out) IS NOT NULL
-          THEN EXTRACT(
-            EPOCH FROM (
-              COALESCE(da.punch_out, ad.punch_out)
-              -
-              COALESCE(da.punch_in, ad.punch_in)
-            )
-          )
+          WHEN COALESCE(ad.punch_in, da.punch_in, al.punch_in) IS NOT NULL
+           AND COALESCE(ad.punch_out, da.punch_out, al.punch_out) IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (
+            COALESCE(ad.punch_out, da.punch_out, al.punch_out)
+            - COALESCE(ad.punch_in, da.punch_in, al.punch_in)
+          ))
           ELSE NULL
         END AS total_seconds,
 
         da.expected_hours,
 
-        -- 📌 Status
+        /* Status */
         CASE
-          WHEN COALESCE(da.punch_in, ad.punch_in) IS NULL THEN 'Absent'
-          WHEN COALESCE(da.punch_out, ad.punch_out) IS NULL THEN 'Working'
+          WHEN COALESCE(ad.punch_in, da.punch_in, al.punch_in) IS NULL THEN 'Absent'
+          WHEN COALESCE(ad.punch_out, da.punch_out, al.punch_out) IS NULL THEN 'Working'
           ELSE 'Present'
         END AS status
 
       FROM dates d
-      LEFT JOIN daily_attendance da
-        ON da.emp_id = $1
-       AND da.attendance_date = d.attendance_date
-
       LEFT JOIN activity_data ad
         ON ad.emp_id = $1
        AND ad.attendance_date = d.attendance_date
 
-      JOIN users u
-        ON u.emp_id = $1
+      LEFT JOIN daily_attendance_data da
+        ON da.emp_id = $1
+       AND da.attendance_date = d.attendance_date
 
-      ORDER BY d.attendance_date DESC
-      `,
-      [empId]
-    );
+      LEFT JOIN attendance_log_data al
+        ON al.emp_id = $1
+       AND al.attendance_date = d.attendance_date
 
-    // ⏱ Convert seconds → hours & minutes
+      JOIN users u ON u.emp_id = $1
+      ORDER BY d.attendance_date DESC;
+    `, [empId]);
+
+    // Convert seconds → hours/minutes
     const formatted = rows.map(r => {
       let total_hours = null;
       if (r.total_seconds !== null) {
         const secs = Number(r.total_seconds);
         total_hours = {
           hours: Math.floor(secs / 3600),
-          minutes: Math.floor((secs % 3600) / 60),
+          minutes: Math.floor((secs % 3600) / 60)
         };
       }
       return { ...r, total_hours };
@@ -867,7 +919,7 @@ exports.getMyAttendance = async (req, res) => {
 
     res.status(200).json({
       total_documents: formatted.length,
-      attendance: formatted,
+      attendance: formatted
     });
 
   } catch (err) {
@@ -875,6 +927,10 @@ exports.getMyAttendance = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
+
 
 
 // exports.getMyAttendance = async (req, res) => {

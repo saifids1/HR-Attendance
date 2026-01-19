@@ -93,30 +93,50 @@ const fetchEmployeeDashboard = async () => {
       ),
     ]);
 
-    // NEW: historyRes.data now has { total_documents, attendance }
+    // History response
     if (historyRes.data && Array.isArray(historyRes.data.attendance)) {
       setEmployeeAttendance(historyRes.data.attendance);
-
-      console.log("Total documents:", historyRes.data.total_documents);
-      console.log("Attendance data:", historyRes.data.attendance);
 
       if (historyRes.data.attendance.length > 0) {
         const emp = historyRes.data.attendance[0];
         setEmployee({
           emp_id: emp.emp_id,
-          device_user_id: emp.device_user_id, // optional, only if available
-          name: emp.employee_name,            // use employee_name from backend
+          device_user_id: emp.device_user_id ?? null,
+          name: emp.employee_name,
         });
       }
     } else {
       setEmployeeAttendance([]);
     }
 
+    // Today attendance
     setSingleAttendance(todayRes.data || null);
+
   } catch (err) {
-    console.error(err);
+    console.error("Dashboard Fetch Error:", err);
+
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+
+      console.log("Status Code:", status);
+      console.log("Message:", err.response?.data);
+
+      // ✅ HANDLE 401
+      if (status === 401) {
+        console.warn("401 Unauthorized → Removing token");
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("user"); // if stored
+
+        // redirect to login
+        window.location.href = "/login";
+        return;
+      }
+    }
+
     setEmployeeAttendance([]);
     setSingleAttendance(null);
+
   } finally {
     setEmployeeLoading(false);
     setInitialized(true);
