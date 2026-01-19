@@ -84,11 +84,11 @@ const fetchEmployeeDashboard = async () => {
 
     const [historyRes, todayRes] = await Promise.all([
       axios.get(
-        "http://localhost:5000/api/employee/attendance/history",
+        "http://hr-api.i-diligence.com/api/employee/attendance/history",
         axiosConfig
       ),
       axios.get(
-        "http://localhost:5000/api/employee/attendance/today",
+        "http://hr-api.i-diligence.com/api/employee/attendance/today",
         axiosConfig
       ),
     ]);
@@ -150,7 +150,7 @@ const fetchEmployeeDashboard = async () => {
   const fetchHolidays = async () => {
     try {
       const resp = await axios.get(
-        "http://localhost:5000/api/employee/attendance/holiday",
+        "http://hr-api.i-diligence.com/api/employee/attendance/holiday",
         axiosConfig
       );
       setHolidays(resp.data);
@@ -166,7 +166,7 @@ const fetchEmployeeDashboard = async () => {
       setAdminLoading(true);
 
       const res = await axios.get(
-        "http://localhost:5000/api/admin/attendance/today",
+        "http://hr-api.i-diligence.com/api/admin/attendance/today",
         axiosConfig
       );
 

@@ -30,7 +30,7 @@ export const loginUser = async (credentials) => {
 // export const loginUser= async(credentials)=> {
 //   try {
 //     const response = await fetch(
-//       "http://localhost:5000/api/auth/login",
+//       "http://hr-api.i-diligence.com/api/auth/login",
 //       {
 //         method: "POST",
 //         headers: {

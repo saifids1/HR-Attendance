@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 5500;
 app.use(express.json());
 
 app.use(cors({
-    origin: "http://localhost:5173",
+    origin: "http://hr-api.i-diligence.com",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
   }));
