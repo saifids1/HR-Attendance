@@ -20,3 +20,26 @@ const connectDB = async () => {
 };
 
 module.exports = { db, connectDB };
+
+// const { Client } = require("pg");
+// require("dotenv").config();
+
+// const db = new Client({
+//   connectionString: process.env.DATABASE_URL, // single env variable
+//   ssl: {
+//     rejectUnauthorized: false, // Render requires SSL
+//   },
+// });
+
+// const connectDB = async () => {
+//   try {
+//     await db.connect();
+//     console.log("PostgreSQL Connected (Client)");
+//   } catch (err) {
+//     console.error("DB Connection Error:", err.message);
+//     process.exit(1);
+//   }
+// };
+
+// module.exports = { db, connectDB };
+

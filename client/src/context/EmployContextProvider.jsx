@@ -78,58 +78,88 @@ const EmployProvider = ({ children }) => {
   );
 
 //  Employee dashboard
-  const fetchEmployeeDashboard = async () => {
-    try {
-      setEmployeeLoading(true);
+const fetchEmployeeDashboard = async () => {
+  try {
+    setEmployeeLoading(true);
 
-      const [historyRes, todayRes] = await Promise.all([
-        axios.get(
-          "http://localhost:5000/api/employee/attendance/history",
-          axiosConfig
-        ),
-        axios.get(
-          "http://localhost:5000/api/employee/attendance/today",
-          axiosConfig
-        ),
-      ]);
+    const [historyRes, todayRes] = await Promise.all([
+      axios.get(
+        "http://localhost:5000/api/employee/attendance/history",
+        axiosConfig
+      ),
+      axios.get(
+        "http://localhost:5000/api/employee/attendance/today",
+        axiosConfig
+      ),
+    ]);
 
-      if (Array.isArray(historyRes.data)) {
-        setEmployeeAttendance(historyRes.data);
+    // History response
+    if (historyRes.data && Array.isArray(historyRes.data.attendance)) {
+      setEmployeeAttendance(historyRes.data.attendance);
 
-        if (historyRes.data.length > 0) {
-          const emp = historyRes.data[0];
-          setEmployee({
-            emp_id: emp.emp_id,
-            device_user_id: emp.device_user_id,
-            name: emp.name,
-          });
-        }
+      if (historyRes.data.attendance.length > 0) {
+        const emp = historyRes.data.attendance[0];
+        setEmployee({
+          emp_id: emp.emp_id,
+          device_user_id: emp.device_user_id ?? null,
+          name: emp.employee_name,
+        });
       }
-
-      setSingleAttendance(todayRes.data || null);
-    } catch (err) {
-      console.error(err);
+    } else {
       setEmployeeAttendance([]);
-      setSingleAttendance(null);
-    } finally {
-      setEmployeeLoading(false);
-      setInitialized(true);
     }
-  };
+
+    // Today attendance
+    setSingleAttendance(todayRes.data || null);
+
+  } catch (err) {
+    console.error("Dashboard Fetch Error:", err);
+
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+
+      console.log("Status Code:", status);
+      console.log("Message:", err.response?.data);
+
+      // ✅ HANDLE 401
+      if (status === 401) {
+        console.warn("401 Unauthorized → Removing token");
+
+        localStorage.removeItem("token");
+        localStorage.removeItem("user"); // if stored
+
+        // redirect to login
+        window.location.href = "/login";
+        return;
+      }
+    }
+
+    setEmployeeAttendance([]);
+    setSingleAttendance(null);
+
+  } finally {
+    setEmployeeLoading(false);
+    setInitialized(true);
+  }
+};
 
 
   // Employees Holidays
 
 
-  const fetchHolidays = async()=>{
-    try{
-      const resp = await axios.get("http://localhost:5000/api/employee/attendance/holiday");
+  const fetchHolidays = async () => {
+    try {
+      const resp = await axios.get(
+        "http://localhost:5000/api/employee/attendance/holiday",
+        axiosConfig
+      );
       setHolidays(resp.data);
-
-    }catch(err){
+    } catch (err) {
       console.error(err);
+      setHolidays([]);
     }
-  }
+  };
+  
   // Admin Dashboard
   const fetchAdminAttendance = async () => {
     try {
@@ -153,19 +183,22 @@ const EmployProvider = ({ children }) => {
   // Fetch On Auth
   useEffect(() => {
     if (!auth.token || !auth.role) return;
-
+  
     setInitialized(false);
-
+  
     if (auth.role === "admin") {
       fetchAdminAttendance();
     }
-
+  
     if (auth.role === "employee") {
-      fetchEmployeeDashboard();
-      fetchHolidays()
+      Promise.all([
+        fetchEmployeeDashboard(),
+        fetchHolidays(),
+      ]);
     }
-
+  
   }, [auth.token, auth.role]);
+  
 
   const loading =
     auth.role === "admin" ? adminLoading : employeeLoading;
@@ -191,6 +224,7 @@ const EmployProvider = ({ children }) => {
         /* Refresh */
         refreshEmployeeDashboard: fetchEmployeeDashboard,
         refreshAdminAttendance: fetchAdminAttendance,
+        
       }}
     >
       {children}
