@@ -2,7 +2,7 @@ import React, { useContext } from "react";
 import { IoSearchOutline } from "react-icons/io5";
 import { HiMiniFunnel } from "react-icons/hi2";
 import { EmployContext } from "../context/EmployContextProvider";
-import { exportToExcel } from "../utils/exportToexcel";
+import { exportToExcel } from "../utils/exportToExcel";
 
 
 
