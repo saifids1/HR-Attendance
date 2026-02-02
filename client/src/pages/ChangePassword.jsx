@@ -95,7 +95,7 @@ const ChangePassword = () => {
       {/* Sticky Header */}
       <div className="sticky top-0 z-50 bg-[#222F7D] rounded-lg mb-6">
         <Typography className="text-white py-2 text-2xl text-center">
-         {user?.role === 'admin' ? "Admin Change Password":"Employee Change Password"} 
+          {user?.role === 'admin' ? "Admin Change Password" : "Employee Change Password"}
         </Typography>
       </div>
 

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 const SortIcon = () => (
   <svg
@@ -15,47 +15,51 @@ const SortIcon = () => (
   </svg>
 );
 
-const LeavesTable = ({
-  leavesHeader = [],
-  leavesBody = [],
-  adminLeavesHeader = [],
-  adminLeavesBody = [],
-}) => {
+const LeavesTable = ({ leavesHeader, leavesBody, adminLeavesHeader, adminLeavesBody, refreshData }) => {
   const role = localStorage.getItem("role") || "employee";
 
-  // Employee
+  const handleAction = async (approvalId, status) => {
+    const remarks = prompt(`Enter remarks for ${status}:`);
+    try {
+      await axios.put(`http://localhost:5000/api/leaves/types/approve/${approvalId}`, {
+        status,
+        remarks
+      });
+      alert(`Request ${status} successfully`);
+      refreshData(); // Trigger list refresh
+    } catch (err) {
+      alert(err.response?.data?.message || "Action failed");
+    }
+  };
+
+
+  useEffect(()=>{
+    console.log(leavesBody,"leavesBody,")
+  },[])
   if (role === "employee") {
     return (
       <table className="min-w-full border-collapse text-sm">
         <thead className="bg-gray-100">
           <tr>
-            {leavesHeader.map((data, index) => (
-              <th
-                key={index}
-                className="border px-4 py-3 font-semibold whitespace-nowrap text-left"
-              >
-                <div className="flex items-center gap-1">
-                  {data}
-                  <SortIcon />
-                </div>
-              </th>
+            {leavesHeader?.map((data, index) => (
+              <th key={index} className="border px-4 py-3 font-semibold text-left"><div className="flex items-center gap-1">{data}<SortIcon /></div></th>
             ))}
           </tr>
         </thead>
-
         <tbody>
-          {leavesBody.map((data, i) => (
-            <tr
-              key={i}
-              className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}
-            >
-              <td className="border px-4 py-3">{data.request}</td>
-              <td className="border px-4 py-3">{data.period}</td>
-              <td className="border px-4 py-3">{data.Days}</td>
-              <td className="border px-4 py-3">{data.Type}</td>
-              <td className="border px-4 py-3">{data.status}</td>
-              <td className="border px-4 py-3">{data.Reason}</td>
-              <td className="border px-4 py-3">{data.approvedby}</td>
+          {leavesBody?.map((data, i) => (
+            <tr key={i} className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}>
+              <td className="border px-4 py-3">{new Date(data.applied_at).toLocaleDateString()}</td>
+              <td className="border px-4 py-3">{`${new Date(data.start_date).toLocaleDateString()} - ${new Date(data.end_date).toLocaleDateString()}`}</td>
+              <td className="border px-4 py-3">{data.total_days}</td>
+              <td className="border px-4 py-3">{data.leaves_type}</td>
+              <td className="border px-4 py-3">
+                <span className={`px-2 py-1 rounded text-xs font-bold ${data.status === 'approved' ? 'bg-green-100 text-green-700' : data.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                  {data.status}
+                </span>
+              </td>
+              <td className="border px-4 py-3">{data.approver_remarks || data.reason}</td>
+              {/* <td className="border px-4 py-3">{data.approver_role} ({data.level_status})</td> */}
             </tr>
           ))}
         </tbody>
@@ -63,48 +67,33 @@ const LeavesTable = ({
     );
   }
 
-    // Admin 
+  // Admin / Manager View
   return (
     <table className="min-w-full border-collapse text-sm">
       <thead className="bg-gray-100">
         <tr>
           {adminLeavesHeader.map((data, index) => (
-            <th
-              key={index}
-              className="border px-4 py-3 font-semibold whitespace-nowrap text-left"
-            >
-              <div className="flex items-center gap-1">
-                {data}
-                <SortIcon />
-              </div>
-            </th>
+            <th key={index} className="border px-4 py-3 font-semibold text-left"><div className="flex items-center gap-1">{data}<SortIcon /></div></th>
           ))}
         </tr>
       </thead>
-
       <tbody>
         {adminLeavesBody.map((data, i) => (
-          <tr
-            key={data.id || i}
-            className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}
-          >
-            <td className="border px-4 py-3">{data.Employee}</td>
-            <td className="border px-4 py-3">{data.Date}</td>
-            <td className="border px-4 py-3">{data.Period}</td>
-            <td className="border px-4 py-3">{data.Days}</td>
-            <td className="border px-4 py-3">{data.Type}</td>
-            <td className="border px-4 py-3">{data.Reason}</td>
-            <td className="border px-4 py-3">{data.Contact}</td>
-
-            {/* ACTIONS */}
+          <tr key={data.approval_id || i} className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}>
+            <td className="border px-4 py-3">{data.applicant_name}</td>
+            <td className="border px-4 py-3">{`${new Date(data.start_date).toLocaleDateString()} - ${new Date(data.end_date).toLocaleDateString()}`}</td>
+            <td className="border px-4 py-3">{data.total_days}</td>
+            <td className="border px-4 py-3">{data.leave_type}</td>
+            <td className="border px-4 py-3">{data.reason}</td>
+            <td className="border px-4 py-3">Level {data.approval_level}</td>
             <td className="border px-4 py-3">
               <div className="flex gap-2">
-                <button className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded">
-                  Accept
-                </button>
-                <button className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded">
-                  Reject
-                </button>
+                <button 
+                  onClick={() => handleAction(data.approval_id, 'approved')}
+                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded">Accept</button>
+                <button 
+                  onClick={() => handleAction(data.approval_id, 'rejected')}
+                  className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded">Reject</button>
               </div>
             </td>
           </tr>

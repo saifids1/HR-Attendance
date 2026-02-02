@@ -22,10 +22,7 @@ const Navbar = ({ open, setOpen }) => {
 
     const {profileImage} = useContext(EmployContext)
 
-    useEffect(()=>{
-      console.log("profileImage",profileImage);
-      
-    },[profileImage])
+   
 
   const openMenu = Boolean(anchorEl);
 
@@ -67,7 +64,7 @@ const Navbar = ({ open, setOpen }) => {
 
   useEffect(()=>{
     console.log("profileImage",profileImage);
-    
+    getProfileRoute()
   },[profileImage])
 
   return (
@@ -82,7 +79,7 @@ const Navbar = ({ open, setOpen }) => {
   </button>
 
   {/* Center: Title */}
-  <h1 className=" w-[70%] text-center text-[28px] font-bold text-[#212e7d] m-0 py-[0.25rem]">
+  <h1 className=" w-[70%] text-center text-[16px]  md:text-[28px] font-bold text-[#212e7d] m-0 py-[0.25rem]">
   I-Diligence HR  Application
 </h1>
 

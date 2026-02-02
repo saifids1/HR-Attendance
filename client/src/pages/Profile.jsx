@@ -35,6 +35,7 @@ import { EmployContext } from "../context/EmployContextProvider";
 // import Organization from "../profile/Organization";
 import MainProfile from "../profile/MainProfile";
 import ReportingCard from "../components/ReportingCard";
+import { emptyExperience } from "../constants/emptyData";
 
 
 
@@ -132,7 +133,7 @@ const Profile = () => {
   }, [])
 
   useEffect(() => {
-
+ 
     if (!empId || activeTab !== "Profile") return;
 
     const fetchProfile = async () => {
@@ -247,13 +248,17 @@ const Profile = () => {
   }, [empId, activeTab,token]);
 
 
-
   useEffect(() => {
+    // If the state 'emp_id' is null, try grabbing it from localStorage directly
+    const idToUse = emp_id || JSON.parse(localStorage.getItem("user"))?.emp_id;
+  
     const fetchProfileImage = async () => {
-      // 1. Define your default image path
       const DEFAULT_IMAGE = defaultProfile;
   
       try {
+        // 2. Strict check: Don't fetch if token is missing
+        if (!token) return;
+  
         const res = await axios.get(
           "http://localhost:5000/api/employee/profile/image",
           {
@@ -261,24 +266,24 @@ const Profile = () => {
           }
         );
   
-        // 2. Check if the property exists and isn't empty
         if (res.data && res.data.profile_image) {
-          // Cache busting is smart! Keeps the image fresh after an update
-          setProfileImage(`${res.data.profile_image}?t=${new Date().getTime()}`);
+          // Your backend already returns the full URL, so we just add the cache buster
+          setProfileImage(`${res.data.profile_image}?t=${Date.now()}`);
         } else {
           setProfileImage(DEFAULT_IMAGE);
         }
       } catch (error) {
         console.error("Error fetching profile image:", error);
-        // 3. Fallback to default on error (e.g., 404 Not Found)
         setProfileImage(DEFAULT_IMAGE);
       }
     };
   
-    if (token) {
+    // 3. Only trigger if we have both the token and the employee identity
+    if (token && idToUse) {
       fetchProfileImage();
     }
-  }, [token, refreshTrigger]); 
+  
+  }, [token, refreshTrigger, emp_id]);
 
 
 
@@ -470,8 +475,8 @@ const Profile = () => {
             // Add new record
             // console.log("edu",edu)
             const addRes = await addEducations(emp_id, edu);
-            console.log("emp_id", emp_id)
-            console.log("addRes", addRes);
+            // console.log("emp_id", emp_id)
+            // console.log("addRes", addRes);
 
             saved.push({ ...edu, id: addRes.data.education.id }); // attach new id
             toast.success("Education Added Successfuly");
@@ -724,7 +729,7 @@ const Profile = () => {
 
       // Update state immediately
       setProfileImage(res.data.profile_image);
-      triggerRefresh();
+      setRefreshTrigger(prev => prev + 1);
       toast.success("Profile Image Updated")
       // console.log("Profile uploaded:", res.data.profile_image);
     } catch (error) {
@@ -733,52 +738,52 @@ const Profile = () => {
     }
   };
 
-  const addEducation = () => setDraftEducation((prev) => [...prev, { ...emptyEducation }]);
-  const addExperience = () => setDraftExperience((prev) => [...prev, { ...emptyExperience }]);
+  // const addEducation = () => setDraftEducation((prev) => [...prev, { ...emptyEducation }]);
+  // const addExperience = () => setDraftExperience((prev) => [...prev, { ...emptyExperience }]);
 
 
 
   // console.log("passbookPreview",passbookPreview)
 
 
-  const handleSaveBank = async () => {
-    try {
-      // Update bank details
-      await axios.put(
-        `http://localhost:5000/api/employee/profile/bank/${emp_id}`,
-        draftBank,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+  // const handleSaveBank = async () => {
+  //   try {
+  //     // Update bank details
+  //     await axios.put(
+  //       `http://localhost:5000/api/employee/profile/bank/${emp_id}`,
+  //       draftBank,
+  //       {
+  //         headers: {
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //       }
+  //     );
 
-      // Upload documents
-      const formData = new FormData();
+  //     // Upload documents
+  //     const formData = new FormData();
 
-      if (panFile) formData.append("pan", panFile);
-      if (passbookFile) formData.append("passbook", passbookFile);
+  //     if (panFile) formData.append("pan", panFile);
+  //     if (passbookFile) formData.append("passbook", passbookFile);
 
-      console.log("panFile, passbookFile:", panFile, passbookFile);
+  //     console.log("panFile, passbookFile:", panFile, passbookFile);
 
-      if (panFile || passbookFile) {
-        await uploadBankDoc(emp_id, formData);
-      }
-    } catch (error) {
-      console.error("Error saving bank details:", error);
-    }
-  };
-  const addExperiences = () => {
-    setDraftExperience(prev => [
-      ...prev,
-      {
-        ...emptyExperience,
-        tempId: crypto.randomUUID(),
-        isDeleted: false,
-      },
-    ]);
-  };
+  //     if (panFile || passbookFile) {
+  //       await uploadBankDoc(emp_id, formData);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error saving bank details:", error);
+  //   }
+  // };
+  // const addExperiences = () => {
+  //   setDraftExperience(prev => [
+  //     ...prev,
+  //     {
+  //       ...emptyExperience,
+  //       tempId: crypto.randomUUID(),
+  //       isDeleted: false,
+  //     },
+  //   ]);
+  // };
 
   useEffect(() => {
     if (!empId) return;
@@ -789,27 +794,27 @@ const Profile = () => {
     });
   }, [empId]);
 
-  const handleEditExperience = () => {
-    // Keep all experiences in draftExperience
-    setDraftExperience([...experienceData]);
-    setIsEditing(true); // now all inputs are editable
-  };
+  // const handleEditExperience = () => {
+  //   // Keep all experiences in draftExperience
+  //   setDraftExperience([...experienceData]);
+  //   setIsEditing(true); // now all inputs are editable
+  // };
 
-  const handleSaveExperience = async () => {
-    try {
-      const payload = draftExperience.filter(e => !e.isDeleted);
+  // const handleSaveExperience = async () => {
+  //   try {
+  //     const payload = draftExperience.filter(e => !e.isDeleted);
 
-      await api.put(`/experience/${empId}`, { experience: payload });
+  //     await api.put(`/experience/${empId}`, { experience: payload });
 
-      await getExperience(); // refresh table
+  //     await getExperience(); // refresh table
 
-      setDraftExperience([{ ...emptyExperience }]);
-      setIsEditing(false);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-  const handleDeleteExperience = async () => { }
+  //     setDraftExperience([{ ...emptyExperience }]);
+  //     setIsEditing(false);
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // };
+  // const handleDeleteExperience = async () => { }
 
 
 
@@ -832,133 +837,100 @@ const Profile = () => {
     fetchReporting();
   }, [emp_id]);
 
-  useEffect(()=>{
+  // useEffect(()=>{
 
-    console.log("reporting",reporting)
-  },[reporting])
+  //   console.log("reporting",reporting)
+  // },[reporting])
 
   return (
-    <div className="min-h-screen py-6 px-4 bg-gray-50">
-      {/* HEADER */}
-      <div className="sticky top-0 bg-[#222F7D] rounded-xl py-2 mb-6 shadow-lg">
-        <Typography className="text-white text-2xl text-center font-bold">
-          {user?.role === "admin" ? "Admin Profile" : "Employee Profile"}
-        </Typography>
-      </div>
-
-      {/* PROFILE CARD */}
-      <div className="mx-auto grid md:grid-cols-[4fr_1fr] gap-6">
-
-  {/* LEFT : Profile Card */}
-  <div className="bg-white rounded-xl shadow p-6">
-    <div className="grid md:grid-cols-4 gap-6 items-center">
-
-      {/* Profile Image */}
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative w-32 h-32 group mx-auto">
-          <label
-            className={`relative block w-full h-full rounded-full ${
-              !isUploadingImage ? "cursor-pointer" : ""
-            }`}
-          >
-           <img
-      
-        src={profileImage || defaultProfile}
-        alt="Profile"
-        className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover transition-all group-hover:brightness-90"
-      />
-
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleProfileUpload}
-              disabled={isUploadingImage}
-            />
-
-            {!isUploadingImage && (
-              <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-9 h-9 rounded-full flex items-center justify-center border-2 border-white shadow-lg group-hover:scale-110">
-                ✎
-              </div>
-            )}
-
-            {!isUploadingImage && (
-              <div className="absolute inset-0 bg-black/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
-          </label>
-
-          {isUploadingImage && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full">
-              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen py-4 px-3 sm:py-6 sm:px-4 bg-gray-50">
+    {/* HEADER */}
+    <div className="sticky z-10 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg">
+      <Typography className="text-white text-xl sm:text-2xl text-center font-bold">
+        {user?.role === "admin" ? "Admin Profile" : "Employee Profile"}
+      </Typography>
+    </div>
+  
+    {/* PROFILE CARD GRID */}
+    <div className="mx-auto grid grid-cols-1 lg:grid-cols-[4fr_1.5fr] gap-6">
+  
+      {/* LEFT : Profile Card */}
+      <div className="bg-white rounded-xl shadow p-4 sm:p-6">
+        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
+  
+          {/* Profile Image */}
+          <div className="flex-shrink-0">
+            <div className="relative w-32 h-32 group mx-auto">
+              <label className={`relative block w-full h-full rounded-full ${!isUploadingImage ? "cursor-pointer" : ""}`}>
+                <img
+                  src={profileImage || defaultProfile}
+                  alt="Profile"
+                  className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover transition-all group-hover:brightness-90 z-20"
+                />
+                <input type="file" accept="image/*" className="hidden" onChange={handleProfileUpload} disabled={isUploadingImage} />
+  
+                {!isUploadingImage && (
+                  <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-9 h-9 rounded-full flex items-center justify-center border-2 border-white shadow-lg group-hover:scale-110">
+                    ✎
+                  </div>
+                )}
+              </label>
+  
+              {isUploadingImage && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full z-30">
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Profile Info */}
-      <div className="md:col-span-3">
-        <h2 className="text-xl font-semibold">{user?.name}</h2>
-        <p className="text-gray-600">{user?.role}</p>
-
-        <div className="flex gap-6 mt-2 text-gray-600 text-sm">
-          <span className="flex items-center gap-1">
-            <IoHomeSharp /> {orgAddress.address}
-          </span>
-          <span className="flex items-center gap-1">
-            <MdOutlineEmail /> {user?.email}
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <Divider className="my-4" />
-  </div>
-
-  {/* RIGHT : Reporting Card */}
-  <div className="bg-white rounded-xl shadow p-4 h-fit">
-    <ReportingCard reportingManagers={reporting} />
-  </div>
-
-</div>
-
-      
-
-      {/* TABS */}
-      {/* <div className="flex justify-between bg-[#222F7D] px-4 py-2 rounded mx-auto mt-4">
-        <div className="flex gap-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setIsEditing(false);
-              }}
-              className={activeTab === tab ? "text-white" : "text-slate-300"}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {!isEditing && (
-          <button onClick={startEdit} className="bg-white px-4 py-1 rounded text-sm">
-            Edit
-          </button>
-        )}
-      </div> */}
-
-      {/* FORM CONTENT */}
-      <div className="mx-auto mt-4 space-y-4">
-        <MainProfile />
-        {/* Save / Cancel */}
-        {isEditing && (
-          <div className="flex justify-end gap-4 mt-6">
-            <button onClick={cancelEdit} className="border px-4 py-2 rounded">Cancel</button>
-            <button onClick={saveEdit} className="bg-[#222F7D] text-white px-4 py-2 rounded">{saving ? "Saving..." : "Save"}</button>
           </div>
-        )}
+  
+          {/* Profile Info */}
+          <div className="w-full">
+            <h2 className="text-xl font-bold text-gray-800">{user?.name}</h2>
+            <p className="text-[#222F7D] font-medium uppercase text-xs tracking-wider mb-3">{user?.role}</p>
+  
+            {/* Contact Details Row: Wraps on mobile */}
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center md:justify-start gap-3 sm:gap-6 text-gray-600 text-sm">
+              <span className="flex items-center justify-center md:justify-start gap-2">
+                <IoHomeSharp className="text-[#222F7D]" /> 
+                <span className="truncate max-w-[250px]">{orgAddress.address}</span>
+              </span>
+              <span className="flex items-center justify-center md:justify-start gap-2">
+                <MdOutlineEmail className="text-[#222F7D] text-lg" /> 
+                <span className="break-all">{user?.email}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <Divider className="my-6" />
+      </div>
+  
+      {/* RIGHT : Reporting Card (Moves below on mobile) */}
+      <div className="bg-white rounded-xl shadow p-4 h-fit">
+        {/* <h3 className="text-sm font-bold text-gray-400 uppercase mb-3 px-1"></h3> */}
+        <ReportingCard reportingManagers={reporting} />
       </div>
     </div>
+  
+    {/* FORM CONTENT */}
+    <div className="mx-auto mt-6 space-y-4">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+         <MainProfile />
+      </div>
+      
+      {/* Save / Cancel : Sticky Mobile Bar optional, but here positioned for ease of use */}
+      {isEditing && (
+        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+          <button onClick={cancelEdit} className="border border-gray-300 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-50 order-2 sm:order-1">
+            Cancel
+          </button>
+          <button onClick={saveEdit} className="bg-[#222F7D] text-white px-8 py-2.5 rounded-lg font-medium shadow-md hover:bg-[#1a2563] active:scale-95 transition-all order-1 sm:order-2">
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
   );
 };
 

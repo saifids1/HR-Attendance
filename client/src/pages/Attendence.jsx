@@ -81,7 +81,7 @@ const Attendence = () => {
     [adminAttendance]
   );
 
-  const handleFilterClick = ()=>{
+  const handleFilterClick = () => {
 
   }
 
@@ -89,12 +89,12 @@ const Attendence = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-3 pb-6">
 
       {/* Header */}
-      {!isAdmin && 
-      <div className="sticky top-0 z-0 bg-[#222F7D] rounded-lg">
-        <Typography className="text-white py-2 text-2xl text-center">
-          Attendance
-        </Typography>
-      </div>
+      {!isAdmin &&
+        <div className="sticky top-0 z-10 bg-[#222F7D] rounded-lg">
+          <Typography className="text-white py-2 text-2xl text-center">
+            Attendance
+          </Typography>
+        </div>
       }
 
       {/* Loader */}
@@ -104,14 +104,14 @@ const Attendence = () => {
         </div>
       ) : (
         <div className="mt-4">
-          <Filters filterClick={handleFilterClick}/>
-         
+          <Filters filterClick={handleFilterClick} />
+
           {
             <Table
-            headers={isAdmin ? adminTableHeader : employeeTableHeader}
-            data={isAdmin ? adminTableData : employeeTableData}
-            filterClick={handleFilterClick}
-          /> }
+              headers={isAdmin ? adminTableHeader : employeeTableHeader}
+              data={isAdmin ? adminTableData : employeeTableData}
+              filterClick={handleFilterClick}
+            />}
         </div>
       )}
     </div>

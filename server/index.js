@@ -3,6 +3,8 @@ const cors = require("cors");
 const path = require("path")
 const ZKLib = require("zklib-js");
 const {Client} = require("pg");
+const http = require("http"); // 1. Import http
+const { Server } = require("socket.io");
 const {connectDB,db} = require("./db/connectDB");
 const userRoutes = require("./routes/user.routes");
 const employRoutes = require("./routes/employ.routes");
@@ -21,12 +23,42 @@ const app = express();
 
 const PORT = process.env.PORT || 5500;
 
+const server = http.createServer(app);
 
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173", // Match your frontend port
+    methods: ["GET", "POST"]
+  }
+});
+
+// 5. Track Connected Users (Map emp_id -> socket_id)
+const userSockets = new Map();
+
+io.on("connection", (socket) => {
+  const empId = socket.handshake.query.empId;
+  if (empId) {
+    userSockets.set(empId, socket.id);
+    console.log(` Socket: User ${empId} connected on ${socket.id}`);
+  }
+
+  socket.on("disconnect", () => {
+    userSockets.delete(empId);
+    console.log(`Socket: User ${empId} disconnected`);
+  });
+});
+
+// 6. Middleware to make 'io' and 'userSockets' accessible in routes
+app.use((req, res, next) => {
+  req.io = io;
+  req.userSockets = userSockets;
+  next();
+});
 app.use(express.json());
 
 app.use(cors({
     origin: "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT","PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
   }));
   

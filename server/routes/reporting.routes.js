@@ -10,7 +10,7 @@ router.get("/employees/reporting/:empCode", authMiddleware, async (req, res) => 
     const { empCode } = req.params;
     const empCodeStr = empCode; // Keep as string
 
-    // 1️⃣ Fetch employee
+    //  Fetch employee
     const empCheck = await db.query(
       "SELECT emp_id, name FROM users WHERE emp_id = $1",
       [empCodeStr]
@@ -42,7 +42,7 @@ router.get("/employees/reporting/:empCode", authMiddleware, async (req, res) => 
     );
     
 
-    console.log("managersResult",managersResult)
+    // console.log("managersResult",managersResult)
 
     res.json({
       emp_id: employee.emp_id,

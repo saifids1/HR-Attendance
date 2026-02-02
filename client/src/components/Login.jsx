@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { loginUser } from "../../services/authServices";
 import LoginImg from "../assets/HR-login(2).png";
 import logo from "../assets/ids-logo.png"
+import { scheduleAutoLogout } from "../../api/axiosInstance";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -43,7 +44,8 @@ export default function Login() {
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
   };
-  const handleLogin = async (e) => {
+
+ const handleLogin = async (e) => {
     if (e) e.preventDefault();
 
     setErrors({});
@@ -54,12 +56,17 @@ export default function Login() {
 
     try {
       const resp = await loginUser({ email, password });
+      
+      // Save data to localStorage
       localStorage.setItem("token", resp.token);
       localStorage.setItem("user", JSON.stringify(resp.user));
 
+
+      // This ensures the "Active Redirect" starts the moment the user logs in
+      scheduleAutoLogout(resp.token);
+
       window.dispatchEvent(new Event("storage"));
       toast.success("Welcome to HR Attendance System");
-
 
       if (resp.user.role === "admin") {
         navigate("/admin");
@@ -67,14 +74,10 @@ export default function Login() {
         navigate("/employee");
       }
     } catch (err) {
-      // 3. Handle error without refreshing
       const errorMessage = err.response?.data?.message || "Invalid credentials";
       toast.error(errorMessage);
-
-      // Optional: highlight the input fields as red
       setErrors({ auth: errorMessage });
     } finally {
-      // 4. Always turn off loading, which re-enables the button
       setLoading(false);
     }
   };

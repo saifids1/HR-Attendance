@@ -193,7 +193,8 @@ const fetchEmployeeDashboard = async () => {
         "http://localhost:5000/api/admin/attendance/today",
         axiosConfig
       );
-  
+      
+      console.log(res);
       setAdminAttendance(Array.isArray(res?.data) ? res.data : []);
   
     } catch (err) {
@@ -257,7 +258,7 @@ const fetchEmployeeDashboard = async () => {
           setProfileImage(`${res.data.profile_image}?t=${new Date().getTime()}`);
         }
       } catch (err) {
-        setProfileImage(defaultProfile);
+        setProfileImage(ProfImg);
       }
     };
   
@@ -269,6 +270,7 @@ const fetchEmployeeDashboard = async () => {
         employeeAttendance,
         singleAttendance,
         adminAttendance,
+        setAdminAttendance,
         orgAddress,
         setOrgAddress,
         holidays,

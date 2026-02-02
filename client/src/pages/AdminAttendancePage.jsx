@@ -15,9 +15,8 @@ const StatusBadge = ({ status }) => {
 
   return (
     <span
-      className={`px-2 py-1 rounded text-xs font-semibold ${
-        styles[status] || "bg-gray-300 text-gray-800"
-      }`}
+      className={`px-2 py-1 rounded text-xs font-semibold ${styles[status] || "bg-gray-300 text-gray-800"
+        }`}
     >
       {status}
     </span>
@@ -25,22 +24,22 @@ const StatusBadge = ({ status }) => {
 };
 
 
-const formatTime = (value) => {
-  if (!value) return "--";
-  try {
-    const utcDate = new Date(value);
-    const indiaTime = new Date(
-      utcDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-    );
-    return indiaTime.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  } catch {
-    return "--";
-  }
-};
+// const formatTime = (value) => {
+//   if (!value) return "--";
+//   try {
+//     const utcDate = new Date(value);
+//     const indiaTime = new Date(
+//       utcDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+//     );
+//     return indiaTime.toLocaleTimeString("en-US", {
+//       hour: "2-digit",
+//       minute: "2-digit",
+//       hour12: true,
+//     });
+//   } catch {
+//     return "--";
+//   }
+// };
 
 const formatDate = (value) => {
   if (!value) return "--";
@@ -74,17 +73,17 @@ const AdminAttendance = () => {
         window.location.href = "/login"; // redirect immediately
         return;
       }
-  
+
       try {
         setLoading(true);
-  
+
         const res = await fetch("http://localhost:5000/api/admin/attendance/history", {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`, // send token in header
           },
         });
-  
+
         if (res.status === 401) {
           console.warn("Unauthorized → redirecting to login");
           localStorage.removeItem("token");
@@ -92,25 +91,25 @@ const AdminAttendance = () => {
           window.location.href = "/login";
           return;
         }
-  
+
         const json = await res.json();
-  
+
         if (res.ok) {
           setData(json.attendance || []);
         } else {
           console.error("Error fetching attendance:", json.message || res.statusText);
         }
-  
+
       } catch (err) {
         console.error("Fetch error:", err);
       } finally {
         setLoading(false);
       }
     };
-  
+
     fetchAttendance();
   }, []);
-  
+
 
   // Filtered data based on date range and search
   const filteredData = useMemo(() => {
@@ -149,14 +148,14 @@ const AdminAttendance = () => {
     return index % 2 === 0 ? "bg-white" : "bg-gray-50";
   };
 
-  if (loading) return   <div className="flex items-center justify-center h-[70vh]">
-  <Loader />
-</div>;
- const  handleFilterClick = ()=>{}
+  if (loading) return <div className="flex items-center justify-center h-[70vh]">
+    <Loader />
+  </div>;
+  const handleFilterClick = () => { }
   return (
     <div className="min-h-screen bg-gray-100 px-3 pb-6">
       <div className="overflow-auto w-full border border-gray-300 rounded max-h-[500px] mt-4">
-      <Filters filterClick={handleFilterClick} adminData={data}/>
+        <Filters filterClick={handleFilterClick} adminData={data} />
         <table className="min-w-full text-sm border-collapse">
           <thead className="bg-gray-100 sticky top-0 z-10">
             <tr>
@@ -193,10 +192,10 @@ const AdminAttendance = () => {
                     {dayStr === "Sun" ? "WeekDay Off" : <StatusBadge status={row.status} />}
                   </td>
                   <td className="border px-4 py-2">
-                    {dayStr === "Sun" || isAbsent ? "" : formatTime(row.punch_in)}
+                    {dayStr === "Sun" || isAbsent ? "" : row.punch_in.toUpperCase()}
                   </td>
                   <td className="border px-4 py-2">
-                    {dayStr === "Sun" || isAbsent ? "" : row.punch_out ? formatTime(row.punch_out) : "Working..."}
+                    {dayStr === "Sun" || isAbsent ? "" : row.punch_out ? row.punch_out.toUpperCase() : "Working..."}
                   </td>
                   <td className="border px-4 py-2">
                     {dayStr === "Sun" || isAbsent ? "" : formatInterval(row.total_hours)}

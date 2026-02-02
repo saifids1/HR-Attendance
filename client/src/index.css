@@ -3,6 +3,16 @@
 @tailwind utilities;
 
 
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
 .react-datepicker__input-container input::placeholder {
   color: black !important;
   opacity: 1; /* Ensures color is vivid in all browsers */

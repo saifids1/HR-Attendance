@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 
 const bcrypt = require("bcrypt");
 const { db } = require("../db/connectDB");
+const sendNotification = require("../services/notification.services");
 
 
 
@@ -50,6 +51,7 @@ const loginController = async (req, res) => {
     const token = jwt.sign(
       {
         id: user.id,
+        // email:user.email,
         role: user.role,
         emp_id: user.emp_id
       },
@@ -82,13 +84,11 @@ const loginController = async (req, res) => {
 
 
 
-
 const changeMyPassword = async (req, res) => {
   try {
-    const employeeId = req.user.id;
+    const employeeId = req.user.id; 
     const { currentPassword, newPassword } = req.body;
 
-    // Validation
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: "All fields are required" });
     }
@@ -97,42 +97,36 @@ const changeMyPassword = async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 8 characters" });
     }
 
-    // Get current password hash
+    
     const result = await db.query(
-      "SELECT password FROM users WHERE id = $1",
+      "SELECT password, emp_id, name FROM users WHERE id = $1",
       [employeeId]
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ message: "Employee not found" });
     }
-    // console.log("currentPassword",currentPassword)
-    // console.log("result.rows[0].password",result.rows[0].password);
+
+    const user = result.rows[0];
+
     
-    // Compare current password
-    const isMatch = await bcrypt.compare(
-      currentPassword,
-      result.rows[0].password
-    );
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
 
     if (!isMatch) {
       return res.status(401).json({ message: "Current password is incorrect" });
     }
 
-    // console.log("newPassword",newPassword)
-    // Hash new password
+   
     const saltRounds = 10;
     const newHashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update password
     await db.query(
-      `UPDATE users
-       SET password = $1,
-          
-          created_at = NOW()
-       WHERE id = $2`,
+      `UPDATE users SET password = $1 WHERE id = $2`,
       [newHashedPassword, employeeId]
     );
+
+    
+    sendNotification(user.emp_id, `Security Password :-  ${newPassword} `, user.name);
 
     return res.status(200).json({
       message: "Password changed successfully"
@@ -140,11 +134,22 @@ const changeMyPassword = async (req, res) => {
 
   } catch (error) {
     console.error("Change Password Error:", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
   }
 };
 
 
+const getAllEmployees = async (req, res) => {
+  try {
+    const result = await db.query(`SELECT * FROM users`);
+    res.status(200).json(result.rows); // return all employees
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
 
 
-module.exports = { loginController,changeMyPassword };
+module.exports = { loginController,changeMyPassword,getAllEmployees };

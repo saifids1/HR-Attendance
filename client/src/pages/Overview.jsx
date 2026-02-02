@@ -14,7 +14,7 @@ import { BsFillPersonXFill } from "react-icons/bs";
 import { TbClockX } from "react-icons/tb";
 import { FaUserClock } from "react-icons/fa6";
 import { SlCalender } from "react-icons/sl";
-import { useActionState, useContext, useEffect } from "react";
+import { useContext, useEffect } from "react";
 import { EmployContext } from "../context/EmployContextProvider";
 import Loader from "../components/Loader";
 import { AuthContext } from "../context/AuthContextProvider";
@@ -343,7 +343,7 @@ const empCardData = singleAttendance
 
           <div className="bg-orange-50 rounded-xl p-5">
             <p className="text-sm text-gray-500">Early Leaving</p>
-            <h3 className="text-3xl font-bold text-orange-500 mt-1">250</h3>
+            <h3 className="text-3xl font-bold text-orange-500 mt-1">4</h3>
           </div>
         </div>
       </div>
@@ -366,5 +366,5 @@ const empCardData = singleAttendance
 };
 
 export default Overview;
-AnimationPlaybackEvent
+// AnimationPlaybackEvent
       

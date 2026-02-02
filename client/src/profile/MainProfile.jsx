@@ -17,32 +17,44 @@ const MainProfile = () => {
 
   return (
     <div>
-      {/* Tabs */}
-      <div className="flex justify-between bg-[#222F7D] px-4 py-2 rounded mx-auto mt-4">
-        <div className="flex gap-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setIsEditing(false);
-              }}
-              className={activeTab === tab ? "text-[#222F7D] bg-white rounded-md px-2 py-2 " : "text-slate-300"}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {!isEditing && activeTab !== "Organization" && (
-          <button onClick={startEdit} className="bg-white px-4 py-1 rounded text-sm">
-            Edit
+    {/* Tabs Container */}
+    <div className="bg-[#222F7D] px-2 sm:px-4 py-2 rounded-xl mx-auto mt-4 flex items-center justify-between gap-4">
+      
+      {/* Scrollable Tab Wrapper */}
+      <div className="flex gap-4 sm:gap-8 overflow-x-auto no-scrollbar scroll-smooth py-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => {
+              setActiveTab(tab);
+              setIsEditing(false);
+            }}
+            className={`
+              whitespace-nowrap text-sm sm:text-base transition-all duration-200
+              ${activeTab === tab 
+                ? "text-[#222F7D] bg-white rounded-md px-4 py-1.5 font-semibold shadow-sm" 
+                : "text-slate-300 hover:text-white px-2 py-1.5"
+              }
+            `}
+          >
+            {tab}
           </button>
-        )}
+        ))}
       </div>
-
-
-      {/* Tabs Content */}
+  
+      {/* Edit Button - Fixed position on the right */}
+      {!isEditing && activeTab !== "Organization" && (
+        <button 
+          onClick={startEdit} 
+          className="bg-white px-4 py-1.5 rounded-md text-sm font-medium text-[#222F7D] hover:bg-gray-100 transition-colors shadow-sm shrink-0"
+        >
+          Edit
+        </button>
+      )}
+    </div>
+  
+    {/* Tabs Content */}
+    <div className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {activeTab === "Organization" && <OrganizationTab />}
       {activeTab === "Personal" && (
         <PersonalTab isEditing={isEditing} setIsEditing={setIsEditing} cancelEdit={cancelEdit} />
@@ -59,19 +71,11 @@ const MainProfile = () => {
       {activeTab === "Bank" && (
         <BankTab setIsEditing={setIsEditing} isEditing={isEditing} cancelEdit={cancelEdit} />
       )}
-
       {activeTab === "Documents" && (
-        <DocumentTab
-          // draftBank={draftBank}
-          // setDraftBank={setDraftBank}
-          isEditing={isEditing}
-          setIsEditing={setIsEditing}
-
-
-        />
-
+        <DocumentTab isEditing={isEditing} setIsEditing={setIsEditing} />
       )}
     </div>
+  </div>
   );
 };
 

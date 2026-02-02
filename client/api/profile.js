@@ -11,7 +11,16 @@ const axiosConfig = {
 
 
 // -------- ORGANIZATION --------
-export const getOrganization = () => axios.get(`${API_URL}/organization`, axiosConfig);
+export const getOrganization = () => {
+  const token = localStorage.getItem("token"); 
+  
+  return axios.get(`${API_URL}/organization`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    }
+  });
+};
 
 export const updateOrganization = (data) =>
   axios.put(`${API_URL}/organization`, data, axiosConfig);

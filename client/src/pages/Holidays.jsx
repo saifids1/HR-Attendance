@@ -8,9 +8,9 @@ const Holidays = () => {
   const {holidays} = useContext(EmployContext);
 
   // console.log(holidays);
-  const timelineData = [
-    // ... (same data, unchanged)
-  ];
+  // const timelineData = [
+  //   // ... (same data, unchanged)
+  // ];
 
   return (
     <div className="px-2 sm:px-4 pb-6 w-full ">

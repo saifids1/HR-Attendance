@@ -17,6 +17,9 @@ const EmploySidebar = ({ open, setOpen }) => {
     }`;
 
   return (
+    <>
+    
+    {/* Desktop */}
     <aside
       className={`
         fixed inset-y-0 left-0 z-40 bg-white shadow-md
@@ -33,7 +36,15 @@ const EmploySidebar = ({ open, setOpen }) => {
           onClick={() => setOpen(!open)}
           className="text-lg font-semibold flex justify-center items-center gap-2 mt-4"
         >
-          {open ? <img src={logo} className="w-[80px] h-[50px] object-fill"/>: <BookAIcon />}
+          {open ? (
+                  <img src={logo} className="w-[100px] h-[40px] object-contain transition-all" alt="Logo" />
+                ) : (
+                  <div className="flex w-12 justify-center">
+                    {/* <Book size={24} className="text-[#3a50cc]" /> */}
+        
+                    <img src={logo} alt="icon" />
+                  </div>
+                )}
         </button>
 
         {/* Close button (mobile only) */}
@@ -135,6 +146,7 @@ const EmploySidebar = ({ open, setOpen }) => {
 
       </nav>
     </aside>
+    </>
   );
 };
 

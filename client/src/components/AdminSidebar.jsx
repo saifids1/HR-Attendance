@@ -161,6 +161,13 @@ const AdminSidebar = ({ open, setOpen }) => {
         </span>
       </NavLink>
 
+      <NavLink to="/admin/activity-logs" className={navClass}>
+        <SlCalender size={18} className="shrink-0" />
+        <span className={`transition-all duration-300 whitespace-nowrap ${!open && "md:hidden"}`}>
+          Attendance Log
+        </span>
+      </NavLink>
+
       <NavLink to="/admin/leaves" className={navClass}>
         <SlCalender size={18} className="shrink-0" />
         <span className={`transition-all duration-300 whitespace-nowrap ${!open && "md:hidden"}`}>

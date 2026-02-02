@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { EmployContext } from "../context/EmployContextProvider";
 
 const MonthlyHolidays = () => {
+  const now = new Date();
   const currentMonth = new Date().toLocaleString("default", {
     month: "long",
     year: "numeric",
@@ -21,63 +22,69 @@ const MonthlyHolidays = () => {
 
   const {holidays} = useContext(EmployContext);
 
+  const today = new Date(now.getFullYear(),now.getMonth(),now.getDate());
+
+  const upcomingHolidays = holidays.filter((holiday)=>{
+    const hDate = new Date(holiday.holiday_date);
+    
+    return hDate >= today
+  }).sort((a,b)=> new Date(a.holiday_date) - new Date(b.holiday_date));
+
   
   return (
-    <section className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm lg:mt-3">
-  <div className="flex items-center justify-between mb-4">
-    <h2 className="text-lg font-semibold text-gray-700">
-      Holidays – {currentMonth}
-    </h2>
-
-    <NavLink
-      to="/employee/holidays"
-      className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 transition"
-    >
-      View Holidays
-    </NavLink>
-  </div>
-
-  {holidays.length === 0 ? (
-    <p className="text-sm text-gray-400">No holidays this month 🎉</p>
-  ) : (
-    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {holidays.slice(0, 5).map((holiday, index) => {
-        const { day, month, weekday } = formatHolidayDate(
-          holiday.holiday_date
-        );
-
-        return (
-          <li
-            key={index}
-            className="flex gap-3 items-center p-4 bg-gray-50 border rounded-lg"
-          >
-            {/* Date Box */}
-            <div className="w-12 h-12 bg-blue-600 text-white rounded-lg flex flex-col items-center justify-center">
-              <span className="text-sm font-bold">{day}</span>
-              <span className="text-xs uppercase">{month}</span>
-            </div>
-
-            {/* Holiday Info */}
-            <div>
-              <p className="font-medium text-gray-800">
-                {holiday.holiday_name}
-              </p>
-              <p className="text-xs text-gray-500">
-                {weekday} • {holiday.holiday_type}
-              </p>
-
-              {/* {holiday.is_paid && (
-                <span className="text-xs text-green-600 font-medium">
-                  Paid Holiday
-                </span>
-              )} */}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  )}
-</section>
+    <section className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-sm lg:mt-3">
+    {/* Header Section: Column on mobile, Row on desktop */}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+      <h2 className="text-lg font-semibold text-gray-700">
+        Upcoming Holidays – <span className="text-blue-600">{currentMonth}</span>
+      </h2>
+  
+      <NavLink
+        to="/employee/holidays"
+        className="text-center bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm font-medium shadow-sm active:scale-95"
+      >
+        View All
+      </NavLink>
+    </div>
+  
+    {upcomingHolidays.length === 0 ? (
+      <div className="py-8 text-center border-2 border-dashed border-gray-100 rounded-lg">
+         <p className="text-sm text-gray-400 font-medium">No holidays this month 🎉</p>
+      </div>
+    ) : (
+      /* Grid: 1 col on mobile, 2 on tablet, 3 on desktop */
+      <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {upcomingHolidays.slice(0, 6).map((holiday, index) => {
+          const { day, month, weekday } = formatHolidayDate(holiday.holiday_date);
+  
+          return (
+            <li
+              key={index}
+              className="flex gap-4 items-center p-3 sm:p-4 bg-gray-50 border border-gray-100 rounded-xl hover:shadow-md transition-shadow group"
+            >
+              {/* Date Box: Keep fixed size to prevent shrinking */}
+              <div className="flex-shrink-0 w-12 h-12 bg-blue-600 group-hover:bg-blue-700 text-white rounded-lg flex flex-col items-center justify-center transition-colors">
+                <span className="text-sm font-bold leading-none">{day}</span>
+                <span className="text-[10px] uppercase font-semibold mt-1">{month}</span>
+              </div>
+  
+              {/* Holiday Info */}
+              <div className="min-w-0"> {/* min-w-0 prevents text overflow in flex containers */}
+                <p className="font-bold text-gray-800 text-sm sm:text-base truncate">
+                  {holiday.holiday_name}
+                </p>
+                <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <span className="font-medium text-blue-500">{weekday}</span> 
+                  <span>•</span> 
+                  <span className="truncate">{holiday.holiday_type}</span>
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    )}
+  </section>
 
   );
 };

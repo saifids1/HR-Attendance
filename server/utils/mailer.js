@@ -4,27 +4,33 @@ const fs = require("fs");
 require("dotenv").config();
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com", // replace with your provider
-  port: 587,
-  secure: false, // use TLS
+  host: "smtp.hostinger.in",
+  port: 465,
+  secure: true, 
   auth: {
     user: process.env.MAILNAME,
     pass: process.env.MAILPASS,
   },
+  
+  tls: {
+    rejectUnauthorized: false 
+  }
 });
 
 // Function to send email
 const sendEmail = async (to, subject, templateName, templateData) => {
+
+  console.log("to",to);
+  console.log("subject",subject)
   try {
     const templatePath = path.join(__dirname, "../email_templates", `${templateName}.html`);
     let html = fs.readFileSync(templatePath, "utf8");
-
     for (const key in templateData) {
       html = html.replace(new RegExp(`{{${key}}}`, "g"), templateData[key]);
     }
 
     await transporter.sendMail({
-      from: `"I-Deiligence Solution" <${process.env.MAILNAME}>`,
+      from: `"I-Diligence Solution" <${process.env.MAILNAME}>`,
       to,
       subject,
       html,
@@ -35,5 +41,6 @@ const sendEmail = async (to, subject, templateName, templateData) => {
     console.error("Error sending email:", err);
   }
 };
+
 
 module.exports = sendEmail;
