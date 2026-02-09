@@ -19,6 +19,23 @@ const EmployProvider = ({ children }) => {
   const [adminLoading, setAdminLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Filters 
+  // Inside your Context Provider
+const [filters, setFilters] = useState({
+  startDate: "",
+  endDate: "",
+  attendanceSearch: "",    
+  adminAttSearch: "",    
+  activitySearch: "",     
+  employeeSearch: ""    
+});
+
+// Update handleFilterChange to be dynamic
+// const handleFilterChange = (e) => {
+//   const { name, value } = e.target;
+//   setFilters((prev) => ({ ...prev, [name]: value }));
+// };
+
   const token = localStorage.getItem("token");
   const emp_id = localStorage.getItem("user")?.role;
 
@@ -29,10 +46,10 @@ const EmployProvider = ({ children }) => {
 
   const [holidays,setHolidays] = useState([]);
   /*  Filter State*/
-  const [filters, setFilters] = useState({
-    startDate: "",
-    endDate: "",
-  });
+  // const [filters, setFilters] = useState({
+  //   startDate: "",
+  //   endDate: "",
+  // });
 
   // Profile Image
   const [profileImage,setProfileImage] = useState(ProfImg);
@@ -225,7 +242,16 @@ const fetchEmployeeDashboard = async () => {
   };
   
 
-
+  const formatDate = (value) => {
+    if (!value) return "--";
+    const date = new Date(value);
+    
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const yyyy = date.getFullYear();
+  
+    return `${dd}-${mm}-${yyyy}`;
+  };
   // Fetch On Auth
   useEffect(() => {
     if (!auth.token || !auth.role) return;
@@ -291,6 +317,7 @@ const fetchEmployeeDashboard = async () => {
         setFilters
         ,
         handleFilterChange,
+        formatDate,
         
 
         /* Refresh */

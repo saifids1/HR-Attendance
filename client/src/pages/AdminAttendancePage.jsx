@@ -6,7 +6,7 @@ import Filters from "../components/Filters";
 
 const StatusBadge = ({ status }) => {
 
-  console.log("Status",status)
+  // console.log("Status",status)
   const styles = {
     Present: "bg-green-600 text-white",
     Working: "bg-blue-600 text-white",
@@ -27,10 +27,7 @@ const StatusBadge = ({ status }) => {
 
 
 
-const formatDate = (value) => {
-  if (!value) return "--";
-  return new Date(value).toLocaleDateString("en-GB");
-};
+
 
 const formatInterval = (val) => {
   if (!val || val === "0h 0m") return "00:00";
@@ -61,7 +58,13 @@ const formatInterval = (val) => {
 
 const AdminAttendance = () => {
   const { filters,
-    setSingleAdminAttendance, } = useContext(EmployContext);
+    setSingleAdminAttendance,formatDate } = useContext(EmployContext);
+
+    useEffect(()=>{
+
+      console.log("filters",filters.adminAttSearch);
+    },[filters])
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -121,33 +124,41 @@ const AdminAttendance = () => {
 
 
   // Filtered data based on date range and search
-  const filteredData = useMemo(() => {
-    let result = [...data];
+// Filtered data based on date range and search
+const filteredData = useMemo(() => {
+  let result = [...data];
 
-    const normalizeDate = (d) => {
-      if (!d) return null;
-      const date = new Date(d);
-      date.setHours(0, 0, 0, 0);
-      return date;
-    };
+  const normalizeDate = (d) => {
+    if (!d) return null;
+    const date = new Date(d);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  };
 
-    const start = normalizeDate(filters?.startDate);
-    const end = normalizeDate(filters?.endDate);
+  const start = normalizeDate(filters?.startDate);
+  const end = normalizeDate(filters?.endDate);
 
-    if (start) result = result.filter((row) => normalizeDate(row.attendance_date) >= start);
-    if (end) result = result.filter((row) => normalizeDate(row.attendance_date) <= end);
+  // 1. Date Filtering
+  if (start) result = result.filter((row) => normalizeDate(row.attendance_date) >= start);
+  if (end) result = result.filter((row) => normalizeDate(row.attendance_date) <= end);
 
-    if (isAdmin && filters?.search) {
-      const search = filters.search.toLowerCase();
-      result = result.filter(
-        (row) =>
-          row.employee_name?.toLowerCase().includes(search) ||
-          String(row.emp_id || "").includes(search)
-      );
-    }
+  // 2. Search Filtering (FIXED KEY HERE)
+  // We use attendanceSearch because that's what the Filters component sends for this route
 
-    return result;
-  }, [data, filters, isAdmin]);
+ 
+  const searchterm = filters?.adminAttSearch 
+
+  if (isAdmin && searchterm) {
+    const search = searchterm.toLowerCase();
+    result = result.filter(
+      (row) =>
+        row.employee_name?.toLowerCase().includes(search) ||
+        String(row.emp_id || "").toLowerCase().includes(search)
+    );
+  }
+
+  return result;
+}, [data, filters, isAdmin]);
 
 
 

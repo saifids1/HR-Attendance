@@ -160,6 +160,9 @@ exports.addPersonInfo =  async (req, res) => {
       department,
     } = req.body;
 
+    console.log(dob)
+
+    // console.log("department",department);
     // ---------- Validation ----------
     if (
       !gender ||
@@ -176,11 +179,26 @@ exports.addPersonInfo =  async (req, res) => {
       });
     }
 
-    // ---------- Normalize DOB ----------
+    const parseDob = (dateStr) => {
+      if (!dateStr) return null;
+    
+      // Agar frontend se DD-MM-YYYY aa raha hai (e.g. 11-12-2000)
+      const parts = dateStr.split("-");
+      
+      if (parts[0].length === 2) { 
+        // DD-MM-YYYY -> YYYY-MM-DD
+        const [day, month, year] = parts;
+        return `${year}-${month}-${day}`; 
+      }
+    
+      return dateStr; // Agar pehle se YYYY-MM-DD hai
+    };
+    
+    // Usage in Controller
     let formattedDob;
     try {
-      formattedDob = parseDob(dob); // YYYY-MM-DD
-    } catch {
+      formattedDob = parseDob(req.body.dob); // Ab ye SQL ke liye "2000-12-11" return karega
+    } catch (err) {
       return res.status(400).json({ message: "Invalid DOB format" });
     }
 
@@ -282,10 +300,9 @@ exports.getPersonalInfo = async (req, res) => {
   }
 }
 
-exports.updatePersonalInfo =  async (req, res) => {
+exports.updatePersonalInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
-    // Destructure everything you need from req.body
     const {
       dob,
       joining_date,
@@ -299,14 +316,22 @@ exports.updatePersonalInfo =  async (req, res) => {
       address
     } = req.body;
 
-    const toDbDate = (str) => {
-      if (!str || !str.includes("-")) return null;
-      const [d, m, y] = str.split("-");
-      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    const parseDate = (dateStr) => {
+      if (!dateStr || dateStr === "") return null;
+      const parts = dateStr.split("-");
+      // Agar DD-MM-YYYY hai, toh YYYY-MM-DD banayein
+      if (parts[0].length === 2) {
+        const [day, month, year] = parts;
+        return `${year}-${month}-${day}`;
+      }
+      return dateStr; // Already YYYY-MM-DD
     };
 
-    const formattedDob = toDbDate(dob);
-    const formattedJoiningDate = toDbDate(joining_date);
+    // 1. DOB format karein
+    let formattedDob = parseDate(dob);
+    
+    // 2. Joining Date format karein (Yeh missing tha!)
+    let formattedJoiningDate = parseDate(joining_date);
 
     // Update query
     const result = await db.query(
@@ -325,17 +350,17 @@ exports.updatePersonalInfo =  async (req, res) => {
        WHERE emp_id = $11 
        RETURNING *`,
       [
-        formattedDob,
-        formattedJoiningDate,
-        gender,
-        department,
-        bloodgroup,
-        maritalstatus,
-        nationality,
-        nominee,
-        aadharnumber,
-        address,
-        emp_id
+        formattedDob,         // $1
+        formattedJoiningDate, // $2 - Ab error nahi aayega
+        gender,               // $3
+        department,           // $4
+        bloodgroup,           // $5
+        maritalstatus,        // $6
+        nationality,          // $7
+        nominee,              // $8
+        aadharnumber,         // $9
+        address,              // $10
+        emp_id                // $11
       ]
     );
 
@@ -343,30 +368,16 @@ exports.updatePersonalInfo =  async (req, res) => {
       return res.status(404).json({ message: "Employee not found" });
     }
 
-
-    // console.log("profile Update personal",req.user)
-
-    sendNotification(emp_id, "Personal", req.user.name);
-
-
-
     res.status(200).json(result.rows[0]);
   } catch (error) {
-    console.error(error);
+    console.error("Controller Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
-
+};
 // Education
 exports.addEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
-
-    console.log("Education POST body:", req.body);
-
-    // console.log("emp_id",emp_id)
-    // console.log("req.user.emp_id", req.user.emp_id)
-
 
     if (req.user.role === "employee" && req.user.emp_id !== emp_id) {
       return res.status(403).json({ message: "Unauthorized" });
@@ -374,15 +385,18 @@ exports.addEducationInfo = async (req, res) => {
 
     let educationArray = [];
 
-    if (Array.isArray(req.body)) {
+    // --- FIX STARTS HERE ---
+    if (typeof req.body.education === 'string') {
+      // If it's a string (from FormData), parse it back into an array
+      educationArray = JSON.parse(req.body.education);
+    } else if (Array.isArray(req.body.education)) {
+      educationArray = req.body.education;
+    } else if (Array.isArray(req.body)) {
       educationArray = req.body;
-    } else if (req.body.education) {
-      educationArray = Array.isArray(req.body.education)
-        ? req.body.education
-        : [req.body.education];
     } else if (typeof req.body === "object" && Object.keys(req.body).length > 0) {
       educationArray = [req.body];
     }
+    // --- FIX ENDS HERE ---
 
     if (!educationArray.length) {
       return res.status(400).json({ message: "Education data is required" });
@@ -391,6 +405,7 @@ exports.addEducationInfo = async (req, res) => {
     const inserted = [];
 
     for (const edu of educationArray) {
+      // Now 'edu' will be an object like { degree: "Degress", ... }
       const {
         degree,
         field_of_study,
@@ -399,7 +414,6 @@ exports.addEducationInfo = async (req, res) => {
         passing_year,
         percentage_or_grade,
       } = edu;
-
 
       const { rows } = await db.query(
         `
@@ -421,9 +435,6 @@ exports.addEducationInfo = async (req, res) => {
 
       inserted.push(rows[0]);
     }
-    sendNotification(emp_id, "New Education", req.user.name);
-
-    console.log("inserted", inserted);
 
     res.status(201).json({
       message: "Education added successfully",
@@ -434,7 +445,7 @@ exports.addEducationInfo = async (req, res) => {
     console.error("[ERROR] /education POST:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 
 exports.getEducationInfo = async (req, res) => {
   try {
@@ -474,117 +485,96 @@ exports.getEducationInfo = async (req, res) => {
 
 exports.updateEducationInfo = async (req, res) => {
   try {
-    const { emp_id, id } = req.params;
+    
+    const { emp_id } = req.params;
+    // FormData se bhejte waqt hum data ko 'education' field mein stringify karke bhejenge
+    console.log("req.body update Edu",req.body);
+    const educationEntries = JSON.parse(req.body.education); 
 
-    // console.log("Education PUT Route Call", req.body);
 
-    if (req.user.role === "employee" && req.user.emp_id !== emp_id) {
-      return res.status(403).json({ message: "Unauthorized" });
+    await db.query('BEGIN');
+
+    for (let i = 0; i < educationEntries.length; i++) {
+      let edu = educationEntries[i];
+      let finalPath = edu.marksheet_url;
+
+      // Check karein agar is specific row ke liye file upload hui hai
+      const file = req.files.find(f => f.fieldname === `file_${i}`);
+      if (file) {
+        finalPath = `/uploads/education/${file.filename}`;
+      }
+
+      if (edu.id) {
+        await db.query(
+          `UPDATE education SET 
+            degree=$1, field_of_study=$2, institution_name=$3, university=$4, 
+            percentage_or_grade=$5, passing_year=$6, marksheet_url=COALESCE($7, marksheet_url), 
+            updated_at=NOW() WHERE id=$8 AND emp_id=$9`,
+          [edu.degree, edu.field_of_study, edu.institution_name, edu.university, 
+           edu.percentage_or_grade, edu.passing_year, finalPath, edu.id, emp_id]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO education (emp_id, degree, field_of_study, institution_name, university, percentage_or_grade, passing_year, marksheet_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [emp_id, edu.degree, edu.field_of_study, edu.institution_name, edu.university, 
+           edu.percentage_or_grade, edu.passing_year, finalPath]
+        );
+      }
     }
-
-
-    const {
-      degree,
-      field_of_study,
-      institution_name,
-      university,
-      passing_year,
-      percentage_or_grade,
-    } = req.body;
-
-    // Optional validation: at least one field must be provided
-    if (
-      !degree &&
-      !field_of_study &&
-      !institution_name &&
-      !university &&
-      !passing_year &&
-      !percentage_or_grade
-    ) {
-      return res.status(400).json({
-        message: "At least one field is required to update",
-      });
-    }
-
-    // --------- Update query ----------
-    const { rowCount, rows } = await db.query(
-      `
-      UPDATE education
-      SET
-        degree = COALESCE($1, degree),
-        field_of_study = COALESCE($2, field_of_study),
-        institution_name = COALESCE($3, institution_name),
-        university = COALESCE($4, university),
-        passing_year = COALESCE($5, passing_year),
-        percentage_or_grade = COALESCE($6, percentage_or_grade),
-        updated_at = NOW()
-      WHERE id = $7
-        AND emp_id = $8
-      RETURNING *
-      `,
-      [
-        degree || null,
-        field_of_study || null,
-        institution_name || null,
-        university || null,
-        passing_year || null,
-        percentage_or_grade || null,
-        id,
-        emp_id,
-      ]
-    );
-
-    if (!rowCount) {
-      return res.status(404).json({
-        message: "Education record not found",
-      });
-    }
-
-    sendNotification(emp_id, "Education", req.user.name);
-
-    res.status(200).json({
-      message: "Education updated successfully",
-      education: rows[0],
-    });
-
+    await db.query('COMMIT');
+    res.status(200).json({ message: "Updated with files!" });
   } catch (error) {
-    console.error("[ERROR] /education PUT:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    await db.query('ROLLBACK');
+    res.status(500).json({ message: error.message });
   }
-}
+};
 
 exports.deleteEducationInfo = async (req, res) => {
   try {
     const { emp_id, id } = req.params;
-    // console.log("Education Delete Route Call ")
-    // Authorization
-    if (req.user.role === "employee" && req.user.emp_id !== emp_id) {
-      return res.status(403).json({ message: "Unauthorized" });
+    const educationId = Number(id);
+
+    // 1. Validate ID is a number
+    if (isNaN(educationId)) {
+      return res.status(400).json({ message: "Invalid Education ID format" });
     }
 
+    // 2. Authorization: Check if user has permission to delete this specific employee's data
+    // Admin bypass is usually implied if role !== "employee"
+    if (req.user.role === "employee" && req.user.emp_id !== emp_id) {
+      return res.status(403).json({ message: "Access Denied: You cannot delete this record" });
+    }
+
+    // 3. Database Operation
     const { rowCount } = await db.query(
       `
       DELETE FROM education
       WHERE id = $1
         AND emp_id = $2
+      RETURNING id; -- Optional: returns the ID of the deleted row
       `,
-      [id, emp_id]
+      [educationId, emp_id]
     );
 
-    if (!rowCount) {
+    // 4. Handle Not Found
+    if (rowCount === 0) {
       return res.status(404).json({
-        message: "Education record not found",
+        message: "Record not found or already deleted",
       });
     }
 
-    res.status(200).json({
-      message: "Education deleted successfully",
+    // 5. Success
+    return res.status(200).json({
+      message: "Education record deleted successfully",
     });
+
   } catch (error) {
-    console.error("[ERROR] /education DELETE:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    // Log with context for easier debugging
+    console.error(`[ERROR] Delete Education (Emp: ${req.params.emp_id}, ID: ${req.params.id}):`, error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 
 // Experience
 
@@ -638,6 +628,7 @@ exports.getExperienceInfo =  async (req, res) => {
   try {
     const { emp_id } = req.params;
 
+    if(!emp_id) return 
     const { rows } = await db.query(
       `
       SELECT
@@ -714,6 +705,7 @@ exports.updateExperienceInfo = async (req, res) => {
       });
     }
 
+   
     sendNotification(emp_id, "Experience", req.user.name);
 
     res.status(200).json({
@@ -774,57 +766,41 @@ exports.getContactInfo = async (req, res) => {
 }
 
 exports.updateContactInfo = async (req, res) => {
+  const { emp_id } = req.params;
+  const contacts = req.body; // Expecting an array []
+
   try {
-    const { emp_id } = req.params;
-    const { contact_type, phone, email, relation, is_primary } = req.body;
+    await db.query('BEGIN'); // Transaction start
 
-    // Check if this specific email already exists for this employee
-    const existing = await db.query(
-      `SELECT emp_id FROM contact WHERE emp_id = $1 AND email = $2`,
-      [emp_id, email]
-    );
+    // 1. Pehle purane saare contacts delete karein is employee ke
+    await db.query(`DELETE FROM contact WHERE emp_id = $1`, [emp_id]);
 
-    let contactRecord;
-
-    if (existing.rowCount > 0) {
-      // UPDATE
-      const { rows } = await db.query(
-        `UPDATE contact
-         SET contact_type = $1, phone = $2, relation = $3, is_primary = $4, created_at = NOW()
-         WHERE emp_id = $5 AND email = $6
-         RETURNING *`,
-        [contact_type, phone, relation || null, is_primary ?? false, emp_id, email]
-      );
-
-      contactRecord = rows[0];
-
-      // Send email after successful update
-      await sendEmail(req.user.email, "Profile Updated", "profile_update", {
-        name: req.user.name,
-        section: "Contact"
-      });
-
-      return res.status(200).json({ message: "Updated", contact: contactRecord });
-    } else {
-      // INSERT
-      const { rows } = await db.query(
-        `INSERT INTO contact (emp_id, contact_type, phone, email, relation, is_primary)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [emp_id, contact_type, phone, email, relation || null, is_primary ?? false]
-      );
-
-      contactRecord = rows[0];
-
-      sendNotification(emp_id, "Contact", req.user.name);
-
-      return res.status(201).json({ message: "Inserted", contact: contactRecord });
+    // 2. Naye contacts loop karke insert karein
+    if (Array.isArray(contacts) && contacts.length > 0) {
+      for (const contact of contacts) {
+        await db.query(
+          `INSERT INTO contact (emp_id, contact_type, phone, email, relation, is_primary, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          [
+            emp_id,
+            contact.contact_type || null,
+            contact.phone || null,
+            contact.email || null,
+            contact.relation || null,
+            contact.is_primary ?? false
+          ]
+        );
+      }
     }
+
+    await db.query('COMMIT');
+    res.status(200).json({ message: "All contacts updated successfully" });
   } catch (err) {
-    console.error("Manual Upsert Error:", err);
-    res.status(500).json({ message: "Internal Server Error" });
+    await db.query('ROLLBACK');
+    console.error("Bulk Contact Error:", err);
+    res.status(500).json({ message: "Failed to update contacts" });
   }
-}
+};
 
 
 exports.addBankInfo = async (req, res) => {
@@ -841,6 +817,9 @@ exports.addBankInfo = async (req, res) => {
       is_active = true,
       pan_number,
     } = req.body;
+
+    console.log(req.body);
+
 
     if (!account_holder_name || !bank_name || !account_number || !ifsc_code || !branch_name) {
       return res.status(400).json({ message: "All required fields must be provided." });
@@ -878,6 +857,8 @@ exports.addBankInfo = async (req, res) => {
         is_active
       ]
     );
+
+    console.log("result.rows[0]",result.rows[0])
     sendNotification(emp_id, "Bank", req.user.name);
     res.status(201).json({
       message: "Bank details saved successfully",
@@ -910,7 +891,7 @@ exports.getBankInfo = async (req, res) => {
 exports.updateBankInfo =  async (req, res) => {
   try {
     const { emp_id } = req.params;
-
+    console.log("req.body bank update ",req.body);
     const {
       account_holder_name,
       bank_name,
@@ -922,6 +903,9 @@ exports.updateBankInfo =  async (req, res) => {
       pan_number,
       is_active
     } = req.body;
+
+
+   
 
     // Basic validation
     if (
@@ -938,11 +922,11 @@ exports.updateBankInfo =  async (req, res) => {
     }
 
     // Authorization (employee can update own data, admin can update all)
-    if (req.user.emp_id !== emp_id) {
-      return res.status(403).json({
-        message: "Unauthorized access"
-      });
-    }
+    // if (req.user.emp_id !== emp_id) {
+    //   return res.status(403).json({
+    //     message: "Unauthorized access"
+    //   });
+    // }
 
     const result = await db.query(
       `

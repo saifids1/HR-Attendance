@@ -464,12 +464,12 @@ exports.generateDailyAttendance = async (req, res) => {
 
 // 2.0
 
-const runAttendanceTask = async () => {
+exports.runAttendanceTask = async () => {
   try {
     console.log(`[${new Date().toISOString()}] CRON: Triggering processAndSendAttendanceReport...`);
     
     // Pass 'true' so the email actually sends during the cron run
-    const data = await processAndSendAttendanceReport(true);
+    const data = await exports.processAndSendAttendanceReport(true);
     
     console.log(`[${new Date().toISOString()}] CRON: Success. Processed ${data.length} records.`);
   } catch (error) {
@@ -603,14 +603,92 @@ const runAttendanceTask = async () => {
 //   return rows;
 // };
 // Add req and res here so they are defined
-const processAndSendAttendanceReport = async (req, res) => {
+// const processAndSendAttendanceReport = async (req, res) => {
+//   try {
+//     // Standardizing the date to avoid timezone shifts between JS and PostgreSQL
+//     const 
+// 
+//  = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+//     const query = `
+//       -- 1. Identify users who have logs but are missing from attendance table
+//       -- ADDED: u.is_active filter so inactive employees aren't auto-synced
+//       WITH missing_records AS (
+//         SELECT 
+//           al.emp_id,
+//           '${todayIST}'::DATE as attendance_date,
+//           MIN(al.punch_time) as first_p,
+//           MAX(al.punch_time) as last_p,
+//           COUNT(al.punch_time) as p_count
+//         FROM activity_log al
+//         INNER JOIN users u ON al.emp_id = u.emp_id
+//         LEFT JOIN daily_attendance da 
+//           ON al.emp_id = da.emp_id 
+//           AND (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE = da.attendance_date
+//         WHERE (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE = '${todayIST}'::DATE
+//           AND da.emp_id IS NULL 
+//           AND u.is_active = true  -- Only sync those who are currently ACTIVE
+//         GROUP BY al.emp_id
+//       ),
+//       -- 2. Insert the missing records
+//       auto_sync AS (
+//         INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, total_hours, status)
+//         SELECT 
+//           mr.emp_id,
+//           mr.attendance_date,
+//           mr.first_p,
+//           CASE WHEN mr.p_count > 1 THEN mr.last_p ELSE NULL END,
+//           CASE WHEN mr.p_count > 1 THEN (mr.last_p - mr.first_p) ELSE INTERVAL '0 hours' END,
+//           CASE WHEN mr.p_count = 1 THEN 'Working' ELSE 'Present' END
+//         FROM missing_records mr
+//         RETURNING *
+//       )
+//       -- 3. Final Select: Combine all employees with their attendance status
+//       SELECT 
+//         u.emp_id, 
+//         u.name, 
+//         u.email,
+//         u.is_active,
+//         '${todayIST}' AS attendance_date,
+//         da.punch_in,
+//         da.punch_out,
+//         -- If inactive, mark as Inactive; if no log, mark as Absent
+//         CASE 
+//           WHEN u.is_active = false THEN 'Inactive'
+//           WHEN da.status IS NULL THEN 'Absent'
+//           ELSE da.status 
+//         END as status,
+//         TO_CHAR(da.total_hours, 'HH24:MI') as duration
+//       FROM users u
+//       LEFT JOIN daily_attendance da 
+//         ON u.emp_id = da.emp_id 
+//         AND da.attendance_date = '${todayIST}'::DATE
+//       WHERE u.role IN ('employee', 'admin') 
+//       ORDER BY u.is_active DESC, u.name ASC;
+//     `;
+
+//     const { rows } = await db.query(query);
+
+//     if (res) {
+//       return res.status(200).json(rows);
+//     }
+//     return rows;
+
+//   } catch (error) {
+//     console.error("Auto-sync fetch error:", error);
+//     if (res) {
+//       return res.status(500).json({ message: "Failed to sync and fetch attendance" });
+//     }
+//   }
+// };
+
+// Reusable logic: handles DB sync, Emailing (if flag is true), and Data Return
+
+exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = null, res = null) => {
   try {
-    // Standardizing the date to avoid timezone shifts between JS and PostgreSQL
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
     const query = `
-      -- 1. Identify users who have logs but are missing from attendance table
-      -- ADDED: u.is_active filter so inactive employees aren't auto-synced
       WITH missing_records AS (
         SELECT 
           al.emp_id,
@@ -625,64 +703,128 @@ const processAndSendAttendanceReport = async (req, res) => {
           AND (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE = da.attendance_date
         WHERE (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE = '${todayIST}'::DATE
           AND da.emp_id IS NULL 
-          AND u.is_active = true  -- Only sync those who are currently ACTIVE
+          AND u.is_active = true
         GROUP BY al.emp_id
       ),
-      -- 2. Insert the missing records
       auto_sync AS (
         INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, total_hours, status)
         SELECT 
-          mr.emp_id,
-          mr.attendance_date,
-          mr.first_p,
+          mr.emp_id, mr.attendance_date, mr.first_p,
           CASE WHEN mr.p_count > 1 THEN mr.last_p ELSE NULL END,
           CASE WHEN mr.p_count > 1 THEN (mr.last_p - mr.first_p) ELSE INTERVAL '0 hours' END,
           CASE WHEN mr.p_count = 1 THEN 'Working' ELSE 'Present' END
         FROM missing_records mr
         RETURNING *
       )
-      -- 3. Final Select: Combine all employees with their attendance status
       SELECT 
-        u.emp_id, 
-        u.name, 
-        u.email,
-        u.is_active,
+        u.emp_id, u.name, u.email, u.is_active,
         '${todayIST}' AS attendance_date,
-        da.punch_in,
-        da.punch_out,
-        -- If inactive, mark as Inactive; if no log, mark as Absent
+        da.punch_in, da.punch_out,
         CASE 
           WHEN u.is_active = false THEN 'Inactive'
           WHEN da.status IS NULL THEN 'Absent'
           ELSE da.status 
         END as status,
-        TO_CHAR(da.total_hours, 'HH24:MI') as duration
+        da.total_hours -- Keeping interval for formatInterval helper
       FROM users u
-      LEFT JOIN daily_attendance da 
-        ON u.emp_id = da.emp_id 
-        AND da.attendance_date = '${todayIST}'::DATE
+      LEFT JOIN daily_attendance da ON u.emp_id = da.emp_id AND da.attendance_date = '${todayIST}'::DATE
       WHERE u.role IN ('employee', 'admin') 
       ORDER BY u.is_active DESC, u.name ASC;
     `;
 
     const { rows } = await db.query(query);
 
-    if (res) {
-      return res.status(200).json(rows);
+    // --- EMAIL LOGIC ---
+    // Only runs when triggered by Cron (passing true)
+    if (sendEmailToAdmin) {
+      const adminEmails = "hradmin@i-diligence.com,s.hanif@i-diligence.com"; 
+      // const adminEmails = "s.imran@i-diligence.com"
+      const ccEmails = "s.irfan@i-diligence.com";
+      const subject = `Attendance Report - ${todayIST}`;
+
+      // Generate HTML rows for the email
+      const tableRowsHtml = rows
+      .filter(emp => emp.is_active && emp.emp_id)
+      .map(emp => {
+        // 1. Status Colors (Backgrounds)
+        const statusBg = emp.status === 'Working' ? '#ff9800' : (emp.status === 'Absent' ? '#dc3545' : '#28a745');
+        
+        // 2. Format Times & Date
+        const timeIn = emp.punch_in 
+          ? new Date(emp.punch_in).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) 
+          : '---';
+          
+        const timeOut = emp.punch_out 
+          ? new Date(emp.punch_out).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) 
+          : '---';
+    
+        const attendanceDate = emp.punch_in 
+          ? new Date(emp.punch_in).toLocaleDateString('en-IN', { day: 'numeric', month: 'numeric', year: 'numeric' })
+          : '---';
+    
+        // 3. Return Table Row
+        return `
+          <tr>
+            <td style="border:1px solid #ddd; padding:8px;">${emp.emp_id}</td>
+            <td style="border:1px solid #ddd; padding:8px;">${emp.name}</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${attendanceDate}</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${timeIn}</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${timeOut}</td>
+            <td style="border:1px solid #ddd; padding:8px; text-align:center;">${emp.duration || '0h 0m'}</td>
+        <td style="border: 1px solid #ddd; padding: 10px; text-align: center; vertical-align: middle;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto; width: 90px;">
+    <tr>
+      <td 
+        style="background-color: ${statusBg}; padding: 6px 0; border-radius: 20px; font-family: Arial, sans-serif; text-align: center; width: 90px;" 
+        bgcolor="${statusBg}"
+      >
+        <div style="color: #ffffff; font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; line-height: 1; white-space: nowrap;">
+          ${emp.status}
+        </div>
+      </td>
+    </tr>
+  </table>
+</td>
+          </tr>`;
+      }).join('');
+      
+        // console.log("rows",rows)
+      const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-IN', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric', 
+    timeZone: 'Asia/Kolkata' 
+  });
+      await sendEmail(
+        adminEmails, 
+        subject, 
+        "admin_all_present", 
+        {
+          date:formattedDate,
+          time: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          employee_rows: tableRowsHtml
+        },
+        ccEmails 
+      );
+      console.log("CRON: Email sent successfully.");
     }
+
+    // Handle API Response vs Cron return
+    if (res) return res.status(200).json(rows);
     return rows;
 
   } catch (error) {
-    console.error("Auto-sync fetch error:", error);
-    if (res) {
-      return res.status(500).json({ message: "Failed to sync and fetch attendance" });
-    }
+    console.error("Attendance Process Error:", error);
+    if (res) return res.status(500).json({ message: "Internal Server Error" });
+    throw error;
   }
 };
+
 exports.getTodayOrganizationAttendance = async (req, res) => {
   try {
     // Change 'true' to 'false' so manual API hits don't trigger the email
-    const data = await processAndSendAttendanceReport(true); 
+    const data = await exports.processAndSendAttendanceReport(false); 
     res.status(200).json(data);
   } catch (error) {
     console.error("Manual report error:", error);
@@ -692,7 +834,7 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
 
 
-// cron.schedule('0 11,16,21 * * *', async () => {
+// cron.schedule('0 11,16,21 * * 1-6', async () => {
 //   console.log(`[${new Date().toISOString()}] Starting hourly attendance report...`);
 //   runAttendanceTask();
 // }, {
@@ -1311,55 +1453,65 @@ exports.getMyHolidays = async (req, res) => {
 
 exports.getActivityLog = async (req, res) => {
   try {
-      // 1. Extract query parameters with defaults
-      const { from, to, page = 1, limit = 20 } = req.query;
-      const offset = (page - 1) * limit;
+    // 1. Extract all parameters including emp_id
+    const { from, to, emp_id, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
 
-      // 2. Build dynamic query for date filtering
-      let queryText = `SELECT * FROM activity_log`;
-      let countQueryText = `SELECT COUNT(*) FROM activity_log`;
-      const queryParams = [];
-      const filters = [];
+    let queryText = `SELECT * FROM activity_log`;
+    let countQueryText = `SELECT COUNT(*) FROM activity_log`;
+    
+    const queryParams = [];
+    const filters = [];
 
-      if (from && to) {
-          queryParams.push(from, to);
-          filters.push(`created_at::DATE BETWEEN $1 AND $2`);
-      }
+    // 2. Build dynamic filters
+    // Date Filtering
+    if (from && to) {
+      queryParams.push(from, to);
+      filters.push(`punch_time::DATE BETWEEN $${queryParams.length - 1} AND $${queryParams.length}`);
+    }
 
-      if (filters.length > 0) {
-          const whereClause = ` WHERE ` + filters.join(" AND ");
-          queryText += whereClause;
-          countQueryText += whereClause;
-      }
+    // Employee ID Filtering (Added this section)
+    if (emp_id) {
+      queryParams.push(emp_id);
+      filters.push(`emp_id = $${queryParams.length}`);
+    }
 
-      // 3. Add Ordering and Pagination
-      queryText += ` ORDER BY created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-      queryParams.push(limit, offset);
+    // 3. Construct the WHERE clause
+    if (filters.length > 0) {
+      const whereClause = ` WHERE ` + filters.join(" AND ");
+      queryText += whereClause;
+      countQueryText += whereClause;
+    }
 
-      // 4. Execute both queries (Data and Total Count)
-      const [dataResult, countResult] = await Promise.all([
-          db.query(queryText, queryParams),
-          db.query(countQueryText, queryParams.slice(0, queryParams.length - 2))
-      ]);
+    // 4. Add Ordering and Pagination
+    // Note: We use queryParams.length + 1 and + 2 for LIMIT and OFFSET
+    const dataQueryParams = [...queryParams, limit, offset];
+    queryText += ` ORDER BY punch_time DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
 
-      const totalRecords = parseInt(countResult.rows[0].count);
+    // 5. Execute Queries
+    const [dataResult, countResult] = await Promise.all([
+      db.query(queryText, dataQueryParams),
+      db.query(countQueryText, queryParams) // Use original queryParams (without limit/offset) for count
+    ]);
 
-      res.status(200).json({
-          success: true,
-          pagination: {
-              totalRecords,
-              currentPage: parseInt(page),
-              totalPages: Math.ceil(totalRecords / limit),
-              limit: parseInt(limit)
-          },
-          data: dataResult.rows
-      });
+    const totalRecords = parseInt(countResult.rows[0].count);
+
+    res.status(200).json({
+      success: true,
+      pagination: {
+        totalRecords,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalRecords / limit),
+        limit: parseInt(limit)
+      },
+      data: dataResult.rows
+    });
 
   } catch (error) {
-      console.error("Activity Log Fetch Error:", error);
-      res.status(500).json({ message: "Internal Server Error" });
+    console.error("Activity Log Fetch Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 
 
 

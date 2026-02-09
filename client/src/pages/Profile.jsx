@@ -828,6 +828,7 @@ const Profile = () => {
 
         console.log(res);
 
+        // const newManager = [...new Set(res.data.managers.map(emp)=> emp.role)]
         setReporting(res.data.managers);
       } catch (error) {
         console.error("Failed to fetch reporting managers", error);

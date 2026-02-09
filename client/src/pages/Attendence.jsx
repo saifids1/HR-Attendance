@@ -1,10 +1,10 @@
 import { Typography } from "@mui/material";
-import React, { useContext, useMemo } from "react";
+import React, { useContext, useEffect, useMemo } from "react";
 import Table from "../components/Table";
 import { EmployContext } from "../context/EmployContextProvider";
 import Loader from "../components/Loader";
 import Filters from "../components/Filters";
-
+import { useLocation } from "react-router-dom";
 /* helper function */
 const formatHours = (val) => {
   if (!val) return "00:00";
@@ -22,6 +22,11 @@ const Attendence = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user?.role?.toLowerCase()?.trim();
   const isAdmin = role === "admin";
+  const location = useLocation();
+
+  useEffect(()=>{
+    console.log(location.pathname)
+  },[])
 
   const { adminAttendance = [], loading } = useContext(EmployContext);
 

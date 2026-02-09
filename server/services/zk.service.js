@@ -284,23 +284,23 @@ async function getDeviceAttendance() {
                   }
 
                   // 4. Send the email
-                  // await sendEmail(
-                  //   employee.email,
-                  //     `Attendance Notification: ${action}`,
-                  //     "punch_in_out",
-                  //     { 
-                  //         name: employee.name,
-                  //         emp_id:employee.emp_id, 
-                  //         action, 
-                  //         date: formattedDate, 
-                  //         day: dayName,
-                  //         time: timeStr,
-                  //         punch_in: punchInTime,
-                  //         punch_out: action.toLowerCase().includes("out") || showSummary ? timeStr : "---",
-                  //         duration: showSummary ? totalDuration : "Initial Punch",
-                  //         is_out: showSummary 
-                  //     }
-                  // );
+                  await sendEmail(
+                    employee.email,
+                      `Attendance Notification: ${action}`,
+                      "punch_in_out",
+                      { 
+                          name: employee.name,
+                          emp_id:employee.emp_id, 
+                          action, 
+                          date: formattedDate, 
+                          day: dayName,
+                          time: timeStr,
+                          punch_in: punchInTime,
+                          punch_out: action.toLowerCase().includes("out") || showSummary ? timeStr : "---",
+                          duration: showSummary ? totalDuration : "Initial Punch",
+                          is_out: showSummary 
+                      }
+                  );
             
               } catch (dbErr) {
                   console.error("Email processing error:", dbErr);

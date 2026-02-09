@@ -11,7 +11,7 @@ const DOCUMENTS = [
   { key: "address_proof", label: "Address Proof" },
 ];
 
-const DocumentTab = ({ isEditing, setIsEditing }) => {
+const DocumentTab = ({ isEditing, cancelEdit }) => {
   const [files, setFiles] = useState({});
   const [previews, setPreviews] = useState({});
   const {token} = useContext(AuthContext)
@@ -59,7 +59,7 @@ const DocumentTab = ({ isEditing, setIsEditing }) => {
       );
 
       toast.success("Documents uploaded successfully");
-      setIsEditing(false);
+      // setIsEditing(false);
     } catch (err) {
       console.error(err);
       toast.error("Failed to upload documents");
@@ -89,22 +89,24 @@ const DocumentTab = ({ isEditing, setIsEditing }) => {
     ) : null;
 
   // optional: reset all files & previews
-  const handleCancel = () => {
-    setFiles({});
-    setPreviews({});
-    setIsEditing(false);
-    Object.values(refs).forEach((r) => {
-      if (r.current) r.current.value = null;
-    });
-  };
+  // const handleCancel = () => {
+  //   setFiles({});
+  //   setPreviews({});
+  //   // setIsEditing(false);
+  //   Object.values(refs).forEach((r) => {
+  //     if (r.current) r.current.value = null;
+  //   });
+  // };
 
   return (
     <>
-      <FormCard title="Documents">
+      <FormCard title="">
         {DOCUMENTS.map((doc) => (
           <div key={doc.key} className="flex items-center gap-4 mt-4">
             <div className="flex-1">
               <label className="block mb-1 text-sm">{doc.label}</label>
+              {
+                isEditing && 
               <input
                 type="file"
                 name={doc.key} // important for Multer
@@ -113,6 +115,7 @@ const DocumentTab = ({ isEditing, setIsEditing }) => {
                 accept="image/*,.pdf"
                 onChange={(e) => handleFileChange(e, doc.key)}
               />
+              }
             </div>
             {renderPreview(previews[doc.key], doc.label)}
           </div>
@@ -120,10 +123,10 @@ const DocumentTab = ({ isEditing, setIsEditing }) => {
       </FormCard>
 
       {isEditing && (
-        <div className="flex gap-3 mt-4">
+        <div className="flex  justify-end gap-3 mt-2 p-3">
           <button
             className="px-4 py-2 bg-gray-200 rounded"
-            onClick={handleCancel}
+            onClick={cancelEdit}
           >
             Cancel
           </button>

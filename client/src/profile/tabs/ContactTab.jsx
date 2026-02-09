@@ -6,7 +6,7 @@ import { emptyContact } from "../../constants/emptyData";
 import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const ContactsTab = ({ isEditing, setIsEditing }) => {
+const ContactsTab = ({ isEditing, cancelEdit }) => {
   const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
   const {token} = useContext(AuthContext)
   const [draft, setDraft] = useState([]);
@@ -97,17 +97,17 @@ const ContactsTab = ({ isEditing, setIsEditing }) => {
       toast.success("Contacts saved successfully");
       setOriginalDraft(draft);
       setErrors([]);
-      setIsEditing(false);
+      // setIsEditing(false);
     } catch (error) {
       console.error("Save Error:", error);
       toast.error("Failed to save contacts");
     }
   };
-  const handleCancel = () => {
-    setDraft(originalDraft);
-    setErrors([]); // Clear errors
-    setIsEditing(false);
-  };
+  // const handleCancel = () => {
+  //   setDraft(originalDraft);
+  //   setErrors([]); // Clear errors
+  //   setIsEditing(false);
+  // };
 
   return (
     <>
@@ -149,10 +149,10 @@ const ContactsTab = ({ isEditing, setIsEditing }) => {
       ))}
 
       {isEditing && (
-        <div className="flex gap-3 mt-3">
+        <div className="flex justify-end gap-3 mt-2 p-3">
           <button
             className="px-4 py-2 bg-gray-200 rounded"
-            onClick={handleCancel}
+            onClick={cancelEdit}
           >
             Cancel
           </button>

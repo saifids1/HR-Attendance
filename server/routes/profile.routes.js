@@ -9,6 +9,8 @@ const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPer
 const { isAdmin } = require("../middlewares/roleMiddleware");
 const uploadBankDoc = require("../middlewares/uploadBankDoc");
 const uploadProfileImage = require("../middlewares/uploadProfileImage");
+const selfOrAdminMiddleware = require("../middlewares/selfOrAdminMiddleware");
+const upload = require("../middlewares/uploadEducationDoc");
 
 const router = express.Router();
 
@@ -27,44 +29,42 @@ router.put("/organization", auth, isAdmin, updateOrganizationInfo)
 
 
 // ---------- POST PERSONAL DETAILS ----------
-router.post("/personal/:emp_id", auth, addPersonInfo);
 
 router.get("/personal/:emp_id", auth, getPersonalInfo);
 
-router.put("/personal/:emp_id", auth, updatePersonalInfo);
+router.post("/personal/:emp_id", auth, selfOrAdminMiddleware, addPersonInfo);
+router.put("/personal/:emp_id", auth, selfOrAdminMiddleware, updatePersonalInfo);
+
 
 
 
 
 // Education -
 // POST Request
-router.post("/education/:emp_id", auth, addEducationInfo);
-
 
 // GET Request
 router.get("/education/:emp_id", auth, getEducationInfo);
+router.post("/education/:emp_id", auth, selfOrAdminMiddleware,  upload.any(),addEducationInfo);
+router.put(
+  "/education/:emp_id/:id", 
+  auth, 
+  selfOrAdminMiddleware, 
+  upload.any(), // Yeh files ko req.files mein daal dega
+  updateEducationInfo
+);
 
-// PUT Request 
-router.put("/education/:emp_id/:id", auth, updateEducationInfo);
+router.delete("/education/:emp_id/:id", auth, selfOrAdminMiddleware, deleteEducationInfo);
 
-// DELETE Request 
-router.delete("/education/:emp_id/:id", auth, deleteEducationInfo);
 
 
 // Experience
 
-// CREATE
-router.post("/experience/:emp_id", auth, addExperienceInfo);
-
-// UPDATE
-router.put("/experience/:emp_id/:id", auth, updateExperienceInfo);
-
-
-router.delete("/experience/:emp_id/:id", auth, deleteExperienceInfo);
-
-
-// Get 
 router.get("/experience/:emp_id", auth, getExperienceInfo);
+router.post("/experience/:emp_id", auth, selfOrAdminMiddleware, addExperienceInfo);
+router.put("/experience/:emp_id/:id", auth, selfOrAdminMiddleware, updateExperienceInfo);
+router.delete("/experience/:emp_id/:id", auth, selfOrAdminMiddleware, deleteExperienceInfo);
+
+
 
 
 // Contact API 
@@ -75,17 +75,16 @@ router.get("/contact/:emp_id", auth, getContactInfo);
 
 
 // PUT Request
-// Update all contacts for an employee
-router.put("/contact/:emp_id", auth, updateContactInfo);
+router.put("/contact/:emp_id", auth, selfOrAdminMiddleware, updateContactInfo);
+
 
 // BANK API
 
-router.post("/bank/:emp_id", auth, addBankInfo);
 
 router.get("/bank/:emp_id", auth, getBankInfo);
+router.post("/bank/:emp_id", auth, selfOrAdminMiddleware, addBankInfo);
+router.put("/bank/:emp_id", auth, selfOrAdminMiddleware, updateBankInfo);
 
-
-router.put("/bank/:emp_id", auth, updateBankInfo);
 
 
 // Document Upload Api 
@@ -93,6 +92,7 @@ router.put("/bank/:emp_id", auth, updateBankInfo);
 router.post(
   "/bank/doc/:emp_id",
   auth,
+  selfOrAdminMiddleware,
   (req, res, next) => {
     uploadBankDoc(req, res, (err) => {
       if (err) {
@@ -117,11 +117,13 @@ router.get("/bank/doc/:emp_id", auth, getAllBankDoc);
 
 
 router.post(
-  "/image/",
+  "/image/:emp_id",
   auth,
+  selfOrAdminMiddleware,
   uploadProfileImage.single("profile"),
   addProfileImage
 );
+
 
 // GET /api/employee/profile/image
 router.get("/image", auth, getProfileImage);

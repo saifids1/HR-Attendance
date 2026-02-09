@@ -1,99 +1,86 @@
-import axios from "axios";
+import api from "./axiosInstance"; // Import the custom instance we created
 
-const API_URL = "http://localhost:5000/api/employee/profile"; // your base API url
-const token = localStorage.getItem("token"); // or wherever you store it
-const axiosConfig = {
-  headers: {
-    "Content-Type": "application/json", // THIS IS REQUIRED
-    Authorization: `Bearer ${token}`,
-  },
-};
 
 
 // -------- ORGANIZATION --------
-export const getOrganization = () => {
-  const token = localStorage.getItem("token"); 
-  
-  return axios.get(`${API_URL}/organization`, {
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
-  });
-};
+export const getOrganization = () => api.get("/employee/profile/organization");
 
-export const updateOrganization = (data) =>
-  axios.put(`${API_URL}/organization`, data, axiosConfig);
+export const updateOrganization = (data) => 
+  api.put("/employee/profile/organization", data);
 
 // -------- PERSONAL --------
-export const getPersonal = (emp_id) => axios.get(`${API_URL}/personal/${emp_id}`, axiosConfig);
+export const getPersonal = (emp_id) => 
+  api.get(`/employee/profile/personal/${emp_id}`);
 
-export const addPersonal = (emp_id,data) => axios.post(`${API_URL}/personal/${emp_id}`, data,axiosConfig);
+export const addPersonal = (emp_id, data) => 
+  api.post(`/employee/profile/personal/${emp_id}`, data);
 
-export const updatePersonal = (emp_id, data) =>
-  axios.put(`${API_URL}/personal/${emp_id}`, data, axiosConfig);
+
+//  /api/employee/profile/personal/:emp_id
+// VITE_API_URL = http://localhost:5000/api/
+export const updatePersonal = (emp_id, data) =>{
+  console.log("data",data);
+  return api.put(`/employee/profile/personal/${emp_id}`, data);
+}
 
 // -------- EDUCATION --------
-export const getEducation = (emp_id) => axios.get(`${API_URL}/education/${emp_id}`, axiosConfig);
+export const getEducation = (emp_id) => 
+  api.get(`/employee/profile/education/${emp_id}`);
 
+export const addEducations = (emp_id, formData) =>
+  api.post(`/employee/profile/education/${emp_id}`, formData,{headers: { "Content-Type": "multipart/form-data" },});
 
+export const updateEducation = (emp_id, id, formData) =>
+  api.put(`/employee/profile/education/${emp_id}/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 
+export const deleteEducation = (emp_id, id) =>{
+  console.log("emp_id",emp_id)
+  return api.delete(`/employee/profile/education/${emp_id}/${id}`);
+}
 
-export const addEducations = (emp_id, data) =>
-  axios.post(`${API_URL}/education/${emp_id}`, data, axiosConfig);
-
-
-// UPDATE education
-export const updateEducation = (emp_id, id, data) =>
-    axios.put(`${API_URL}/education/${emp_id}/${id}`, data, axiosConfig);
-  
-  // 🗑 DELETE education
-  export const deleteEducation = (emp_id, id) =>
-    axios.delete(`${API_URL}/education/${emp_id}/${id}`, axiosConfig);
-  
 // -------- EXPERIENCE --------
-export const getExperience = (emp_id) => axios.get(`${API_URL}/experience/${emp_id}`, axiosConfig);
+export const getExperience = (emp_id) => 
+  api.get(`/employee/profile/experience/${emp_id}`);
 
-// CREATE experience
 export const addExperienceses = (emp_id, data) =>
-    axios.post(`${API_URL}/experience/${emp_id}`, data, axiosConfig);
-  
-  // UPDATE experience
-  export const updateExperience = (emp_id, id, data) =>
-    axios.put(`${API_URL}/experience/${emp_id}/${id}`, data, axiosConfig);
+  api.post(`/employee/profile/experience/${emp_id}`, data);
 
-// DELETE experience
-export const deleteExperience = (emp_id, id, data) =>
-  axios.delete(`${API_URL}/experience/${emp_id}/${id}`, data, axiosConfig);
+export const updateExperience = (emp_id, id, data) =>
+  api.put(`/employee/profile/experience/${emp_id}/${id}`, data);
 
-  
+export const deleteExperience = (emp_id, id) =>
+  api.delete(`/employee/profile/experience/${emp_id}/${id}`);
 
-// Contact
-export const getContact = (emp_id) => axios.get(`${API_URL}/contact/${emp_id}`, axiosConfig);
+// -------- CONTACT --------
+export const getContact = (emp_id) => 
+  api.get(`/employee/profile/contact/${emp_id}`);
 
-
-
-export const updateContact = (emp_id, contact) =>
-    axios.put(`${API_URL}/contact/${emp_id}`, contact, axiosConfig);
-  
-  
-
+export const updateContact = (emp_id, data) =>
+  api.put(`/employee/profile/contact/${emp_id}`, data);
 
 // -------- BANK --------
-export const getBank = (emp_id) => axios.get(`${API_URL}/bank/${emp_id}`, axiosConfig);
+export const getBank = (emp_id) => 
+  api.get(`/employee/profile/bank/${emp_id}`);
+
+export const addBank = (emp_id, data) => {
+  console.log("data add ",data);
+  return  api.post(`/employee/profile/bank/${emp_id}`, data);
+}
+ 
+
+export const updateBank = (emp_id, data) => {
+
+  console.log("Data update",data);
+return api.put(`/employee/profile/bank/${emp_id}`, data);
+}
 
 
-export const addBank = (emp_id,data) => axios.post(`${API_URL}/bank/${emp_id}`, data,axiosConfig);
-
-
-export const updateBank = (emp_id,data) => axios.put(`${API_URL}/bank/${emp_id}`, data,axiosConfig);
-
+// Special case: File Upload (multipart/form-data)
 export const uploadBankDoc = (emp_id, formData) =>
-  axios.post(`${API_URL}/bank/doc/${emp_id}`, formData, {
-    ...axiosConfig,
+  api.post(`/employee/profile/bank/doc/${emp_id}`, formData, {
     headers: {
-      ...axiosConfig.headers,
       "Content-Type": "multipart/form-data",
     },
   });
-

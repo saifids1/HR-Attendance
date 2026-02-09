@@ -6,7 +6,7 @@ import { emptyPersonal } from "../../constants/emptyData";
 import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const PersonalTab = ({ isEditing, setIsEditing }) => {
+const PersonalTab = ({ isEditing, cancelEdit }) => {
   const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
   const {token} =  useContext(AuthContext)
   const [draft, setDraft] = useState({ ...emptyPersonal });
@@ -92,20 +92,23 @@ const handleSave = async () => {
     toast.success("Personal Data Saved");
     setOriginalDraft(draft);
     setErrors({}); 
-    setIsEditing(false);
+    cancelEdit();
+    // setIsEditing(false);
   } catch (error) {
     console.error(error);
     toast.error("Failed to save personal data");
   }
 };
 
-  const handleCancel = () => {
-    setDraft(originalDraft); 
-    setErrors({}); 
-    setIsEditing(false);
-  };
+  // const handleCancel = () => {
+  //   setDraft(originalDraft); 
+  //   setErrors({}); 
+  //   setIsEditing(false);
+  // };
 
   return (
+    <>
+   
     <FormCard>
       {Object.keys(emptyPersonal).map((key) => (
         <div key={key} className="flex flex-col mb-3">
@@ -133,11 +136,12 @@ const handleSave = async () => {
         </div>
       ))}
 
+    </FormCard>
       {isEditing && (
-        <div className="flex gap-3 mt-3">
+        <div className="flex justify-end gap-3 mt-3 p-3 w-full">
           <button
             className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            onClick={handleCancel}
+            onClick={cancelEdit}
           >
             Cancel
           </button>
@@ -150,7 +154,7 @@ const handleSave = async () => {
           </button>
         </div>
       )}
-    </FormCard>
+    </>
   );
 };
 

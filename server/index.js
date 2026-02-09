@@ -13,6 +13,7 @@ const attendanceRoutes = require("./routes/attendance.routes");
 const shiftRoutes = require("./routes/shifts.routes");
 const reportingRoutes = require("./routes/reporting.routes");
 const leavesRoutes = require("./routes/leave.routes");
+const cronRoutes = require("./routes/cron.routes");
 // const adminRoutes = require("./routes/admin.routes");
 require("./cron/attendance.cron");
 require("dotenv").config();
@@ -93,6 +94,9 @@ app.use("/api",reportingRoutes)
 
 app.use("/api/leaves/types",leavesRoutes);
 
+// Cron Schedule Route
+
+app.use("/api/update-schedule",cronRoutes);
 
 app.listen(PORT,()=>{
 

@@ -6,7 +6,7 @@ import { getBank, addBank, updateBank } from "../../../api/profile";
 import { emptyBank } from "../../constants/emptyData";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const BankTab = ({ isEditing, setIsEditing }) => {
+const BankTab = ({ isEditing, cancelEdit }) => {
   const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
 const {token} = useContext(AuthContext)
   const [draft, setDraft] = useState([]);
@@ -90,18 +90,18 @@ const {token} = useContext(AuthContext)
       toast.success("Bank details saved successfully");
       setOriginalDraft(draft);
       setErrors([]); // Reset errors
-      setIsEditing(false);
+      // setIsEditing(false);
     } catch (error) {
       console.error(error);
       toast.error("Failed to save bank details");
     }
   };
 
-  const handleCancel = () => {
-    setDraft(originalDraft);
-    setErrors([]); // Reset errors
-    setIsEditing(false);
-  };
+  // const handleCancel = () => {
+  //   setDraft(originalDraft);
+  //   setErrors([]); // Reset errors
+  //   setIsEditing(false);
+  // };
 
   return (
     <>
@@ -138,10 +138,10 @@ const {token} = useContext(AuthContext)
       ))}
 
       {isEditing && (
-        <div className="flex gap-3 mt-3">
+        <div className="flex justify-end gap-3 mt-2 p-3">
           <button
             className="px-4 py-2 bg-gray-200 rounded"
-            onClick={handleCancel}
+            onClick={cancelEdit}
           >
             Cancel
           </button>

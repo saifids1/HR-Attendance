@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState, useCallback } from "react";
 import FormCard from "../../components/FormCard";
 import Input from "../../components/Input";
+import Loader from "../../components/Loader";
 import {
   getExperience,
   addExperienceses,
@@ -13,7 +14,7 @@ import { MdDelete } from "react-icons/md";
 import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const ExperienceTab = ({ isEditing, setIsEditing }) => {
+const ExperienceTab = ({ isEditing, cancelEdit }) => {
   const user = JSON.parse(localStorage.getItem("user"));
   const emp_id = user?.emp_id;
   const { token } = useContext(AuthContext);
@@ -53,14 +54,14 @@ const ExperienceTab = ({ isEditing, setIsEditing }) => {
       setSavedExperience(formattedData);
       setDraft({ ...emptyExperience });
       setErrors({});
-      setIsEditing(false);
+      // setIsEditing(false);
     } catch (err) {
       console.error("Fetch Experience Error:", err);
       toast.error(err.response?.data?.message || "Failed to load experience");
     } finally {
       setLoading(false);
     }
-  }, [emp_id, setIsEditing]);
+  }, [emp_id,]);
 
   useEffect(() => {
     if (token && emp_id) {
@@ -140,7 +141,7 @@ const ExperienceTab = ({ isEditing, setIsEditing }) => {
   const handleEdit = (exp) => {
     setDraft({ ...exp });
     setErrors({});
-    setIsEditing(true);
+    // setIsEditing(true);
   };
 
   return (
@@ -168,8 +169,8 @@ const ExperienceTab = ({ isEditing, setIsEditing }) => {
       </FormCard>
 
       {isEditing && (
-        <div className="flex gap-3 mt-3">
-          <button className="px-4 py-2 bg-gray-200 rounded" onClick={() => setIsEditing(false)}>
+        <div className="flex justify-end gap-3 mt-2 p-3">
+          <button className="px-4 py-2 bg-gray-200 rounded" onClick={cancelEdit}>
             Cancel
           </button>
           <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handleSave}>
@@ -191,7 +192,10 @@ const ExperienceTab = ({ isEditing, setIsEditing }) => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="5" className="text-center py-10">Fetching Experience Records...</td></tr>
+              <tr>
+                <Loader/>
+                <td colSpan="5" className="text-center py-10">Fetching Experience Records...</td>
+                </tr>
             ) : savedExperience.length > 0 ? (
               savedExperience.map((exp) => (
                 <tr key={exp.id} className="hover:bg-gray-50 transition-colors">

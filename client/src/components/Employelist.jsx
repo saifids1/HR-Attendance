@@ -65,7 +65,7 @@ const Employelist = () => {
               {filteredEmployees.map((emp) => (
                 <tr key={emp.emp_id} className="hover:bg-blue-50/40 transition-colors duration-150">
                   <td className="px-6 py-4">
-                    <span className=" text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    <span className={`text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded ${emp.is_active ? "text-green-500":"text-red-500"}`}>
                       {emp.emp_id}
                     </span>
                   </td>
@@ -91,13 +91,17 @@ const Employelist = () => {
                     </div>
                   </td> */}
 
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 flex gap-2">
                     <NavLink
                       to={`/admin/employee-details/${emp.emp_id}`}
                       className="inline-flex items-center px-3 py-1.5 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm"
                     >
                       View Profile
                     </NavLink>
+                    <NavLink 
+                    to={`/admin/employee-details/edit/${emp.emp_id}`}
+                    className="inline-flex items-center px-3 py-1.5 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm"
+                    >Edit</NavLink>
                   </td>
                 </tr>
               ))}

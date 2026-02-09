@@ -14,7 +14,7 @@ const Input = ({ label, disabled, ...props }) => (
         border rounded px-3 py-2 text-sm
         transition-colors duration-200
         ${disabled
-          ? "bg-gray-100 text-gray-600 cursor-not-allowed"
+          ? "bg-gray-200 text-gray-600 cursor-not-allowed"
           : "bg-white text-gray-900"}
         focus:outline-none focus:ring-2 focus:ring-[#222F7D]
       `}

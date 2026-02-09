@@ -2,7 +2,6 @@ import React, { useContext, useMemo, useEffect } from "react";
 import { EmployContext } from "../context/EmployContextProvider";
 import Loader from "./Loader";
 
-// Status Badge remains the same
 const StatusBadge = ({ status }) => {
   const styles = {
     Present: "bg-green-600 text-white",
@@ -19,29 +18,15 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// FIX: Holiday match using local date string to handle UTC offsets (18:30 Z)
 const getHolidayMatch = (attendanceDate, holidays = []) => {
   if (!attendanceDate || !holidays.length) return null;
-  
-  // Use toDateString() as it compares the actual calendar day in local time
   const aDate = new Date(attendanceDate).toDateString();
-  
-  return holidays.find(h => {
-    const hDate = new Date(h.holiday_date).toDateString();
-    return aDate === hDate;
-  });
+  return holidays.find(h => new Date(h.holiday_date).toDateString() === aDate);
 };
 
-// Fix: Don't let new Date() shift the time if the backend already formatted it
 const formatTime = (value) => {
   if (!value) return "--";
-  
-  // If the backend is now sending "11:15 AM", just return it
-  if (typeof value === 'string' && (value.includes("AM") || value.includes("PM"))) {
-    return value;
-  }
-
-  // Fallback for raw ISO strings: Force Asia/Kolkata display
+  if (typeof value === 'string' && (value.includes("AM") || value.includes("PM"))) return value;
   try {
     const d = new Date(value);
     return d.toLocaleTimeString('en-IN', {
@@ -50,23 +35,7 @@ const formatTime = (value) => {
       minute: '2-digit',
       hour12: true
     });
-  } catch (e) {
-    console.log(e);
-    return value;
-  }
-};
-
-// Fix: Ensure Date display doesn't jump a day backward due to UTC offsets
-const formatDate = (value) => {
-  if (!value) return "--";
-  const date = new Date(value);
-  return date.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" });
-};
-
-const EmpformatDate = (dateStr) => {
-  if (!dateStr) return "--";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", { weekday: "short" });
+  } catch (e) { return value; }
 };
 
 const formatInterval = (val) => {
@@ -83,12 +52,15 @@ const formatInterval = (val) => {
 const Table = () => {
   const { adminAttendance = [], employeeAttendance = [], loading, filters, holidays } = useContext(EmployContext);
 
-  // useEffect(()=>{
-  //   console.log("employeeAttendance",employeeAttendance)
-  // },[])
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = (user?.role || "").toLowerCase();
   const isAdmin = role === "admin";
+
+  // Standardized Date Formatter for Day of Week
+  const getDayName = (dateStr) => {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short" });
+  };
 
   const data = isAdmin
     ? adminAttendance
@@ -109,8 +81,8 @@ const Table = () => {
     if (start) result = result.filter((row) => normalizeDate(row.attendance_date) >= start);
     if (end) result = result.filter((row) => normalizeDate(row.attendance_date) <= end);
 
-    if (isAdmin && filters?.search) {
-      const search = filters.search.toLowerCase();
+    if (isAdmin && filters?.attendanceSearch) {
+      const search = filters.attendanceSearch.toLowerCase();
       result = result.filter(
         (row) =>
           row.name?.toLowerCase().includes(search) ||
@@ -120,14 +92,30 @@ const Table = () => {
     return result;
   }, [data, filters, isAdmin]);
 
-  // Updated Row styling to include Holiday color
   const getRowClass = (dayStr, isToday, isHoliday, index) => {
-    if (isHoliday) return "bg-blue-50 text-blue-900 font-medium"; // Holiday row color
-    if (!isAdmin && dayStr === "Sun") return "bg-[#faa307] text-white font-semibold";
-    if (!isAdmin && dayStr === "Sat") return "bg-[#D1FFBD] text-dark font-semibold";
-    if (!isAdmin && isToday) return "bg-blue-100 font-semibold";
+    if (isHoliday) return "bg-blue-50 text-blue-900 font-medium";
+    if (dayStr === "Sun" && !isAdmin) return "bg-[#faa307] text-white font-semibold";
+    if (dayStr === "Sat" && !isAdmin) return "bg-[#D1FFBD] text-dark font-semibold";
+    if (isToday) return "bg-white font-semibold";
     return index % 2 === 0 ? "bg-white" : "bg-gray-50";
   };
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+
+    const date = new Date(dateString);
+
+    // Extract parts
+    const d = date.getDate();
+    const m = date.getMonth() + 1; // Months are 0-indexed
+    const y = date.getFullYear();
+
+    // padStart adds the '0' if the number is less than 10
+    const day = String(d).padStart(2, '0');
+    const month = String(m).padStart(2, '0');
+
+    return `${month}-${day}-${y}`;
+  };
+
 
   const headers = isAdmin
     ? ["Sr No", "Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"]
@@ -138,99 +126,86 @@ const Table = () => {
 
   return (
     <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-    <table className="min-w-full text-sm border-collapse">
-      <thead className="bg-gray-100 sticky top-0 z-10">
-        <tr>
-          {headers.map((h, i) => (
-            <th key={i} className="border-b px-4 py-3 font-semibold text-left text-gray-700 whitespace-nowrap">
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody className="bg-white">
-        {filteredData
-          // Only show active employees in Admin view; Employees see all their own history
-          .filter((row) => 
-            row.emp_id && (isAdmin ? row.is_active === true : true)
-          )
-          .map((row, i) => {
-            const dayStr = EmpformatDate(row.attendance_date);
-            const holidayMatch = getHolidayMatch(row.attendance_date, holidays);
-            const isAbsent = row.status === "Absent" && !holidayMatch;
-            const isToday = new Date(row.attendance_date).toDateString() === new Date().toDateString();
-            
-            // Use employee_name from your JSON or fallback to row.name
-            const displayName = row.employee_name || row.name || "--";
-  
-            return (
-              <tr 
-                key={row.emp_id ? `${row.emp_id}-${i}` : i} 
-                className={`${getRowClass(dayStr, isToday, !!holidayMatch, i)}  transition-colors`}
-              >
-                {isAdmin ? (
-                  /* ADMIN VIEW: FOCUS ON EMPLOYEE LIST */
-                  <>
-                    <td className="border-b px-4 py-2 text-gray-600">{i + 1}</td>
-                    <td className="border-b px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{row.emp_id || "--"}</td>
-                    <td className="border-b px-4 py-2 whitespace-nowrap">{displayName}</td>
-                    <td className="border-b px-4 py-2 whitespace-nowrap">{formatDate(row.attendance_date)}</td>
-                    <td className="border-b px-4 py-2">
-                      {holidayMatch ? (
-                        <span className="inline-block text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded border border-blue-200 text-[10px] uppercase">
-                          {holidayMatch.holiday_name}
-                        </span>
-                      ) : (
-                        <StatusBadge status={row.status} />
-                      )}
-                    </td>
-                    <td className="border-b px-4 py-2 whitespace-nowrap">
-                      {(isAbsent || holidayMatch) ? "--" : formatTime(row.punch_in)}
-                    </td>
-                    <td className="border-b px-4 py-2 whitespace-nowrap">
-                      {(isAbsent || holidayMatch) ? "--" : row.punch_out ? formatTime(row.punch_out) : <span className="text-orange-500">Working...</span>}
-                    </td>
-                    <td className="border-b px-4 py-2">
-                      {(isAbsent || holidayMatch) ? "--" : formatInterval(row.total_hours)}
-                    </td>
-                    <td className="border-b px-4 py-2">
-                      {(isAbsent || holidayMatch) ? "0" : (dayStr === "Sat" ? "5" : "9.3")}
-                    </td>
-                  </>
-                ) : (
-                  /* EMPLOYEE VIEW: FOCUS ON PERSONAL CALENDAR/HISTORY */
-                  <>
-                    <td className="border-b px-4 py-2 font-semibold text-gray-600">{dayStr}</td>
-                    <td className="border-b px-4 py-2 whitespace-nowrap">{formatDate(row.attendance_date)}</td>
-                    <td className="border-b px-4 py-2">
-                      {holidayMatch ? (
-                        <span className="text-blue-700 font-bold whitespace-nowrap">{holidayMatch.holiday_name}</span>
-                      ) : dayStr === "Sun" ? (
-                        <span className="text-white">WeekDay Off</span>
-                      ) : (
-                        <StatusBadge status={row.status} />
-                      )}
-                    </td>
-                    <td className="border-b px-4 py-2">
-                      {(dayStr === "Sun" || holidayMatch || isAbsent) ? "" : formatTime(row.punch_in)}
-                    </td>
-                    <td className="border-b px-4 py-2">
-                      {(dayStr === "Sun" || holidayMatch || isAbsent) ? "" : row.punch_out ? formatTime(row.punch_out) : "Working..."}
-                    </td>
-                    <td className="border-b px-4 py-2">
-                      {(dayStr === "Sun" || holidayMatch || isAbsent) ? "" : formatInterval(row.total_hours)}
-                    </td>
-                    <td className="border-b px-4 py-2">
-                      {(dayStr === "Sun" || holidayMatch) ? "" : (dayStr === "Sat" ? "5" : "9.3")}
-                    </td>
-                  </>
-                )}
-              </tr>
-            );
-          })}
-      </tbody>
-    </table>
-  </div>
+      <table className="min-w-full text-sm border-collapse">
+        <thead className="bg-gray-100 sticky top-0 z-10">
+          <tr>
+            {headers.map((h, i) => (
+              <th key={i} className="border-b px-4 py-3 font-semibold text-left text-gray-700 whitespace-nowrap">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white">
+          {filteredData
+            .filter((row) => row.emp_id && (isAdmin ? row.is_active === true : true))
+            .map((row, i) => {
+              const dayStr = getDayName(row.attendance_date);
+              const holidayMatch = getHolidayMatch(row.attendance_date, holidays);
+              const isToday = new Date(row.attendance_date).toDateString() === new Date().toDateString();
+              const isSunday = dayStr === "Sun";
+              const isSaturday = dayStr === "Sat";
+              const isAbsent = row.status === "Absent" && !holidayMatch && !isSunday;
+
+              const displayName = row.employee_name || row.name || "--";
+              const dateDisplay = new Date(row.attendance_date).toLocaleDateString('en-IN');
+
+              return (
+                <tr
+                  key={row.emp_id ? `${row.emp_id}-${i}` : i}
+                  className={`${getRowClass(dayStr, isToday, !!holidayMatch, i)} transition-colors`}
+                >
+                  {isAdmin ? (
+                    <>
+                      <td className="border-b px-4 py-2 text-gray-600">{i + 1}</td>
+                      <td className="border-b px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{row.emp_id || "--"}</td>
+                      <td className="border-b px-4 py-2 whitespace-nowrap">{displayName}</td>
+                      <td className="border-b px-4 py-2 whitespace-nowrap">
+                        {formatDate(dateDisplay)}
+                      </td>
+                      <td className="border-b px-4 py-2">
+                        {holidayMatch ? (
+                          <span className="inline-block text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded border border-blue-200 text-[10px] uppercase">
+                            {holidayMatch.holiday_name}
+                          </span>
+                        ) : isSunday ? (
+                          <span className="text-white font-bold bg-orange-600 px-2 py-0.5 rounded text-[10px] uppercase">Weekday Off</span>
+                        ) : (
+                          <StatusBadge status={row.status} />
+                        )}
+                      </td>
+                      <td className="border-b px-4 py-2">{(isAbsent || holidayMatch || isSunday) ? "--" : formatTime(row.punch_in)}</td>
+                      <td className="border-b px-4 py-2">
+                        {(isAbsent || holidayMatch || isSunday) ? "--" : row.punch_out ? formatTime(row.punch_out) : <span className="text-orange-500">Working...</span>}
+                      </td>
+                      <td className="border-b px-4 py-2">{(isAbsent || holidayMatch || isSunday) ? "--" : formatInterval(row.total_hours)}</td>
+                      <td className="border-b px-4 py-2">{(holidayMatch || isSunday) ? "0" : (isSaturday ? "5" : "9.3")}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="border-b px-4 py-2 font-semibold text-gray-600">{dayStr}</td>
+                      <td className="border-b px-4 py-2 whitespace-nowrap">{dateDisplay}</td>
+                      <td className="border-b px-4 py-2">
+                        {holidayMatch ? (
+                          <span className="text-blue-700 font-bold whitespace-nowrap">{holidayMatch.holiday_name}</span>
+                        ) : isSunday ? (
+                          <span className="text-white font-bold">WeekDay Off</span>
+                        ) : (
+                          <StatusBadge status={row.status} />
+                        )}
+                      </td>
+                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch || isAbsent) ? "" : formatTime(row.punch_in)}</td>
+                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch || isAbsent) ? "" : row.punch_out ? formatTime(row.punch_out) : "Working..."}</td>
+                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch || isAbsent) ? "" : formatInterval(row.total_hours)}</td>
+                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch) ? "" : (isSaturday ? "5" : "9.3")}</td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+        </tbody>
+      </table>
+    </div>
   );
 };
 

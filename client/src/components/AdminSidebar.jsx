@@ -40,7 +40,7 @@ const SidebarContent = ({ open, setOpen, setMobileOpen, navClass }) => {
   items={[
     { label: "Employee List", path: "/admin/employees" },
     { label: "Add Employee", path: "/admin/add-emp" },
-    { label: "Employee Attendance", path: "/admin/attendance" },
+    { label: "Daily Attendance", path: "/admin/attendance" },
   ]}
 />
 
@@ -143,7 +143,8 @@ const AdminSidebar = ({ open, setOpen }) => {
         items={[
           { label: "Employee List", path: "/admin/employees" },
           { label: "Add Employee", path: "/admin/add-emp" },
-          { label: "Employee Attendance", path: "/admin/attendance" },
+          { label: "Daily Attendance", path: "/admin/attendance" },
+          // { label: "Employee Attendance", path: "/admin/all" },
         ]}
       />
 
@@ -165,6 +166,13 @@ const AdminSidebar = ({ open, setOpen }) => {
         <SlCalender size={18} className="shrink-0" />
         <span className={`transition-all duration-300 whitespace-nowrap ${!open && "md:hidden"}`}>
           Attendance Log
+        </span>
+      </NavLink>
+
+      <NavLink to="/admin/cron-manager" className={navClass}>
+        <SlCalender size={18} className="shrink-0" />
+        <span className={`transition-all duration-300 whitespace-nowrap ${!open && "md:hidden"}`}>
+          Manage Daily Report
         </span>
       </NavLink>
 
