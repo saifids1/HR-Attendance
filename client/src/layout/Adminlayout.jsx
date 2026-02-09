@@ -2,6 +2,7 @@ import { NavLink,Outlet } from "react-router-dom";
 import AdminSidebar from "../components/AdminSidebar";
 import Navbar from "../components/Navbar";
 import { useState,useEffect } from "react";
+import axios from "axios";
 
 
 function Adminlayout() {
@@ -14,7 +15,7 @@ function Adminlayout() {
           await axios.get("http://hr-api.i-diligence.com/api/admin/attendance/sync");
     
           // Load today's attendance
-          await axios.get("http://hr-api.i-diligence.com//api/admin/attendance/today");
+          await axios.get("http://localhost:5000/api/admin/attendance/today");
         } catch (err) {
           console.error("Admin sync error", err);
         }

@@ -13,6 +13,7 @@ import Holidays from "./pages/Holidays";
 import Profile from "./pages/Profile";
 import Employleaves from "./pages/Employleaves";
 import Adminleaves from "./pages/Adminleaves";
+import CronManager from "./pages/CronManager";
 
 import Login from "./components/Login";
 import Employelist from "./components/Employelist";
@@ -21,6 +22,12 @@ import AddEmploy from "./components/AddEmploy";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AdminRoute from "./routes/AdminRoute";
+import AdminAttendancePage from "./pages/AdminAttendancePage";
+import EmployeeDetails from "./components/EmployDetails";
+import ReportingAdmin from "./pages/ReportingAdmin";
+import AdminActivityLog from "./pages/AdminActivityLog";
+import AdminEditEmpProfile from "./pages/AdminEditEmpProfile";
+import SingleEmpAttendance from "./components/SingleEmpAttendance";
 
 function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem("user") || "null"));
@@ -85,10 +92,18 @@ function App() {
             <Route path="attendance" element={<Attendance/>} /> 
             <Route path="employees" element={<Employelist />} />
             <Route path="add-emp" element={<AddEmploy />} />
+            <Route path="activity-logs" element={<AdminActivityLog/>}/>
             <Route path="leaves" element={<Adminleaves />} />
+            <Route path="admin-attendance" element={<AdminAttendancePage/>}/>
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="employee-details/:emp_id" element={<EmployeeDetails />} />
+            <Route path="employee-details/edit/:emp_id" element={<AdminEditEmpProfile />} />
+            <Route path="all" element={<SingleEmpAttendance/>}/>
+            <Route path="reporting" element={<ReportingAdmin/> }/>
+            <Route path="profile" element={<Profile />} />
             <Route path="help" element={<Help />} />
+            <Route path="cron-manager" element={<CronManager/>}/>
           </Route>
         </Route>
 

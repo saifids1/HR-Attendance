@@ -3,6 +3,7 @@ const { getDeviceAttendance } = require("../services/zk.service");
 const {
   generateDailyAttendance,
   syncAttendance,
+  processAndSendAttendanceReport,
 } = require("../controllers/attendance.controller");
 const { db } = require("../db/connectDB");
 
@@ -121,3 +122,4 @@ async function aggregateTodayAttendance() {
 }
 
 console.log(" Attendance cron jobs initialized");
+

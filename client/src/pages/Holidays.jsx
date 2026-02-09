@@ -7,10 +7,10 @@ const Holidays = () => {
 
   const {holidays} = useContext(EmployContext);
 
-  console.log(holidays);
-  const timelineData = [
-    // ... (same data, unchanged)
-  ];
+  // console.log(holidays);
+  // const timelineData = [
+  //   // ... (same data, unchanged)
+  // ];
 
   return (
     <div className="px-2 sm:px-4 pb-6 w-full ">
@@ -31,7 +31,7 @@ const Holidays = () => {
 
       {/* Calendar Wrapper */}
       <div className="w-full mt-4 flex justify-center overflow-x-auto">
-        <div className="min-w-[320px] max-w-full">
+        <div className="">
           <HolidayCalendar data={holidays} />
         </div>
       </div>

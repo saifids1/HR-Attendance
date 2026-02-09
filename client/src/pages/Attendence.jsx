@@ -1,10 +1,10 @@
 import { Typography } from "@mui/material";
-import React, { useContext, useMemo } from "react";
+import React, { useContext, useEffect, useMemo } from "react";
 import Table from "../components/Table";
 import { EmployContext } from "../context/EmployContextProvider";
 import Loader from "../components/Loader";
 import Filters from "../components/Filters";
-
+import { useLocation } from "react-router-dom";
 /* helper function */
 const formatHours = (val) => {
   if (!val) return "00:00";
@@ -22,6 +22,11 @@ const Attendence = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user?.role?.toLowerCase()?.trim();
   const isAdmin = role === "admin";
+  const location = useLocation();
+
+  useEffect(()=>{
+    console.log(location.pathname)
+  },[])
 
   const { adminAttendance = [], loading } = useContext(EmployContext);
 
@@ -81,7 +86,7 @@ const Attendence = () => {
     [adminAttendance]
   );
 
-  const handleFilterClick = ()=>{
+  const handleFilterClick = () => {
 
   }
 
@@ -89,11 +94,13 @@ const Attendence = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-3 pb-6">
 
       {/* Header */}
-      <div className="sticky top-0 z-0 bg-[#222F7D] rounded-lg">
-        <Typography className="text-white py-2 text-2xl text-center">
-          Attendance
-        </Typography>
-      </div>
+      {!isAdmin &&
+        <div className="sticky top-0 z-10 bg-[#222F7D] rounded-lg">
+          <Typography className="text-white py-2 text-2xl text-center">
+            Attendance
+          </Typography>
+        </div>
+      }
 
       {/* Loader */}
       {loading ? (
@@ -102,13 +109,14 @@ const Attendence = () => {
         </div>
       ) : (
         <div className="mt-4">
-          <Filters filterClick={handleFilterClick}/>
-         
-          {<Table
-            headers={isAdmin ? adminTableHeader : employeeTableHeader}
-            data={isAdmin ? adminTableData : employeeTableData}
-            filterClick={handleFilterClick}
-          /> }
+          <Filters filterClick={handleFilterClick} />
+
+          {
+            <Table
+              headers={isAdmin ? adminTableHeader : employeeTableHeader}
+              data={isAdmin ? adminTableData : employeeTableData}
+              filterClick={handleFilterClick}
+            />}
         </div>
       )}
     </div>
