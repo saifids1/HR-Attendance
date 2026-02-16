@@ -4,10 +4,15 @@ import PeopleIcon from "@mui/icons-material/People";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { IoEnterOutline } from "react-icons/io5";
+import { useLocation } from "react-router-dom";
+
 import { IoExit } from "react-icons/io5";
 
 
 const Cards = () => {
+  const location = useLocation();
+const isAdminRoute = location.pathname.startsWith("/admin");
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user?.role?.toLowerCase()?.trim();
 
@@ -83,15 +88,14 @@ const Cards = () => {
 
   /* Employee Cards*/
   const employeeCards = useMemo(() => {
-    if (!singleAttendance) return [];
-
+    // if (!singleAttendance) return [];
+  
     return [
-      
       {
         id: 1,
         title: "Punch In",
-        value: singleAttendance.today.punch_in
-          ?getTime(singleAttendance.today.punch_in)
+        value: singleAttendance?.today?.punch_in
+          ? getTime(singleAttendance.today.punch_in)
           : "--",
         icon: <IoEnterOutline />,
         bgColor: "#32a852",
@@ -99,22 +103,22 @@ const Cards = () => {
       {
         id: 2,
         title: "Punch Out",
-        value: singleAttendance.today.punch_in
-          ? "Working"
-          : "--",
+        value: singleAttendance?.today?.punch_out
+          ? getTime(singleAttendance.today.punch_out)
+          : "Working",
         icon: <IoExit />,
         bgColor: "#dc2626",
       },
       {
         id: 3,
         title: "Weekly Hours",
-        value: singleAttendance.weekly.total_hours ?? "--",
+        value: singleAttendance?.weekly?.total_hours ?? "--",
         icon: <CheckCircleIcon />,
-        bgColor:"#2563eb"
-         
+        bgColor: "#2563eb",
       },
     ];
   }, [singleAttendance]);
+  
 
   /*Loading */
   if (loading) {
@@ -130,7 +134,10 @@ const Cards = () => {
     );
   }
 
-  const cardsToRender = role === "admin" ? adminCards : employeeCards;
+  // const cardsToRender = role === "admin" ? adminCards : employeeCards;
+
+  const cardsToRender = isAdminRoute ? adminCards : employeeCards;
+
 
   if (!cardsToRender.length) return null;
 

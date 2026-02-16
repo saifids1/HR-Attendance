@@ -1,156 +1,160 @@
 import React, { useContext, useEffect, useState } from "react";
 import FormCard from "../../components/FormCard";
 import Input from "../../components/Input";
-import { addPersonal, getPersonal, updatePersonal } from "../../../api/profile";
+import { addPersonal, updatePersonal } from "../../../api/profile";
 import { emptyPersonal } from "../../constants/emptyData";
 import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const PersonalTab = ({ isEditing, cancelEdit }) => {
-  const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
-  const {token} =  useContext(AuthContext)
+const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave, emp_id }) => {
+  const { token } = useContext(AuthContext);
+  
+  // local state for the form inputs
   const [draft, setDraft] = useState({ ...emptyPersonal });
-  const [originalDraft, setOriginalDraft] = useState({ ...emptyPersonal });
   const [isNewRecord, setIsNewRecord] = useState(false);
-  // State to track specific field errors
   const [errors, setErrors] = useState({});
 
-
-useEffect(() => {
-  const storedUser = localStorage.getItem("user");
-  const currentEmpId = storedUser ? JSON.parse(storedUser)?.emp_id : null;
-
-  if (!currentEmpId || !token) return;
-
-  const fetchPersonal = async () => {
-    try {
-      const res = await getPersonal(currentEmpId);
-      const personalData = res?.data;
-  
+  // Synchronize internal draft when parent data arrives
+  useEffect(() => {
+    if (personalData && Object.keys(personalData).length > 0) {
       const initializedData = {};
-  
-      // Loop through your expected keys (gender, dob, etc.)
       Object.keys(emptyPersonal).forEach((key) => {
-        // Logic: If API value exists AND is not null, use it. 
-        // Otherwise, use the dummy value from emptyPersonal.
-        initializedData[key] = (personalData && personalData[key] !== null && personalData[key] !== undefined)
+        initializedData[key] = (personalData[key] !== null && personalData[key] !== undefined)
           ? personalData[key]
-          : emptyPersonal[key]; // Use "Male", "B+", etc. from your dummy object
+          : emptyPersonal[key];
       });
-  
       setDraft(initializedData);
-      setOriginalDraft(initializedData);
+      // Determine if record is new based on presence of a specific field
+      setIsNewRecord(!personalData.aadharnumber);
+    }
+  }, [personalData]);
+
+  const handleSave = async () => {
+    const newErrors = {};
+    
+    // Validation
+    Object.keys(emptyPersonal).forEach((key) => {
+      if (!draft[key] || draft[key].toString().trim() === "") {
+        const fieldName = key.replace(/_/g, " ").toUpperCase();
+        newErrors[key] = `${fieldName} IS REQUIRED`;
+      }
+    });
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix the errors below");
+      return;
+    }
+
+    try {
+      if (isNewRecord) {
+        await addPersonal(emp_id, draft);
+        setIsNewRecord(false);
+      } else {
+        await updatePersonal(emp_id, draft);
+      }
+
+      toast.success("Personal Data Saved");
+      setErrors({});
       
-      // Determine if we should POST or PUT later
-      // If the API returned nulls for core fields, it's effectively a "New" record
-      setIsNewRecord(!personalData?.aadharnumber); 
-  
+      // Notify the parent component that save was successful
+      if (onSave) {
+        onSave(draft); 
+      } else {
+        setIsEditing(false); // Fallback
+      }
     } catch (error) {
-      console.error("Fetch failed, using all dummy data", error);
-      setDraft({ ...emptyPersonal });
-      setOriginalDraft({ ...emptyPersonal });
-      setIsNewRecord(true);
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Failed to save personal data");
     }
   };
 
-  fetchPersonal();
-}, [token, emp_id]);
-
-
-
-
-// useEffect(()=>{
-//   console.log("isNewRecord",isNewRecord)
-// },[isNewRecord])
-
-const handleSave = async () => {
-  const newErrors = {};
-  
-  // Validation
-  Object.keys(emptyPersonal).forEach((key) => {
-    if (!draft[key] || draft[key].toString().trim() === "") {
-      const fieldName = key.replace(/_/g, " ").toUpperCase();
-      newErrors[key] = `${fieldName} IS REQUIRED`;
-    }
-  });
-
-  if (Object.keys(newErrors).length > 0) {
-    setErrors(newErrors);
-    toast.error("Please fix the errors below");
-    return;
-  }
-
-  try {
-    // Dynamic API call based on whether the record exists
-    if (isNewRecord) {
-      await addPersonal(emp_id, draft);
-      setIsNewRecord(false); // It's no longer new after first save
-    } else {
-      await updatePersonal(emp_id, draft);
-    }
-
-    toast.success("Personal Data Saved");
-    setOriginalDraft(draft);
-    setErrors({}); 
-    cancelEdit();
-    // setIsEditing(false);
-  } catch (error) {
-    console.error(error);
-    toast.error("Failed to save personal data");
-  }
-};
-
-  // const handleCancel = () => {
-  //   setDraft(originalDraft); 
-  //   setErrors({}); 
-  //   setIsEditing(false);
-  // };
+  const handleCancel = () => {
+    // Reset draft to the original prop data
+    setDraft({ ...emptyPersonal, ...personalData });
+    setErrors({});
+    setIsEditing(false);
+  };
 
   return (
     <>
-   
-    <FormCard>
-      {Object.keys(emptyPersonal).map((key) => (
-        <div key={key} className="flex flex-col mb-3">
-          <Input
-            label={key.replace(/_/g, " ").toUpperCase()}
-            value={draft[key] || ""}
-            disabled={!isEditing}
-            onChange={(e) => {
-              setDraft({ ...draft, [key]: e.target.value });
-              // Remove the specific error when user starts typing
-              if (errors[key]) {
-                const updatedErrors = { ...errors };
-                delete updatedErrors[key];
-                setErrors(updatedErrors);
-              }
-            }}
-          />
-          
-      
-          {isEditing && errors[key] && (
-            <p className="text-red-500 text-[10px] font-small mt-2 uppercase tracking-wide ">
-              * {errors[key]}
-            </p>
-          )}
-        </div>
-      ))}
+      <FormCard>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
 
-    </FormCard>
+        {Object.keys(emptyPersonal).map((key) => {
+          const dropdownConfigs = {
+            status: ["Active", "Inactive", "Pending"],
+            gender: ["Male", "Female", "Other", "Prefer not to say"],
+            maritalstatus: ["Single", "Married", "Divorced", "Widowed"],
+            bloodgroup: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+          };
+
+          const isDropdown = dropdownConfigs.hasOwnProperty(key);
+
+          return (
+            <div key={key} className="flex flex-col mb-3">
+              <label className="text-[11px] font-bold mb-1 text-gray-600 uppercase tracking-tight">
+                {key.replace(/_/g, " ")}
+              </label>
+
+              {isDropdown ? (
+                <select
+                  value={draft[key] || ""}
+                  disabled={!isEditing}
+                  className="w-full border rounded-md p-2 text-sm disabled:bg-gray-100 bg-white text-gray-600 outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={(e) => {
+                    setDraft({ ...draft, [key]: e.target.value });
+                    if (errors[key]) {
+                      const { [key]: _, ...remainingErrors } = errors;
+                      setErrors(remainingErrors);
+                    }
+                  }}
+                >
+                  {dropdownConfigs[key].map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  value={draft[key] || ""}
+                  disabled={!isEditing}
+                  onChange={(e) => {
+                    setDraft({ ...draft, [key]: e.target.value });
+                    if (errors[key]) {
+                      const { [key]: _, ...remainingErrors } = errors;
+                      setErrors(remainingErrors);
+                    }
+                  }}
+                />
+              )}
+
+              {isEditing && errors[key] && (
+                <p className="text-red-500 text-[10px] font-medium mt-1 uppercase">
+                  * {errors[key]}
+                </p>
+              )}
+            </div>
+          );
+        })}
+        </div>
+      </FormCard>
+
       {isEditing && (
-        <div className="flex justify-end gap-3 mt-3 p-3 w-full">
+        <div className="flex justify-end gap-3 mt-4">
           <button
-            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            onClick={cancelEdit}
+            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-semibold"
+            onClick={handleCancel}
           >
             Cancel
           </button>
 
           <button
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-6 py-2 bg-[#222F7D] text-white rounded-lg hover:bg-blue-800 transition-colors text-sm font-semibold"
             onClick={handleSave}
           >
-            Save
+            Save Changes
           </button>
         </div>
       )}

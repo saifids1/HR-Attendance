@@ -27,7 +27,9 @@ import EmployeeDetails from "./components/EmployDetails";
 import ReportingAdmin from "./pages/ReportingAdmin";
 import AdminActivityLog from "./pages/AdminActivityLog";
 import AdminEditEmpProfile from "./pages/AdminEditEmpProfile";
-import SingleEmpAttendance from "./components/SingleEmpAttendance";
+import SingleEmpAttendance from "./pages/SingleEmpAttendance";
+import AttendanceSheet from "./components/AttendanceSheet";
+import WeeklyAttendance from "./pages/WeeklyAttendance";
 
 function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem("user") || "null"));
@@ -103,12 +105,15 @@ function App() {
             <Route path="reporting" element={<ReportingAdmin/> }/>
             <Route path="profile" element={<Profile />} />
             <Route path="help" element={<Help />} />
-            <Route path="cron-manager" element={<CronManager/>}/>
+            <Route path="cron-manager" element={<AttendanceSheet/>}/>
+            {/* <Route path="cron-manager" element={<CronManager/>}/> */}
+            <Route path="week" element={<WeeklyAttendance/>}/>
           </Route>
         </Route>
 
         {/* EMPLOYEE */}
-        <Route element={<ProtectedRoute allowedRole="employee" />}>
+        <Route element={<ProtectedRoute allowedRoles={["employee", "admin"]} />}>
+
           <Route path="/employee" element={<Employlayout />}>
             <Route index element={<Overview />} />
             <Route path="attendance" element={<Attendance />} /> 

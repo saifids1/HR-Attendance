@@ -4,13 +4,14 @@ import { NavLink } from 'react-router-dom';
 import Loader from './Loader';
 
 const Employelist = () => {
-  const { adminAttendance, loading } = useContext(EmployContext);
+  const { adminAttendance, loading,formatDate } = useContext(EmployContext);
 
   const empHeader = [
     { label: "Emp ID", key: "emp_id" },
     { label: "Emp Name", key: "name" },
     { label: "Email", key: "email" },
-    // { label: "Status", key: "status" },
+    { label: "Department", key: "department" },
+    { label: "Joining Date", key: "joining date" },
     { label: "Action", key: "action" }
   ];
 
@@ -23,7 +24,7 @@ const Employelist = () => {
 
 
   const filteredEmployees = adminAttendance.filter(
-    emp => emp.emp_id !== "202500021" && emp.emp_id
+    emp => emp.emp_id !== "202500021" && emp.emp_id !== "2020"&& emp.emp_id
   );
 
 
@@ -65,31 +66,17 @@ const Employelist = () => {
               {filteredEmployees.map((emp) => (
                 <tr key={emp.emp_id} className="hover:bg-blue-50/40 transition-colors duration-150">
                   <td className="px-6 py-4">
-                    <span className={`text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded ${emp.is_active ? "text-green-500":"text-red-500"}`}>
+                    <span className={`text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded ${emp.is_active ? "text-white bg-green-500":"text-white bg-red-500"}`}>
                       {emp.emp_id}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">{emp.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{emp.email}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{emp.department ? emp.department:"--"}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{formatDate(emp.joining_date)}</td>
                   
 
-                  {/* STATUS TOGGLE COLUMN */}
-                  {/* <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="sr-only peer"
-                          checked={emp.is_active}
-                          onChange={() => handleToggleActive(emp.emp_id, emp.is_active)}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                      </label>
-                      <span className={`text-xs font-bold ${emp.is_active ? "text-green-700" : "text-red-700"}`}>
-                        {emp.is_active ? "ACTIVE" : "INACTIVE"}
-                      </span>
-                    </div>
-                  </td> */}
+                  
 
                   <td className="px-6 py-4 flex gap-2">
                     <NavLink
@@ -98,10 +85,10 @@ const Employelist = () => {
                     >
                       View Profile
                     </NavLink>
-                    <NavLink 
+                    {/* <NavLink 
                     to={`/admin/employee-details/edit/${emp.emp_id}`}
                     className="inline-flex items-center px-3 py-1.5 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm"
-                    >Edit</NavLink>
+                    >Edit</NavLink> */}
                   </td>
                 </tr>
               ))}

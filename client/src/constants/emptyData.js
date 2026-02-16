@@ -9,6 +9,7 @@ export const emptyEducation = {
   
   export const emptyExperience = {
     companyName: "Trades",
+    companyLocation:"England",
     designation: "Intern",
     start_date: "07-08-2022",
     end_date: "08-09-2023",
@@ -16,18 +17,22 @@ export const emptyEducation = {
   };
   
   export const emptyPersonal = {
+    name: "Employee",
+    email: "email@gmail.com",
+    department: "HR",
+    designation: "Intern",
+    status: "Active",
+    dob: "18-02-2021",
+    joining_date: "",
     gender: "Male",
-    dob: "1996-04-18",
-    bloodgroup: "B+",
     maritalstatus: "Single",
     nationality: "Indian",
+    bloodgroup: "O+",
+    aadharnumber: "3243234",
     address: "Flat 402, Shanti Apartments, MG Road, Pune, Maharashtra",
-    aadharnumber: "234567891234",
-    nominee: "Rohit Sharma",
-    department:"HR",
-    joining_date:"2025-08-10"
-    // emp_id: "202500045"
+    nominee: ""
   };
+  
   // gender,
   // dob,
   // bloodgroup,
@@ -40,10 +45,10 @@ export const emptyEducation = {
   
   export const emptyContact = {
     contact_type: "Family Member",
-    phone: "123-456-789",
+    phone: "123456789",
     email: "John@mail.com",
     relation: "Brother",
-    // isPrimary: false,
+    isPrimary: false,
   };
   
   export const emptyBank = {

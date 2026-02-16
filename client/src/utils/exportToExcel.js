@@ -4,7 +4,6 @@ import { saveAs } from "file-saver";
 /** * HELPER FUNCTIONS 
  **/
 
-/* Format date/time in Asia/Kolkata */
 const formatIST = (value, type = "date") => {
   if (!value || value === "---" || value === "--") return "--";
   
@@ -13,11 +12,22 @@ const formatIST = (value, type = "date") => {
       return value;
   }
 
+  // Create date object and force it into Asia/Kolkata context for extraction
   const date = new Date(value);
   if (isNaN(date.getTime())) return value; 
 
   if (type === "date") {
-    return date.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" }); // DD/MM/YYYY
+    // This method is much safer than toLocaleDateString
+    const options = { timeZone: 'Asia/Kolkata', day: '2-digit', month: '2-digit', year: 'numeric' };
+    const formatter = new Intl.DateTimeFormat('en-GB', options);
+    const parts = formatter.formatToParts(date);
+    
+    // parts is an array: [{type: 'day', value: 'DD'}, {type: 'literal', value: '/'}, ...]
+    const d = parts.find(p => p.type === 'day').value;
+    const m = parts.find(p => p.type === 'month').value;
+    const y = parts.find(p => p.type === 'year').value;
+    
+    return `${d}-${m}-${y}`; // Returns forced DD-MM-YYYY
   } else if (type === "time") {
     return date.toLocaleTimeString("en-GB", {
       hour: "2-digit",
@@ -73,9 +83,7 @@ export const exportToExcel = (data, fileName = "Attendance_Report") => {
     return;
   }
 
-  // 1. FILTER: 
-  // - Must have a valid emp_id
-  // - Must be Active (is_active true or undefined)
+  
   const filteredData = data.filter(row => {
     const hasId = row.emp_id && String(row.emp_id).trim() !== "";
     const isActive = row.is_active === true || row.is_active === 1 || row.is_active === undefined;

@@ -1,35 +1,58 @@
-import React from 'react';
+import React, { useContext } from "react";
+import { EmployContext } from "../context/EmployContextProvider";
 
-const Pagination = ({ totalPages, page, onChange, totalRecords, limit = 20 }) => {
-  // Calculate range for "Showing X to Y of Z"
-  const from = (page - 1) * limit + 1;
-  const to = Math.min(page * limit, totalRecords);
+const Pagination = () => {
 
-  const handlePrev = (e) => {
-    e.preventDefault();
-    if (page > 1) onChange(null, page - 1);
-  };
+  const {pagination,handlePageChange} = useContext(EmployContext);
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    if (page < totalPages) onChange(null, page + 1);
+  
+  const { currentPage, totalPages, totalItems, limit } = pagination;
+
+  // Don't render if there's nothing to paginate
+  if (!totalPages || totalPages <= 1) return null;
+
+  // Calculate "Showing X to Y"
+  const from = (currentPage - 1) * limit + 1;
+  const to = Math.min(currentPage * limit, totalItems);
+
+  // const handlePageAction = (newPage) => {
+  //   if (newPage >= 1 && newPage <= totalPages && newPage !== page) {
+  //     onPageChange(null, newPage);
+  //     window.scrollTo({ top: 0, behavior: "smooth" });
+  //   }
+  // };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push("start-ellipsis");
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push("end-ellipsis");
+      pages.push(totalPages);
+    }
+    return pages;
   };
 
   return (
-    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl shadow-sm">
+    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-xl shadow-sm mt-4 w-full">
       {/* Mobile View */}
       <div className="flex flex-1 justify-between sm:hidden">
         <button
-          onClick={handlePrev}
-          disabled={page === 1}
-          className={`relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           Previous
         </button>
         <button
-          onClick={handleNext}
-          disabled={page === totalPages}
-          className={`relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 ${page === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           Next
         </button>
@@ -39,17 +62,19 @@ const Pagination = ({ totalPages, page, onChange, totalRecords, limit = 20 }) =>
       <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-gray-700">
-            Showing <span className="font-medium">{from}</span> to <span className="font-medium">{to}</span> of{' '}
-            <span className="font-medium">{totalRecords}</span> results
+            Showing <span className="font-medium">{from}</span> to{" "}
+            <span className="font-medium">{to}</span> of{" "}
+            <span className="font-medium">{totalItems}</span> results
           </p>
         </div>
+
         <div>
-          <nav aria-label="Pagination" className="isolate inline-flex -space-x-px rounded-md shadow-sm">
-            {/* Previous Button */}
+          <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+            {/* Previous Arrow */}
             <button
-              onClick={handlePrev}
-              disabled={page === 1}
-              className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-30"
             >
               <span className="sr-only">Previous</span>
               <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -57,34 +82,32 @@ const Pagination = ({ totalPages, page, onChange, totalRecords, limit = 20 }) =>
               </svg>
             </button>
 
-            {/* Page Numbers - Simple logic: show current, prev, and next if they exist */}
-            {[...Array(totalPages)].map((_, index) => {
-              const p = index + 1;
-              // To keep it simple, we show all pages if totalPages is small, 
-              // otherwise you'd add logic for the "..." dots.
-              if (totalPages > 7 && Math.abs(p - page) > 2 && p !== 1 && p !== totalPages) return null;
+            {/* Page Numbers */}
+            {getPageNumbers().map((p, idx) => {
+              const isEllipsis = typeof p !== "number";
+              const isActive = p === currentPage;
 
               return (
                 <button
-                  key={p}
-                  onClick={() => onChange(null, p)}
-                  aria-current={page === p ? 'page' : undefined}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${
-                    page === p
-                      ? 'z-10 bg-[#222F7D] text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0'
-                  }`}
+                  key={`${p}-${idx}`}
+                  disabled={isEllipsis}
+                  onClick={() => !isEllipsis && handlePageChange(p)}
+                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ring-1 ring-inset ring-gray-300 focus:z-20 focus:outline-offset-0 ${
+                    isActive
+                      ? "z-10 bg-[#222F7D] text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#222F7D]"
+                      : "text-gray-900 hover:bg-gray-50 bg-white"
+                  } ${isEllipsis ? "cursor-default text-gray-400 bg-gray-50" : "cursor-pointer"}`}
                 >
-                  {p}
+                  {isEllipsis ? "..." : p}
                 </button>
               );
             })}
 
-            {/* Next Button */}
+            {/* Next Arrow */}
             <button
-              onClick={handleNext}
-              disabled={page === totalPages}
-              className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-30"
             >
               <span className="sr-only">Next</span>
               <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

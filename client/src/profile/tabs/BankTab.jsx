@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback } from "react";
 import FormCard from "../../components/FormCard";
 import Input from "../../components/Input";
 import { toast } from "react-hot-toast";
@@ -6,67 +6,56 @@ import { getBank, addBank, updateBank } from "../../../api/profile";
 import { emptyBank } from "../../constants/emptyData";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const BankTab = ({ isEditing, cancelEdit }) => {
+const BankTab = ({ isEditing, setIsEditing }) => {
   const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
-const {token} = useContext(AuthContext)
+  const { token } = useContext(AuthContext);
+
+  // Initialize as empty array to avoid ReferenceError
   const [draft, setDraft] = useState([]);
-  const [originalDraft, setOriginalDraft] = useState([{ ...emptyBank }]);
-  
-  // State to track errors for each bank entry
   const [errors, setErrors] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Memoized fetch function to reuse in useEffect and handleSave
+  const fetchBank = useCallback(async () => {
+    if (!emp_id) return;
+    setLoading(true);
+    try {
+      const res = await getBank(emp_id);
+      const bankData = res?.data?.bankDetails;
+
+      if (bankData?.length > 0) {
+        const mapped = bankData.map((b) => ({
+          ...emptyBank,
+          ...b,
+        }));
+        setDraft(mapped);
+      } else {
+        setDraft([{ ...emptyBank }]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch bank details:", error);
+      setDraft([{ ...emptyBank }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [emp_id]);
 
   useEffect(() => {
-    if (!emp_id) return;
-
-    const fetchBank = async () => {
-      try {
-        const res = await getBank(emp_id);
-        const bankData = res?.data?.bankDetails;
-
-        if (bankData?.length > 0) {
-          const mapped = bankData.map((b) => ({
-            ...emptyBank,
-            account_holder_name: b.account_holder_name || "",
-            bank_name: b.bank_name || "",
-            account_number: b.account_number || "",
-            ifsc_code: b.ifsc_code || "",
-            branch_name: b.branch_name || "",
-            account_type: b.account_type || "",
-            upi_id: b.upi_id || "",
-            pan_number: b.pan_number || "",
-            is_active: b.is_active ?? true,
-            id: b.id,
-          }));
-
-          setDraft(mapped);
-          setOriginalDraft(mapped);
-        } else {
-          setDraft([{ ...emptyBank }]);
-          setOriginalDraft([{ ...emptyBank }]);
-        }
-      } catch (error) {
-        console.error("Failed to fetch bank details:", error);
-        setDraft([{ ...emptyBank }]);
-        setOriginalDraft([{ ...emptyBank }]);
-      }
-    };
-
-    fetchBank();
-  }, [emp_id,token]);
+    if (token) fetchBank();
+  }, [fetchBank, token]);
 
   const handleSave = async () => {
     let hasErrors = false;
     const newErrors = [];
 
-    // Validation Logic
+    // Validation
     draft.forEach((bank, index) => {
       const bankErrors = {};
       Object.keys(emptyBank).forEach((key) => {
-        // Skip ID and is_active from required check
-        if (key !== "id" && key !== "is_active") {
+        // Skip technical fields and optional UPI
+        if (key !== "id" && key !== "is_active" && key !== "upi_id") {
           if (!bank[key] || bank[key].toString().trim() === "") {
-            const fieldLabel = key.replace(/_/g, " ").toUpperCase();
-            bankErrors[key] = `${fieldLabel} IS REQUIRED`;
+            bankErrors[key] = "REQUIRED";
             hasErrors = true;
           }
         }
@@ -76,85 +65,98 @@ const {token} = useContext(AuthContext)
 
     if (hasErrors) {
       setErrors(newErrors);
-      toast.error("Please fill all required bank fields");
+      toast.error("Please fill all required fields");
       return;
     }
 
     try {
       for (const bank of draft) {
-        bank.id
-          ? await updateBank(emp_id, bank.id, bank)
-          : await addBank(emp_id, bank);
+        if (bank.id) {
+          await updateBank(emp_id, bank.id, bank);
+        } else {
+          await addBank(emp_id, bank);
+        }
       }
-
       toast.success("Bank details saved successfully");
-      setOriginalDraft(draft);
-      setErrors([]); // Reset errors
-      // setIsEditing(false);
+      setIsEditing(false);
+      setErrors([]);
+      fetchBank(); // Refresh data to sync IDs
     } catch (error) {
-      console.error(error);
       toast.error("Failed to save bank details");
     }
   };
 
-  // const handleCancel = () => {
-  //   setDraft(originalDraft);
-  //   setErrors([]); // Reset errors
-  //   setIsEditing(false);
-  // };
+  const handleCancel = () => {
+    fetchBank(); // Revert to database state
+    setErrors([]);
+    setIsEditing(false);
+  };
+
+  if (loading && draft.length === 0) {
+    return <div className="p-10 text-center text-gray-500">Loading bank details...</div>;
+  }
 
   return (
-    <>
+    <div className="flex flex-col gap-6 w-full">
       {draft.map((bank, index) => (
-        <FormCard key={bank.id || index}>
-          {Object.keys(emptyBank).map((key) => (
-            <div key={key} className="flex flex-col">
-              <Input
-                label={key.replace(/_/g, " ").toUpperCase()}
-                value={bank[key] || ""}
-                disabled={!isEditing}
-                onChange={(e) => {
-                  const copy = [...draft];
-                  copy[index][key] = e.target.value;
-                  setDraft(copy);
+        <FormCard key={bank.id || index} title={`Bank Account Details`}>
+          {/* Strict 3-column Grid Wrapper */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+            {Object.keys(emptyBank).map((key) => {
+              // Hide non-user fields
+              if (key === "id" || key === "is_active") return null;
 
-                  // Clear error for this specific field on change
-                  if (errors[index]?.[key]) {
-                    const errorCopy = [...errors];
-                    delete errorCopy[index][key];
-                    setErrors(errorCopy);
-                  }
-                }}
-              />
-              {/* Validation Message */}
-              {isEditing && errors[index]?.[key] && (
-                <p className="text-red-500 text-[10px] font-small mt-2 uppercase tracking-wide">
-                  * {errors[index][key]}
-                </p>
-              )}
-            </div>
-          ))}
+              return (
+                <div key={key} className="flex flex-col w-full">
+                  <Input
+                    label={key.replace(/_/g, " ").toUpperCase()}
+                    value={bank[key] || ""}
+                    disabled={!isEditing}
+                    className="w-full"
+                    onChange={(e) => {
+                      const copy = [...draft];
+                      // Update the specific field in the specific bank object
+                      copy[index] = { ...copy[index], [key]: e.target.value };
+                      setDraft(copy);
+
+                      // Clear error for this field
+                      if (errors[index]?.[key]) {
+                        const errorCopy = [...errors];
+                        errorCopy[index] = { ...errorCopy[index] };
+                        delete errorCopy[index][key];
+                        setErrors(errorCopy);
+                      }
+                    }}
+                  />
+                  {isEditing && errors[index]?.[key] && (
+                    <p className="text-red-500 text-[10px] font-bold mt-1 italic uppercase">
+                      * {errors[index][key]}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </FormCard>
       ))}
 
       {isEditing && (
-        <div className="flex justify-end gap-3 mt-2 p-3">
+        <div className="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
           <button
-            className="px-4 py-2 bg-gray-200 rounded"
-            onClick={cancelEdit}
+            className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all"
+            onClick={handleCancel}
           >
             Cancel
           </button>
-
           <button
-            className="px-4 py-2 bg-blue-600 text-white rounded"
+            className="px-6 py-2 bg-[#222F7D] text-white rounded-lg hover:bg-blue-900 shadow-md transition-all font-medium"
             onClick={handleSave}
           >
-            Save
+            Save Bank Details
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

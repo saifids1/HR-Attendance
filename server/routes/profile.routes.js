@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const auth = require("../middlewares/authMiddleware");
 const { db } = require("../db/connectDB");
-const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPersonInfo, addEducationInfo, getEducationInfo, getPersonalInfo, updatePersonalInfo, updateEducationInfo, deleteEducationInfo, addExperienceInfo, updateExperienceInfo, deleteExperienceInfo, getExperienceInfo, getContactInfo, updateContactInfo, addBankInfo, getBankInfo, updateBankInfo, addBankDocInfo, getAllBankDoc, addProfileImage, getProfileImage } = require("../controllers/profile.controller");
+const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPersonInfo, addEducationInfo, getEducationInfo, getPersonalInfo, updatePersonalInfo, updateEducationInfo, deleteEducationInfo, addExperienceInfo, updateExperienceInfo, deleteExperienceInfo, getExperienceInfo, getContactInfo, updateContactInfo, addBankInfo, getBankInfo, updateBankInfo, addBankDocInfo, getAllBankDoc, addProfileImage, getProfileImage,deleteContactInfo,addContactInfo } = require("../controllers/profile.controller");
 const { isAdmin } = require("../middlewares/roleMiddleware");
 const uploadBankDoc = require("../middlewares/uploadBankDoc");
 const uploadProfileImage = require("../middlewares/uploadProfileImage");
@@ -49,7 +49,7 @@ router.put(
   "/education/:emp_id/:id", 
   auth, 
   selfOrAdminMiddleware, 
-  upload.any(), // Yeh files ko req.files mein daal dega
+  upload.any(),
   updateEducationInfo
 );
 
@@ -74,8 +74,12 @@ router.delete("/experience/:emp_id/:id", auth, selfOrAdminMiddleware, deleteExpe
 router.get("/contact/:emp_id", auth, getContactInfo);
 
 
+router.post("/contact/:emp_id",auth,addContactInfo)
+
 // PUT Request
 router.put("/contact/:emp_id", auth, selfOrAdminMiddleware, updateContactInfo);
+
+router.delete("/contact/:emp_id/:id",auth,deleteContactInfo)
 
 
 // BANK API

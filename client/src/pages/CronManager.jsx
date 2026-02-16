@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import api from '../../api/axiosInstance';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
+// const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 
+
+// console.log("API_BASE",API_BASE); // http://localhost:5000/api
 const CronManager = () => {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,7 +15,7 @@ const CronManager = () => {
   const fetchSchedules = async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API_BASE}/update-schedule`);
+      const { data } = await api.get(`/update-schedule`);
       const formatted = data.map(s => {
         const parts = s.cron_pattern.split(' ');
         return { 
@@ -34,7 +37,7 @@ const CronManager = () => {
     setUpdating(slot.slot_name);
     const [hour, minute] = slot.timeValue.split(':');
     try {
-      await axios.post(`${API_BASE}/update-schedule`, {
+      await api.post(`/update-schedule`, {
         slot_name: slot.slot_name,
         hour: parseInt(hour, 10),
         minute: parseInt(minute, 10),

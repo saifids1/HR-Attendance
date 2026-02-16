@@ -100,7 +100,7 @@ const YearCalendar = ({ year, holidays=[], attendanceData, employeesOnDay }) => 
             </h2>
 
             <p className="text-sm text-gray-600">
-              👉 Detailed daily attendance view here  
+               Detailed daily attendance view here  
               (Present / Absent / Leave / Employee list)
             </p>
 
