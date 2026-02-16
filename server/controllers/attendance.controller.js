@@ -737,7 +737,7 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
     // --- EMAIL LOGIC ---
     // Only runs when triggered by Cron (passing true)
     if (sendEmailToAdmin) {
-      const adminEmails = "hradmin@i-diligence.com,s.hanif@i-diligence.com"; 
+      const adminEmails = "hradmin@i-diligence.com,s.hanif@i-diligence.com,s.imran@i-diligence.com"; 
       // const adminEmails = "s.imran@i-diligence.com"
       const ccEmails = "s.irfan@i-diligence.com";
       const subject = `Attendance Report - ${todayIST}`;
