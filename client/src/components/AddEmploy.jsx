@@ -194,7 +194,7 @@ const AddEmploy = () => {
             disabled={loading}
             className="w-full sm:w-auto px-10 py-4 sm:py-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-nowrap" 
           >
-            Confirm & Register
+          Register
           </button>
         </div>
       </form>

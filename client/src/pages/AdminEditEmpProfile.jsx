@@ -37,7 +37,6 @@ const AdminEditEmpProfile = () => {
 
   const [backupPersonal, setBackupPersonal] = useState({});
 
-  /* ================= FETCH ================= */
 
   const fetchPersonal = useCallback(async () => {
     try {
@@ -70,6 +69,7 @@ const AdminEditEmpProfile = () => {
       console.error("Failed to fetch contacts");
     }
   }, [emp_id, token]);
+
   const fetchEducation = useCallback(async () => {
     try {
       const { data } = await api.get(`employee/profile/education/${emp_id}`, {
@@ -143,18 +143,12 @@ const AdminEditEmpProfile = () => {
 
 
 
-  // const cancelEdit = ()=>{
-  //   setIsEditing(false)
-  // }
   const handleEdit = () => {
     setBackupPersonal(personal);
     setIsEditing(true);
   };
 
-  // const handleCancel = () => {
-  //   setPersonal(backupPersonal);
-  //   setIsEditing(false);
-  // };
+  
 
 
   // handleSave ko aise update karein
@@ -166,16 +160,15 @@ const AdminEditEmpProfile = () => {
         toast.success("Personal updated");
       } 
       else if (activeTab === "contact") {
-        // updatedData yahan ContactsTab se aaya hua 'contacts' array hai
+       
         await updateContact(emp_id, updatedData); 
         setContacts(updatedData); // Local state update
         toast.success("Contacts updated");
       }
       else if (activeTab === "education") {
-        // updatedData = [{id: 17, ...}, {id: 18, ...}]
         
-        // Agar humein 'id' bhejni hi hai, toh hum array ke pehle element ki ID bhej sakte hain 
-        // ya fir "bulk" string bhej sakte hain agar backend route allow kare.
+        
+        
         const mainId = updatedData[0]?.id || 0; 
     
         await updateEducation(emp_id, mainId, updatedData); 
@@ -204,7 +197,7 @@ const AdminEditEmpProfile = () => {
             {!isEditing ? (
               <button
                 onClick={handleEdit}
-                className="px-4 py-1 border rounded"
+                className="px-4 py-1 border rounded bg-blue-600 text-white"
               >
                 Edit
               </button>

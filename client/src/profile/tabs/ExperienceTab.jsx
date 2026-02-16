@@ -14,25 +14,21 @@ import { MdDelete } from "react-icons/md";
 import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 
-const ExperienceTab = ({ isEditing, cancelEdit }) => {
+const ExperienceTab = ({ experienceData, isEditing, setIsEditing, empId }) => {
   const user = JSON.parse(localStorage.getItem("user"));
   const emp_id = user?.emp_id;
   const { token } = useContext(AuthContext);
 
   const [draft, setDraft] = useState({ ...emptyExperience });
-  const [savedExperience, setSavedExperience] = useState([]);
+  const [savedExperience, setSavedExperience] = useState(experienceData || []);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Helper: Convert DB date to YYYY-MM-DD for <input type="date" />
-  const toInputDate = (date) =>
-    date ? new Date(date).toISOString().split("T")[0] : "";
-
-  // Helper: Format for Table Display
-  const formatDateDDMMYYYY = (date) => {
-    if (!date) return "N/A";
+  // Helper: Convert any date format to YYYY-MM-DD for HTML5 Input compatibility
+  const toInputDate = (date) => {
+    if (!date) return "";
     const d = new Date(date);
-    return d.toLocaleDateString("en-GB"); // Returns DD/MM/YYYY
+    return !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : "";
   };
 
   const fetchExperience = useCallback(async () => {
@@ -41,74 +37,86 @@ const ExperienceTab = ({ isEditing, cancelEdit }) => {
     try {
       const res = await getExperience(emp_id);
       const rawData = res?.data?.experience || [];
-
-      // Map backend snake_case to frontend camelCase if necessary, 
-      // or keep consistent with your draft structure
       const formattedData = rawData.map((e) => ({
         ...e,
-        companyName: e.company_name, // Mapping for your Input labels
+        companyName: e.company_name, // Map DB to UI keys
+        companyLocation: e.location,
         start_date: toInputDate(e.start_date),
         end_date: toInputDate(e.end_date),
       }));
-
       setSavedExperience(formattedData);
-      setDraft({ ...emptyExperience });
-      setErrors({});
-      // setIsEditing(false);
     } catch (err) {
-      console.error("Fetch Experience Error:", err);
-      toast.error(err.response?.data?.message || "Failed to load experience");
+      toast.error("Failed to load experience");
     } finally {
       setLoading(false);
     }
-  }, [emp_id,]);
+  }, [emp_id]);
 
   useEffect(() => {
-    if (token && emp_id) {
-      fetchExperience();
-    }
+    if (token && emp_id) fetchExperience();
   }, [emp_id, fetchExperience, token]);
 
   const handleChange = (key, value) => {
     setDraft((prev) => {
       const newDraft = { ...prev, [key]: value };
-      
-      // Auto-calculate total years if both dates exist
+
+      // Live calculation of years
       if ((key === "start_date" || key === "end_date") && newDraft.start_date && newDraft.end_date) {
         const start = new Date(newDraft.start_date);
         const end = new Date(newDraft.end_date);
-        const diff = (end - start) / (1000 * 60 * 60 * 24 * 365.25);
-        newDraft.total_years = diff > 0 ? diff.toFixed(1) : "0";
+        if (end >= start) {
+          const diff = (end - start) / (1000 * 60 * 60 * 24 * 365.25);
+          newDraft.total_years = diff.toFixed(1);
+        } else {
+          newDraft.total_years = "0";
+        }
       }
       return newDraft;
     });
 
-    if (errors[key]) {
-      setErrors((prev) => {
-        const newErrs = { ...prev };
-        delete newErrs[key];
-        return newErrs;
-      });
+    // Clear specific error when user types
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: null }));
+    // If date is fixed, clear both date errors
+    if (key === "start_date" || key === "end_date") {
+        setErrors((prev) => ({ ...prev, start_date: null, end_date: null }));
     }
   };
 
-  const handleSave = async () => {
+ const handleSave = async () => {
     const newErrors = {};
+
+    // 1. Validate All Fields (Checks if empty or just whitespace)
     Object.keys(emptyExperience).forEach((key) => {
-      if (key !== "id" && (!draft[key] || draft[key].toString().trim() === "")) {
-        newErrors[key] = "REQUIRED";
+      if (key !== "id") {
+        const val = draft[key];
+        if (!val || val.toString().trim() === "") {
+          // Creating a user-friendly label for the error message
+          const fieldLabel = key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").toUpperCase();
+          newErrors[key] = `${fieldLabel} IS REQUIRED`;
+        }
       }
     });
 
+    // 2. Specific Date Logic Validation
+    if (draft.start_date && draft.end_date) {
+      const start = new Date(draft.start_date);
+      const end = new Date(draft.end_date);
+      if (end < start) {
+        newErrors.end_date = "END DATE CANNOT BE BEFORE START DATE";
+      }
+    }
+
+    // 3. If there are errors, stop execution and show toast
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error("Please fill all fields");
-      return;
+      return toast.error("Please fix the errors before saving");
     }
 
     try {
+      setLoading(true);
       const payload = {
-        company_name: draft.companyName || draft.company_name,
+        company_name: draft.companyName,
+        location: draft.companyLocation,
         designation: draft.designation,
         start_date: draft.start_date,
         end_date: draft.end_date,
@@ -116,21 +124,27 @@ const ExperienceTab = ({ isEditing, cancelEdit }) => {
       };
 
       if (draft.id) {
-        await updateExperience(emp_id, draft.id, payload);
+        await updateExperience(empId, draft.id, payload);
+        toast.success("Experience updated successfully");
       } else {
-        await addExperienceses(emp_id, payload);
+        await addExperienceses(empId, payload);
+        toast.success("New experience added successfully");
       }
-      toast.success("Experience saved");
+
+      setIsEditing(false);
+      setDraft({ ...emptyExperience });
       fetchExperience();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Save failed");
+      toast.error("Save failed. Please check your connection or server logs.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this experience record?")) return;
     try {
-      await deleteExperience(emp_id, id);
+      await deleteExperience(empId, id);
       toast.success("Deleted");
       fetchExperience();
     } catch (error) {
@@ -139,91 +153,111 @@ const ExperienceTab = ({ isEditing, cancelEdit }) => {
   };
 
   const handleEdit = (exp) => {
-    setDraft({ ...exp });
+    // Ensure dates are formatted for the <input type="date" />
+    const formattedExp = {
+      ...exp,
+      start_date: toInputDate(exp.start_date),
+      end_date: toInputDate(exp.end_date),
+    };
+    setDraft(formattedExp);
     setErrors({});
-    // setIsEditing(true);
+    setIsEditing(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancel = () => {
+    setDraft({ ...emptyExperience });
+    setErrors({});
+    setIsEditing(false);
   };
 
   return (
-    <>
-      <FormCard>
-        {Object.keys(emptyExperience).map((key) => {
-          if (key === "id") return null;
-          return (
-            <div key={key} className="flex flex-col mb-3">
-              <Input
-                label={key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").toUpperCase()}
-                type={key.includes("date") ? "date" : "text"}
-                value={draft[key] || ""}
-                disabled={!isEditing}
-                onChange={(e) => handleChange(key, e.target.value)}
-              />
-              {isEditing && errors[key] && (
-                <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                  * {errors[key]}
-                </p>
-              )}
-            </div>
-          );
-        })}
+    <div className="w-full space-y-6">
+      <FormCard title={draft.id ? "Edit Experience" : "Add Experience"}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+          {Object.keys(emptyExperience).map((key) => {
+            if (key === "id") return null;
+            const isCalculated = key === "total_years";
+
+            return (
+              <div key={key} className="flex flex-col w-full">
+                <Input
+                  label={key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").toUpperCase()}
+                  type={key.includes("date") ? "date" : "text"}
+                  value={draft[key] || ""}
+                  disabled={!isEditing || isCalculated}
+                  onChange={(e) => handleChange(key, e.target.value)}
+                  className="w-full"
+                />
+                {isEditing && errors[key] && (
+                  <p className="text-red-500 text-[10px] mt-1 font-bold italic uppercase">
+                    * {errors[key]}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </FormCard>
 
       {isEditing && (
-        <div className="flex justify-end gap-3 mt-2 p-3">
-          <button className="px-4 py-2 bg-gray-200 rounded" onClick={cancelEdit}>
+        <div className="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+          <button className="px-5 py-2 text-gray-600 hover:bg-gray-200 rounded-md transition-all" onClick={handleCancel}>
             Cancel
           </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handleSave}>
-            Save Experience
+          <button className="px-5 py-2 bg-[#222F7D] text-white rounded-md hover:bg-blue-900 shadow-md font-medium" onClick={handleSave}>
+            {draft.id ? "Update Record" : "Save Record"}
           </button>
         </div>
       )}
 
-      <div className="overflow-x-auto mt-6 shadow-sm rounded-lg border">
-        <table className="min-w-full text-sm">
+      {/* Table Section */}
+      <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+        <table className="min-w-full divide-y divide-gray-300">
           <thead className="bg-gray-100">
             <tr>
-              <th className="border px-4 py-3 text-left">Company</th>
-              <th className="border px-4 py-3 text-left">Designation</th>
-              <th className="border px-4 py-3 text-left">Duration</th>
-              <th className="border px-4 py-3 text-left">Years</th>
-              <th className="border px-4 py-3 text-left">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">COMPANY NAME</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">COMPANY LOCATION</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">DESIGNATION</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Years</th>
+              <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <Loader/>
-                <td colSpan="5" className="text-center py-10">Fetching Experience Records...</td>
-                </tr>
+                <td colSpan="5" className="text-center py-10">
+                  <div className="flex justify-center"><Loader /></div>
+                </td>
+              </tr>
             ) : savedExperience.length > 0 ? (
               savedExperience.map((exp) => (
                 <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="border px-4 py-2 font-medium">{exp.companyName || exp.company_name}</td>
-                  <td className="border px-4 py-2">{exp.designation}</td>
-                  <td className="border px-4 py-2">
-                    {formatDateDDMMYYYY(exp.start_date)} - {formatDateDDMMYYYY(exp.end_date)}
-                  </td>
-                  <td className="border px-4 py-2">{exp.total_years}</td>
-                  <td className="border px-4 py-2">
-                    <div className="flex gap-3">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800">
-                        <FaPencilAlt size={14} />
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{exp.companyName}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{exp.companyLocation}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{exp.designation}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{exp.total_years} yrs</td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    <div className="flex justify-center gap-4">
+                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit Record">
+                        <FaPencilAlt />
                       </button>
-                      <button onClick={() => handleDelete(exp.id)} className="text-red-600 hover:text-red-800">
-                        <MdDelete size={18} />
+                      <button onClick={() => handleDelete(exp.id)} className="text-red-500 hover:text-red-700 transition-colors" title="Delete Record">
+                        <MdDelete size={20} />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="5" className="text-center py-10 text-gray-400">No work experience added yet.</td></tr>
+              <tr>
+                <td colSpan="5" className="text-center py-10 text-gray-400 italic">No experience records found.</td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 };
 

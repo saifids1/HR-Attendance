@@ -5,9 +5,8 @@ import { saveAs } from "file-saver";
 const formatHours = (val) => {
     if (!val || val === "0h 0m") return "00:00";
   
-    // Case 1: If it's the string "8h 23m" from your backend
     if (typeof val === "string" && val.includes('h')) {
-      const parts = val.match(/\d+/g); // Extracts numbers: ["8", "23"]
+      const parts = val.match(/\d+/g); 
       if (parts) {
         const h = parts[0].padStart(2, "0");
         const m = (parts[1] || "0").padStart(2, "0");
@@ -15,7 +14,6 @@ const formatHours = (val) => {
       }
     }
   
-    // Case 2: If it's a raw Postgres object { hours: 8, minutes: 23 }
     if (typeof val === "object") {
       const h = String(val.hours || 0).padStart(2, "0");
       const m = String(val.minutes || 0).padStart(2, "0");
@@ -23,7 +21,29 @@ const formatHours = (val) => {
     }
   
     return val;
-  };
+};
+
+// New internal helper for DD-MM-YYYY
+const formatToDDMMYYYY = (dateVal) => {
+    if (!dateVal) return "--";
+    const date = new Date(dateVal);
+    if (isNaN(date.getTime())) return "--";
+
+    // Use Intl to extract parts for Asia/Kolkata
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const d = parts.find(p => p.type === 'day').value;
+    const m = parts.find(p => p.type === 'month').value;
+    const y = parts.find(p => p.type === 'year').value;
+    
+    return `${d}-${m}-${y}`;
+};
 
 export const exportAdminAttendanceToExcel = (data, fileName = "Active_Employee_Attendance") => {
   if (!data || !data.length) {
@@ -32,15 +52,15 @@ export const exportAdminAttendanceToExcel = (data, fileName = "Active_Employee_A
   }
 
   const excelData = data.map((row, index) => {
-    // Ensure we use the correct date from your SQL query
     const dateObj = row.attendance_date ? new Date(row.attendance_date) : new Date();
     
     return {
       "Sr No": index + 1,
-      "Employee Name": row.employee_name || "N/A", // Matches your SQL 'u.name'
+      "Employee Name": row.employee_name || "N/A",
       "Emp ID": row.emp_id || "--",
-      "Date": dateObj.toLocaleDateString('en-GB'), // Format: DD/MM/YYYY
-      "Day": dateObj.toLocaleDateString('en-GB', { weekday: 'short' }),
+      // FIXED DATE FORMAT HERE
+      "Date": formatToDDMMYYYY(row.attendance_date), 
+      "Day": dateObj.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'Asia/Kolkata' }),
       "Punch In": row.punch_in ? row.punch_in : "--",
       "Punch Out": row.punch_out ? row.punch_out : "--",
       "Total Hours": formatHours(row.total_hours_str),
@@ -50,17 +70,16 @@ export const exportAdminAttendanceToExcel = (data, fileName = "Active_Employee_A
 
   const worksheet = XLSX.utils.json_to_sheet(excelData);
   
-  // Set column widths for better readability
   worksheet["!cols"] = [
-    { wch: 8 },  // Sr No
-    { wch: 25 }, // Employee Name
-    { wch: 12 }, // Emp ID
-    { wch: 15 }, // Date
-    { wch: 10 }, // Day
-    { wch: 15 }, // Punch In
-    { wch: 15 }, // Punch Out
-    { wch: 15 }, // Total Hours
-    { wch: 12 }, // Status
+    { wch: 8 },  
+    { wch: 25 }, 
+    { wch: 12 }, 
+    { wch: 15 }, 
+    { wch: 10 }, 
+    { wch: 15 }, 
+    { wch: 15 }, 
+    { wch: 15 }, 
+    { wch: 12 }, 
   ];
 
   const workbook = XLSX.utils.book_new();
@@ -71,7 +90,6 @@ export const exportAdminAttendanceToExcel = (data, fileName = "Active_Employee_A
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
   });
   
-  // Generate filename with current date
   const dateString = new Date().toISOString().split('T')[0];
   saveAs(dataBlob, `${fileName}_${dateString}.xlsx`);
 };

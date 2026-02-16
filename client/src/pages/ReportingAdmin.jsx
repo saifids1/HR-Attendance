@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import axios from "axios";
-
+import api from "../../api/axiosInstance";
 const ReportingAdmin = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState("");
@@ -34,8 +34,8 @@ const ReportingAdmin = () => {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const resp = await axios.get("http://localhost:5000/api/employee/attendance/all-emp");
-        setEmployees(resp.data); // use resp.data, not resp
+        const resp = await api.get("employee/attendance/all-emp");
+        setEmployees(resp.data); 
       } catch (error) {
         console.error(error);
         toast.error("Failed to fetch employees");
@@ -52,7 +52,7 @@ const ReportingAdmin = () => {
     }
 
     try {
-      await axios.post("http://localhost:5000/api/employees/reporting", {
+      await api.post("employees/reporting", {
         emp_code: selectedEmployee,
         managers: selectedManagers,
       });

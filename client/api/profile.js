@@ -57,8 +57,19 @@ export const deleteExperience = (emp_id, id) =>
 export const getContact = (emp_id) => 
   api.get(`/employee/profile/contact/${emp_id}`);
 
-export const updateContact = (emp_id, data) =>
-  api.put(`/employee/profile/contact/${emp_id}`, data);
+export const updateContact = (emp_id, data) =>{
+  console.log(typeof data);
+  return api.put(`/employee/profile/contact/${emp_id}`, data);
+}
+  
+export const addContact = (emp_id,data)=>{
+
+  return api.post(`/employee/profile/contact/${emp_id}`,data);
+}
+
+// Add this to your api service file
+export const deleteContact = (emp_id, contact_id) =>
+  api.delete(`/employee/profile/contact/${emp_id}/${contact_id}`);
 
 // -------- BANK --------
 export const getBank = (emp_id) => 
@@ -79,8 +90,12 @@ return api.put(`/employee/profile/bank/${emp_id}`, data);
 
 // Special case: File Upload (multipart/form-data)
 export const uploadBankDoc = (emp_id, formData) =>
-  api.post(`/employee/profile/bank/doc/${emp_id}`, formData, {
+   api.post(`/employee/profile/bank/doc/${emp_id}`, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
   });
+
+
+export const getBankDocs = (emp_id)=>
+  api.get(`/employee/profile/bank/doc/${emp_id}`)

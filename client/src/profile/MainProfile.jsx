@@ -6,95 +6,125 @@ import ExperienceTab from "./tabs/ExperienceTab";
 import ContactsTab from "./tabs/ContactTab";
 import BankTab from "./tabs/BankTab";
 import DocumentTab from "./tabs/DocumentTab";
+import { getEducation } from "../../api/profile";
+
 const tabs = ["Organization", "Personal", "Education", "Experience", "Contacts", "Bank", "Documents"];
 
-const MainProfile = () => {
-  const [activeTab, setActiveTab] = useState("Organization");
-  // const admin = JSON.parse(localStorage.getItem("user"))?.role;
+const MainProfile = ({ 
+  personalData,
+  educationData,  
+  experienceData,
+  contactData,
+  bankData,
+  userRole,      // "admin" or "employee"
+  isEditing,     
+  setIsEditing,  
+  onSave,        
+  empId          // The dynamic ID (from URL or LocalStorage)
+}) => {
+  const [activeTab, setActiveTab] = useState("Personal");
 
-  const role = JSON.parse(localStorage.getItem("user"))?.role; 
-  const isAdmin = role === "admin";
-  const isOrganizationTab = activeTab === "Organization"; 
-  
-  // Track which specific tab is being edited (null means no tab is being edited)
-  // const [editingTab, setEditingTab] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-
-  const startEdit = () => {
-    // setEditingTab(activeTab)
-    setIsEditing(true);
-  }; 
-  const cancelEdit = () => {
-    // setEditingTab(null)
-  setIsEditing(false)
-};
+  // console.log("empId",empId);
 
 
-const canEdit =
-  !isEditing && (isAdmin || !isOrganizationTab);
+  const isAdmin = userRole === "admin";
+  const isOrganizationTab = activeTab === "Organization";
 
+  // console.log("aciveTab",activeTab)
+
+  // Admins can edit anything. Employees can edit anything except Organization.
+  const canShowEditButton = !isEditing && (isAdmin || !isOrganizationTab);
+
+ 
   return (
     <div>
-      {/* Tabs Container */}
-      <div className="bg-[#222F7D] px-2 sm:px-4 py-2 rounded-xl mx-auto mt-4 flex items-center justify-between gap-4">
-        
-        <div className="flex gap-4 sm:gap-8 overflow-x-auto no-scrollbar scroll-smooth py-1">
+      <div className="bg-[#222F7D] px-4 py-2 rounded-xl flex items-center justify-between gap-4">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`
-                whitespace-nowrap text-sm sm:text-base transition-all duration-200
-                ${activeTab === tab 
-                  ? "text-[#222F7D] bg-white rounded-md px-4 py-1.5 font-semibold shadow-sm" 
-                  : "text-slate-300 hover:text-white px-2 py-1.5"
-                }
-              `}
+              onClick={() => {
+                setActiveTab(tab);
+                setIsEditing(false); // Reset editing mode when switching tabs
+              }}
+              className={`whitespace-nowrap text-sm px-4 py-1.5 transition-all ${
+                activeTab === tab ? "bg-white text-[#222F7D] rounded-md font-bold" : "text-slate-300"
+              }`}
             >
               {tab}
             </button>
           ))}
         </div>
     
-      
-        {canEdit && (
-  <button
-    onClick={startEdit}
-    className="bg-white px-4 py-1.5 rounded-md text-sm font-medium text-[#222F7D]"
-  >
-    Edit Profile
-  </button>
-)}
-
+        {canShowEditButton && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="bg-white px-4 py-1.5 rounded-md text-sm font-medium text-[#222F7D] hover:bg-gray-100"
+          >
+            Edit Profile
+          </button>
+        )}
       </div>
     
-      {/* Tabs Content - All receive the same isEditing state */}
-      <div className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-        {activeTab === "Organization" && <OrganizationTab  isEditing={isEditing} cancelEdit={cancelEdit}/>}
-        
+      <div className="mt-4">
         {activeTab === "Personal" && (
-          <PersonalTab isEditing={isEditing} cancelEdit={cancelEdit} />
+          <PersonalTab 
+            personalData={personalData} 
+            isEditing={isEditing} 
+            setIsEditing={setIsEditing}
+            onSave={onSave} 
+            empId={empId} 
+          />
         )}
+
         {activeTab === "Education" && (
-          <EducationTab isEditing={isEditing} cancelEdit={cancelEdit} setIsEditing={setIsEditing} />
+          <EducationTab 
+            educationData={educationData} 
+            isEditing={isEditing} 
+            setIsEditing={setIsEditing}
+            onSave={onSave}
+            empId={empId}
+
+          />
         )}
+
         {activeTab === "Experience" && (
-          <ExperienceTab isEditing={isEditing} cancelEdit={cancelEdit} setIsEditing={setIsEditing} />
+          <ExperienceTab 
+            experienceData={experienceData} 
+            isEditing={isEditing} 
+            setIsEditing={setIsEditing} 
+            empId={empId}
+          />
         )}
-        {activeTab === "Contacts" && (
-          <ContactsTab isEditing={isEditing} cancelEdit={cancelEdit} />
+
+          {activeTab === "Contacts" && (
+          <ContactsTab 
+            contactData={contactData} 
+            isEditing={isEditing} 
+            setIsEditing={setIsEditing} 
+            empId={empId}
+          />
         )}
+
         {activeTab === "Bank" && (
-          <BankTab isEditing={isEditing} cancelEdit={cancelEdit} />
+          <BankTab 
+            bankData={bankData} 
+            isEditing={isEditing} 
+            setIsEditing={setIsEditing} 
+            empId={empId}
+          />
         )}
+
+        
+
         {activeTab === "Documents" && (
-          <DocumentTab isEditing={isEditing} cancelEdit={cancelEdit} />
+          <DocumentTab 
+            isEditing={isEditing} 
+            setIsEditing={setIsEditing} 
+            empId={empId} 
+          />
         )}
       </div>
-      
-    
-      {/* Tabs Content */}
-     
     </div>
   );
 };

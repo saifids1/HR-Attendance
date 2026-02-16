@@ -53,8 +53,6 @@ exports.addOrganizationInfo = async(req,res)=>{
 }
 
 exports.getOrganizationInfo = async (req, res) => {
-  // Log this to see if Admin is reaching the controller
-  // console.log("User from token:", req.user);
   try {
 
     // const {emp_id} = req.params;
@@ -158,9 +156,10 @@ exports.addPersonInfo =  async (req, res) => {
       aadharnumber,
       nominee,
       department,
+      designation
     } = req.body;
 
-    console.log(dob)
+    // console.log("addPersonal",req.body)
 
     // console.log("department",department);
     // ---------- Validation ----------
@@ -172,7 +171,8 @@ exports.addPersonInfo =  async (req, res) => {
       !nationality ||
       !address ||
       !aadharnumber ||
-      !department
+      !department ||
+      !designation
     ) {
       return res.status(400).json({
         message: "All required fields must be filled",
@@ -227,9 +227,10 @@ exports.addPersonInfo =  async (req, res) => {
         address,
         aadharnumber,
         nominee,
-        department
+        department,
+        designation
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
       `,
       [
@@ -243,6 +244,7 @@ exports.addPersonInfo =  async (req, res) => {
         aadharnumber,
         nominee || null,
         department,
+        designation
       ]
     );
 
@@ -279,7 +281,8 @@ exports.getPersonalInfo = async (req, res) => {
         p.aadharnumber,
         p.bloodgroup,
         p.nationality,
-        p.address
+        p.address,
+        p.designation
       FROM users u
       LEFT JOIN personal p
         ON u.emp_id = p.emp_id
@@ -301,83 +304,147 @@ exports.getPersonalInfo = async (req, res) => {
 }
 
 exports.updatePersonalInfo = async (req, res) => {
+  const client = await db.connect();
+
   try {
     const { emp_id } = req.params;
-    const {
-      dob,
-      joining_date,
-      gender,
-      department,
-      bloodgroup,
-      maritalstatus,
-      nationality,
-      nominee,
-      aadharnumber,
-      address
-    } = req.body;
-
-    const parseDate = (dateStr) => {
-      if (!dateStr || dateStr === "") return null;
-      const parts = dateStr.split("-");
-      // Agar DD-MM-YYYY hai, toh YYYY-MM-DD banayein
-      if (parts[0].length === 2) {
-        const [day, month, year] = parts;
-        return `${year}-${month}-${day}`;
-      }
-      return dateStr; // Already YYYY-MM-DD
-    };
-
-    // 1. DOB format karein
-    let formattedDob = parseDate(dob);
     
-    // 2. Joining Date format karein (Yeh missing tha!)
-    let formattedJoiningDate = parseDate(joining_date);
-
-    // Update query
-    const result = await db.query(
-      `UPDATE personal 
-       SET 
-         dob = $1, 
-         joining_date = $2, 
-         gender = $3, 
-         department = $4,
-         bloodgroup = $5,
-         maritalstatus = $6,
-         nationality = $7,
-         nominee = $8,
-         aadharnumber = $9,
-         address = $10
-       WHERE emp_id = $11 
-       RETURNING *`,
-      [
-        formattedDob,         // $1
-        formattedJoiningDate, // $2 - Ab error nahi aayega
-        gender,               // $3
-        department,           // $4
-        bloodgroup,           // $5
-        maritalstatus,        // $6
-        nationality,          // $7
-        nominee,              // $8
-        aadharnumber,         // $9
-        address,              // $10
-        emp_id                // $11
-      ]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Employee not found" });
+    // Ensure req.user exists (from your Protect/Auth middleware)
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "User not authenticated" });
     }
 
-    res.status(200).json(result.rows[0]);
+    const requesterId = req.user.emp_id;
+    const requesterRole = req.user.role || ''; // Default to empty string if undefined
+
+    // 1. Authorization Logic
+    const isAdmin = requesterRole.toLowerCase() === 'admin';
+    const isOwner = requesterId === emp_id;
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ success: false, message: "Access Denied" });
+    }
+
+    const {
+      name, email, department, designation, status,
+      dob, joining_date, gender, maritalstatus,
+      nationality, bloodgroup, aadharnumber, address, nominee
+    } = req.body;
+
+    // Helpers
+    const parseDate = (dateStr) => {
+      if (!dateStr || dateStr === "" || dateStr === "null") return null;
+      const parts = dateStr.split("-");
+      if (parts.length === 3 && parts[0].length === 2) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+    };
+
+    const limit = (str, max) => (str ? String(str).substring(0, max) : null);
+
+    const formattedDob = parseDate(dob);
+    const formattedJoiningDate = parseDate(joining_date);
+
+    await client.query('BEGIN');
+
+    // 2. Update 'users' table 
+    // We update name and email, but NOT role (to avoid check constraint errors)
+    const userUpdateQuery = `
+      UPDATE public.users 
+      SET 
+        name = $1, 
+        email = $2, 
+        is_active = $3
+      WHERE emp_id = $4
+      RETURNING name, email, role, is_active;
+    `;
+
+    // Only Admin can change status; otherwise, use existing value from database/req.user
+    const finalStatus = isAdmin ? (status === "Active") : req.user.is_active;
+
+    const userResult = await client.query(userUpdateQuery, [
+      limit(name, 100), 
+      limit(email, 100), 
+      finalStatus, 
+      emp_id
+    ]);
+
+
+    console.log("empId for personal",emp_id);
+    // 3. Update 'personal' table
+    // We save the "Job Title" in the designation column here
+ // 1. Define the UPSERT Query
+const personalUpsertQuery = `
+INSERT INTO public.personal (
+  dob, joining_date, gender, department, bloodgroup, 
+  maritalstatus, nationality, nominee, aadharnumber, 
+  address, designation, emp_id
+) 
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (emp_id) 
+DO UPDATE SET 
+  dob = EXCLUDED.dob,
+  joining_date = EXCLUDED.joining_date,
+  gender = EXCLUDED.gender,
+  department = EXCLUDED.department,
+  bloodgroup = EXCLUDED.bloodgroup,
+  maritalstatus = EXCLUDED.maritalstatus,
+  nationality = EXCLUDED.nationality,
+  nominee = EXCLUDED.nominee,
+  aadharnumber = EXCLUDED.aadharnumber,
+  address = EXCLUDED.address,
+  designation = EXCLUDED.designation
+RETURNING *;
+`;
+
+// 2. Execute the query
+const personalResult = await client.query(personalUpsertQuery, [
+formattedDob,           // $1
+formattedJoiningDate,   // $2
+limit(gender, 20),      // $3 (increased to 20 for safety)
+limit(department, 100), // $4
+limit(bloodgroup, 5),   // $5
+limit(maritalstatus, 20),// $6
+limit(nationality, 50), // $7
+limit(nominee, 255),    // $8
+limit(aadharnumber, 30),// $9
+limit(address, 500),    // $10 (increased to 500 for safety)
+limit(designation, 100),// $11
+emp_id                  // $12
+]);
+
+// 3. Commit the transaction
+await client.query('COMMIT');
+
+    res.status(200).json({
+      success: true,
+      message: "Update successful",
+      data: { ...userResult.rows[0], ...personalResult.rows[0] }
+    });
+
   } catch (error) {
-    console.error("Controller Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    if (client) await client.query('ROLLBACK');
+    console.error("Update Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    client.release();
   }
 };
+
 // Education
 exports.addEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
+
+    console.log("emp_id",emp_id)
+
+    if(emp_id){
+      return res.status(400).json({message:"emp_id required"});
+    }
+
+
+    // console.log("req.user.emp_id,emp_id",req.user.emp_id,emp_id)
 
     if (req.user.role === "employee" && req.user.emp_id !== emp_id) {
       return res.status(403).json({ message: "Unauthorized" });
@@ -484,28 +551,37 @@ exports.getEducationInfo = async (req, res) => {
 }
 
 exports.updateEducationInfo = async (req, res) => {
+  const client = await db.connect(); // Use a dedicated client for transaction
   try {
-    
     const { emp_id } = req.params;
-    // FormData se bhejte waqt hum data ko 'education' field mein stringify karke bhejenge
-    console.log("req.body update Edu",req.body);
-    const educationEntries = JSON.parse(req.body.education); 
+    const educationEntries = JSON.parse(req.body.education);
 
-
-    await db.query('BEGIN');
+    await client.query('BEGIN');
 
     for (let i = 0; i < educationEntries.length; i++) {
       let edu = educationEntries[i];
       let finalPath = edu.marksheet_url;
 
-      // Check karein agar is specific row ke liye file upload hui hai
+      // Check for file upload for this specific row
       const file = req.files.find(f => f.fieldname === `file_${i}`);
       if (file) {
         finalPath = `/uploads/education/${file.filename}`;
       }
 
+      // 1. UNIQUE CHECK: If no ID exists, check if this degree+year already exists for this user
+      if (!edu.id) {
+        const checkExist = await client.query(
+          `SELECT id FROM education WHERE emp_id = $1 AND degree = $2 AND passing_year = $3`,
+          [emp_id, edu.degree, edu.passing_year]
+        );
+        if (checkExist.rows.length > 0) {
+          edu.id = checkExist.rows[0].id; // Treat as an update if record exists
+        }
+      }
+
       if (edu.id) {
-        await db.query(
+        // 2. UPDATE existing record
+        await client.query(
           `UPDATE education SET 
             degree=$1, field_of_study=$2, institution_name=$3, university=$4, 
             percentage_or_grade=$5, passing_year=$6, marksheet_url=COALESCE($7, marksheet_url), 
@@ -514,7 +590,8 @@ exports.updateEducationInfo = async (req, res) => {
            edu.percentage_or_grade, edu.passing_year, finalPath, edu.id, emp_id]
         );
       } else {
-        await db.query(
+        // 3. INSERT only if it's truly new
+        await client.query(
           `INSERT INTO education (emp_id, degree, field_of_study, institution_name, university, percentage_or_grade, passing_year, marksheet_url)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [emp_id, edu.degree, edu.field_of_study, edu.institution_name, edu.university, 
@@ -522,11 +599,15 @@ exports.updateEducationInfo = async (req, res) => {
         );
       }
     }
-    await db.query('COMMIT');
-    res.status(200).json({ message: "Updated with files!" });
+
+    await client.query('COMMIT');
+    res.status(200).json({ message: "Education information processed without duplicates!" });
   } catch (error) {
-    await db.query('ROLLBACK');
+    await client.query('ROLLBACK');
+    console.error("Education Update Error:", error);
     res.status(500).json({ message: error.message });
+  } finally {
+    client.release(); // Important: release the pool client
   }
 };
 
@@ -578,41 +659,62 @@ exports.deleteEducationInfo = async (req, res) => {
 
 // Experience
 
-exports.addExperienceInfo =  async (req, res) => {
+exports.addExperienceInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
-
-    // console.log(req.body);
     const {
       company_name,
       designation,
       start_date,
       end_date,
       total_years,
+      location,
     } = req.body;
 
-    // console.log( company_name,
-    //   designation,
-    //   start_date,
-    //   end_date,
-    //   total_years)
-
-    if (!company_name || !designation) {
+    // 1. Check for Missing Required Fields
+    if (!company_name || !designation || !start_date || !end_date || !location) {
       return res.status(400).json({
-        message: "Company name and designation are required",
+        message: "All fields (Company, Designation, Dates, and Location) are required",
       });
     }
 
+    // 2. Validate Date Formats
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        message: "Invalid date format provided",
+      });
+    }
+
+    // 3. Logical Validation: End Date cannot be before Start Date
+    if (end < start) {
+      return res.status(400).json({
+        message: "End date cannot be earlier than start date",
+      });
+    }
+
+    // 4. Sanitize Inputs (Optional but recommended: prevent excessive string lengths)
+    if (company_name.length > 255 || designation.length > 255) {
+      return res.status(400).json({
+        message: "Company name or designation is too long",
+      });
+    }
+
+    // 5. Database Insertion
     const result = await db.query(
       `
-      INSERT INTO experience
-        (emp_id, company_name, designation, start_date, end_date, total_years)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO experience 
+        (emp_id, company_name, designation, start_date, end_date, total_years, location) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
       RETURNING *
       `,
-      [emp_id, company_name, designation, start_date, end_date, total_years]
+      [emp_id, company_name.trim(), designation.trim(), start_date, end_date, total_years, location.trim()]
     );
-    sendNotification(emp_id, "New Experience", req.user.name);
+
+    // Send Notification
+    // sendNotification(emp_id, "New Experience Added", req.user.name);
 
     res.status(201).json({
       message: "Experience created successfully",
@@ -622,7 +724,7 @@ exports.addExperienceInfo =  async (req, res) => {
     console.error("Create experience error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 
 exports.getExperienceInfo =  async (req, res) => {
   try {
@@ -638,7 +740,8 @@ exports.getExperienceInfo =  async (req, res) => {
         designation,
         start_date,
         end_date,
-        total_years
+        total_years,
+        location
       FROM experience
       WHERE emp_id = $1
       ORDER BY start_date DESC
@@ -667,16 +770,34 @@ exports.updateExperienceInfo = async (req, res) => {
       start_date,
       end_date,
       total_years,
+      location, 
     } = req.body;
 
-    // console.log(req.body);
-
-    if (!company_name || !designation) {
+    // 1. Check for Missing Required Fields
+    if (!company_name || !designation || !start_date || !end_date || !location) {
       return res.status(400).json({
-        message: "Company name and designation are required",
+        message: "All fields are required for update",
       });
     }
 
+    // 2. Validate Date Formats
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        message: "Invalid date format",
+      });
+    }
+
+    // 3. Chronological Validation
+    if (end < start) {
+      return res.status(400).json({
+        message: "End date cannot be earlier than start date",
+      });
+    }
+
+    // 4. Update Database
     const result = await db.query(
       `
       UPDATE experience
@@ -684,16 +805,18 @@ exports.updateExperienceInfo = async (req, res) => {
           designation = $2,
           start_date = $3,
           end_date = $4,
-          total_years = $5
-      WHERE id = $6 AND emp_id = $7
+          total_years = $5,
+          location = $6
+      WHERE id = $7 AND emp_id = $8
       RETURNING *
       `,
       [
-        company_name,
-        designation,
+        company_name.trim(),
+        designation.trim(),
         start_date,
         end_date,
         total_years,
+        location.trim(),
         id,
         emp_id,
       ]
@@ -701,12 +824,12 @@ exports.updateExperienceInfo = async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({
-        message: "Experience not found",
+        message: "Experience record not found",
       });
     }
 
-   
-    sendNotification(emp_id, "Experience", req.user.name);
+    // Send Notification
+    // sendNotification(emp_id, "Experience Updated", req.user.name);
 
     res.status(200).json({
       message: "Experience updated successfully",
@@ -716,7 +839,7 @@ exports.updateExperienceInfo = async (req, res) => {
     console.error("Update experience error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 
 exports.deleteExperienceInfo = async (req, res) => {
   try {
@@ -756,6 +879,7 @@ exports.getContactInfo = async (req, res) => {
       [emp_id]
     );
 
+    console.log("result.rows",result.rows);
     res.status(200).json({
       contacts: result.rows
     });
@@ -764,33 +888,97 @@ exports.getContactInfo = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
-
-exports.updateContactInfo = async (req, res) => {
+exports.addContactInfo = async (req, res) => {
   const { emp_id } = req.params;
-  const contacts = req.body; // Expecting an array []
+  const newContact = req.body; // Expecting a single object: {contact_type: '...', phone: '...'}
 
   try {
-    await db.query('BEGIN'); // Transaction start
+    await db.query('BEGIN');
 
-    // 1. Pehle purane saare contacts delete karein is employee ke
+    // 1. Fetch current contacts to avoid losing them during the overwrite
+    const currentContactsRes = await db.query(
+      `SELECT contact_type, phone, email, relation, is_primary FROM contact WHERE emp_id = $1`,
+      [emp_id]
+    );
+    
+    const existingContacts = currentContactsRes.rows;
+
+    // 2. Combine existing contacts with the new one
+    // We treat the incoming body as a single object, but wrap it in an array
+    const updatedList = [...existingContacts, ...(Array.isArray(newContact) ? newContact : [newContact])];
+
+    // 3. Wipe existing
     await db.query(`DELETE FROM contact WHERE emp_id = $1`, [emp_id]);
 
-    // 2. Naye contacts loop karke insert karein
-    if (Array.isArray(contacts) && contacts.length > 0) {
-      for (const contact of contacts) {
-        await db.query(
-          `INSERT INTO contact (emp_id, contact_type, phone, email, relation, is_primary, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-          [
-            emp_id,
-            contact.contact_type || null,
-            contact.phone || null,
-            contact.email || null,
-            contact.relation || null,
-            contact.is_primary ?? false
-          ]
+    // 4. Perform Bulk Insert
+    if (updatedList.length > 0) {
+      const values = [];
+      const placeholders = updatedList.map((contact, i) => {
+        const offset = i * 6;
+        values.push(
+          emp_id,
+          contact.contact_type || null,
+          contact.phone || null,
+          contact.email || null,
+          contact.relation || null,
+          contact.is_primary ?? false
         );
-      }
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, NOW())`;
+      }).join(",");
+
+      const bulkInsertQuery = `
+        INSERT INTO contact (emp_id, contact_type, phone, email, relation, is_primary, created_at)
+        VALUES ${placeholders}
+      `;
+
+      await db.query(bulkInsertQuery, values);
+    }
+
+    await db.query('COMMIT');
+    res.status(201).json({ message: "Contact added successfully" });
+  } catch (err) {
+    await db.query('ROLLBACK');
+    console.error("Add Contact Error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+exports.updateContactInfo = async (req, res) => {
+  const { emp_id } = req.params;
+  const contacts = req.body; // Expecting: [{contact_type: '...', phone: '...'}, {...}]
+
+  if (!Array.isArray(contacts)) {
+    return res.status(400).json({ message: "Invalid data format. Expected an array." });
+  }
+
+  try {
+    await db.query('BEGIN');
+
+    // 1. Wipe existing contacts for this employee
+    await db.query(`DELETE FROM contact WHERE emp_id = $1`, [emp_id]);
+
+    // 2. Perform Bulk Insert (Optimization)
+    if (contacts.length > 0) {
+      const values = [];
+      const placeholders = contacts.map((contact, i) => {
+        const offset = i * 6; // 6 columns per contact
+        values.push(
+          emp_id,
+          contact.contact_type || null,
+          contact.phone || null,
+          contact.email || null,
+          contact.relation || null,
+          contact.is_primary ?? false
+        );
+       
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, NOW())`;
+      }).join(",");
+
+      const bulkInsertQuery = `
+        INSERT INTO contact (emp_id, contact_type, phone, email, relation, is_primary, created_at)
+        VALUES ${placeholders}
+      `;
+
+      await db.query(bulkInsertQuery, values);
     }
 
     await db.query('COMMIT');
@@ -798,10 +986,64 @@ exports.updateContactInfo = async (req, res) => {
   } catch (err) {
     await db.query('ROLLBACK');
     console.error("Bulk Contact Error:", err);
-    res.status(500).json({ message: "Failed to update contacts" });
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
+exports.deleteContactInfo = async (req, res) => {
+  // 1. Ensure these match your route definition: /contact/:emp_id/:id
+  const { emp_id, id } = req.params;
+
+  try {
+   
+    const checkQuery = `
+        SELECT is_primary 
+        FROM contact 
+        WHERE id = $1 AND emp_id = $2
+    `;
+    
+    const result = await db.query(checkQuery, [id, emp_id]);
+    const rows = result.rows; // db.query returns an object with a rows array in pg
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Contact not found for this employee."
+      });
+    }
+
+    const isPrimary = rows[0].is_primary;
+
+    // 3. Logic: If it's primary, check if it's the ONLY contact left
+    if (isPrimary) {
+      const countQuery = `SELECT COUNT(*) as total FROM contact WHERE emp_id = $1`;
+      const countResult = await db.query(countQuery, [emp_id]);
+      
+      if (parseInt(countResult.rows[0].total) > 1) {
+        return res.status(400).json({
+          success: false,
+          message: "You cannot delete the Primary contact. Assign another contact as Primary first."
+        });
+      }
+    }
+
+    // 4. Execute the Delete (Fixed variable name from contact_id to id)
+    const deleteQuery = `DELETE FROM contact WHERE id = $1 AND emp_id = $2`;
+    await db.query(deleteQuery, [id, emp_id]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Contact deleted successfully."
+    });
+
+  } catch (error) {
+    console.error("Database Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error during deletion."
+    });
+  }
+};
 
 exports.addBankInfo = async (req, res) => {
   try {
@@ -818,7 +1060,7 @@ exports.addBankInfo = async (req, res) => {
       pan_number,
     } = req.body;
 
-    console.log(req.body);
+    // console.log(req.body);
 
 
     if (!account_holder_name || !bank_name || !account_number || !ifsc_code || !branch_name) {
@@ -859,7 +1101,7 @@ exports.addBankInfo = async (req, res) => {
     );
 
     console.log("result.rows[0]",result.rows[0])
-    sendNotification(emp_id, "Bank", req.user.name);
+    // sendNotification(emp_id, "Bank", req.user.name);
     res.status(201).json({
       message: "Bank details saved successfully",
       bankInfo: result.rows[0],
@@ -971,7 +1213,7 @@ exports.updateBankInfo =  async (req, res) => {
       account_number: `XXXXXX${result.rows[0].account_number.slice(-4)}`
     };
 
-    sendNotification(emp_id, "Bank", req.user.name);
+    // sendNotification(emp_id, "Bank", req.user.name);
 
     res.status(200).json({
       message: "Bank details updated successfully",
@@ -1051,7 +1293,7 @@ exports.addBankDocInfo =  async (req, res) => {
       uploadedDocs.push(result.rows[0]);
     }
 
-    sendNotification(emp_id, "Bank Documents", req.user?.name || "Employee");
+    // sendNotification(emp_id, "Bank Documents", req.user?.name || "Employee");
 
     return res.status(201).json({
       message: "Bank documents uploaded successfully",

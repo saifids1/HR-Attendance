@@ -8,8 +8,9 @@ export const addEmploy = async (data) => {
   // Get the token from wherever you store it (localStorage or Context)
   const token = localStorage.getItem("token"); 
 
-  const response = await axios.post(
-    "http://localhost:5000/api/admin/attendance/add-employee", 
+  
+  const response = await api.post(
+    "admin/attendance/add-employee", 
     data, 
     {
       headers: {

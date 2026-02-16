@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { EmployContext } from "../context/EmployContextProvider";
 
@@ -22,6 +22,10 @@ const MonthlyHolidays = () => {
 
   const {holidays} = useContext(EmployContext);
 
+  useEffect(()=>{
+    console.log("holidays",holidays)
+  },[holidays])
+
   const today = new Date(now.getFullYear(),now.getMonth(),now.getDate());
 
   const upcomingHolidays = holidays.filter((holiday)=>{
@@ -31,6 +35,7 @@ const MonthlyHolidays = () => {
   }).sort((a,b)=> new Date(a.holiday_date) - new Date(b.holiday_date));
 
   
+  // console.log("holidays",holidays)
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-sm lg:mt-3">
     {/* Header Section: Column on mobile, Row on desktop */}
