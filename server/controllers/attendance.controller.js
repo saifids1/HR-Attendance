@@ -214,22 +214,7 @@ exports.addEmployController = async (req, res) => {
       ]
     );
 
-    // Auto-create leave balances
-    // await client.query(
-    //   `INSERT INTO leaves_balance
-    //    (emp_id, leave_type_id, year, total, used, remaining, last_updated)
-    //    SELECT
-    //      $1,
-    //      lt.id,
-    //      EXTRACT(YEAR FROM CURRENT_DATE),
-    //      lt.max_days,
-    //      0,
-    //      lt.max_days,
-    //      NOW()
-    //    FROM leave_types lt
-    //    WHERE lt.is_active = true`,
-    //   [emp_id]
-    // );
+  
 
     // 6. Commit Transaction
     await client.query("COMMIT");
@@ -816,17 +801,17 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
     year: 'numeric', 
     timeZone: 'Asia/Kolkata' 
   });
-      // await sendEmail(
-      //   adminEmails, 
-      //   subject, 
-      //   "admin_all_present", 
-      //   {
-      //     date:formattedDate,
-      //     time: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
-      //     employee_rows: tableRowsHtml
-      //   },
-      //   ccEmails 
-      // );
+      await sendEmail(
+        adminEmails, 
+        subject, 
+        "admin_all_present", 
+        {
+          date:formattedDate,
+          time: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          employee_rows: tableRowsHtml
+        },
+        ccEmails 
+      );
       console.log("CRON: Email sent successfully.");
     }
 
@@ -872,13 +857,13 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 // });
 
 
-// cron.schedule('30 20 * * *', async () => {
-//   console.log(`[${new Date().toISOString()}] Starting 8:30 PM attendance report...`);
-//   runAttendanceTask();
-// }, {
-//   scheduled: true,
-//   timezone: "Asia/Kolkata"
-// });
+cron.schedule('4 12 * * *', async () => {
+  console.log(`[${new Date().toISOString()}] Starting 8:30 PM attendance report...`);
+  exports.runAttendanceTask();
+}, {
+  scheduled: true,
+  timezone: "Asia/Kolkata"
+});
 
 
   
@@ -1289,22 +1274,15 @@ exports.getMyTodayAttendance = async (req, res) => {
 exports.getMyAttendance = async (req, res) => {
   try {
     const empId = req.user.emp_id;
-
-    // 1. Get parameters from query
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
     const offset = (page - 1) * limit;
 
-    // 2. Handle Date Filtering Logic
     const startDate = req.query.startDate; 
     const endDate = req.query.endDate || new Date().toISOString().split('T')[0];
-
-    // If no startDate, default to 365 days ago
     const finalStartDate = startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // console.log("Filtering from:", finalStartDate, "to:", endDate);
-
-    // 3. Get Total Count dynamically for the selected range
+    // Total Count Query
     const countQuery = `
       SELECT COUNT(*)::int as total 
       FROM generate_series($1::date, $2::date, '1 day'::interval)
@@ -1312,7 +1290,6 @@ exports.getMyAttendance = async (req, res) => {
     const countRes = await db.query(countQuery, [finalStartDate, endDate]);
     const totalCount = countRes.rows[0].total;
 
-    // 4. Main Query using parameters ($1, $2, $3, etc.)
     const query = `
       WITH date_range AS (
           SELECT generate_series($1::date, $2::date, '1 day'::interval)::date AS attendance_date
@@ -1343,8 +1320,9 @@ exports.getMyAttendance = async (req, res) => {
         $3 AS emp_id,
         u.name AS employee_name,
         to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
-        COALESCE(ad.punch_in, da.punch_in, al.punch_in) AS punch_in,
-        COALESCE(ad.punch_out, da.punch_out, al.punch_out) AS punch_out,
+        -- FORMATTING TIME IN BACKEND TO AVOID FRONTEND PARSING ERRORS
+        to_char(COALESCE(ad.punch_in, da.punch_in, al.punch_in), 'HH12:MI AM') AS punch_in,
+        to_char(COALESCE(ad.punch_out, da.punch_out, al.punch_out), 'HH12:MI AM') AS punch_out,
         EXTRACT(EPOCH FROM (COALESCE(ad.punch_out, da.punch_out, al.punch_out) - COALESCE(ad.punch_in, da.punch_in, al.punch_in))) AS total_seconds,
         da.expected_hours,
         CASE 
@@ -1364,12 +1342,10 @@ exports.getMyAttendance = async (req, res) => {
       LIMIT $4 OFFSET $5;
     `;
 
-    // Map parameters correctly: $1=Start, $2=End, $3=EmpID, $4=Limit, $5=Offset
     const { rows } = await db.query(query, [finalStartDate, endDate, empId, limit, offset]);
 
-    // Format results
     const attendance = rows.map(r => {
-      let total_hours = null;
+      let total_hours = { hours: 0, minutes: 0 };
       if (r.total_seconds) {
         const secs = Math.abs(Number(r.total_seconds));
         total_hours = {
@@ -1377,7 +1353,13 @@ exports.getMyAttendance = async (req, res) => {
           minutes: Math.floor((secs % 3600) / 60)
         };
       }
-      return { ...r, total_hours };
+      return { 
+        ...r, 
+        total_hours,
+        // Ensure nulls are strings for the table
+        punch_in: r.punch_in || "--",
+        punch_out: r.punch_out || "--"
+      };
     });
 
     res.status(200).json({ 
@@ -1418,6 +1400,8 @@ exports.getActivityLog = async (req, res) => {
   try {
     // 1. Extract parameters
     const { from, to, emp_id, page = 1, limit = 20 } = req.query;
+
+    console.log("Get activity from",from,"to",to)
     
     // Check if we should skip pagination
     const isExport = limit === "-1" || limit === -1;

@@ -16,7 +16,7 @@ cron.schedule(
     try {
       console.log("[CRON] Device attendance sync started");
       await getDeviceAttendance();
-      await aggregateTodayAttendance(); // ✅ ADDED (fresh daily snapshot)
+      await aggregateTodayAttendance(); 
       console.log(" [CRON] Device attendance sync completed");
     } catch (err) {
       console.error(" [CRON] Device sync error:", err.message);
@@ -56,7 +56,7 @@ cron.schedule(
     try {
       console.log(" [CRON] Safety sync started");
       await syncAttendance();
-      await aggregateTodayAttendance(); // ✅ SAFETY REBUILD
+      await aggregateTodayAttendance(); 
       console.log(" [CRON] Safety sync completed");
     } catch (err) {
       console.error(" [CRON] Safety sync error:", err.message);

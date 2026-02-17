@@ -11,6 +11,7 @@ import { getEducation } from "../../api/profile";
 const tabs = ["Organization", "Personal", "Education", "Experience", "Contacts", "Bank", "Documents"];
 
 const MainProfile = ({ 
+  organizationData,
   personalData,
   educationData,  
   experienceData,
@@ -67,6 +68,18 @@ const MainProfile = ({
       </div>
     
       <div className="mt-4">
+
+        {
+          activeTab === "Organization" && (
+            <OrganizationTab
+              organizationData={organizationData}
+               isEditing={isEditing} 
+            setIsEditing={setIsEditing}
+            onSave={onSave} 
+            empId={empId} 
+            />
+          )
+        }
         {activeTab === "Personal" && (
           <PersonalTab 
             personalData={personalData} 

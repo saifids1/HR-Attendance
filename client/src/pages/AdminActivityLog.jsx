@@ -1,4 +1,4 @@
-import { Typography, Pagination } from '@mui/material';
+import { Typography } from '@mui/material';
 import React, { useEffect, useState, useCallback, useContext } from 'react';
 import axios from 'axios';
 import Filters from '../components/Filters';
@@ -10,7 +10,7 @@ const AdminActivityLog = () => {
     const [loading, setLoading] = useState(true);
     const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1 });
     const [page, setPage] = useState(1);
-    const [limit, setLimit] = useState(20); // Records per page state
+    const [limit, setLimit] = useState(20); 
     const [jumpPage, setJumpPage] = useState(""); 
 
     const { setActiveLogs, formatDate, filters } = useContext(EmployContext);
@@ -19,11 +19,13 @@ const AdminActivityLog = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem("token");
-            // URL now includes dynamic page AND limit
+            
+            // Build the base URL
             let url = `http://localhost:5000/api/admin/attendance/activity-log?page=${page}&limit=${limit}`;
 
-            if (filters.startDate) url += `&from=${filters.startDate}`;
-            if (filters.endDate) url += `&to=${filters.endDate}`;
+            // Access keys defined in Filters.jsx config: actStart, actEnd, activitySearch
+            if (filters.actStart) url += `&from=${filters.actStart}`;
+            if (filters.actEnd) url += `&to=${filters.actEnd}`;
             if (filters.activitySearch) url += `&emp_id=${filters.activitySearch.trim()}`;
 
             const res = await axios.get(url, {
@@ -40,22 +42,18 @@ const AdminActivityLog = () => {
         } finally {
             setLoading(false);
         }
-    }, [page, limit, filters.startDate, filters.endDate, filters.activitySearch, setActiveLogs]);
+    }, [page, limit, filters.actStart, filters.actEnd, filters.activitySearch, setActiveLogs]);
 
-    // Fetch logs when page, limit, or filters change
+    // Debounced fetch
     useEffect(() => {
-        const handler = setTimeout(() => { fetchLogs(); }, 400);
+        const handler = setTimeout(() => { fetchLogs(); }, 300);
         return () => clearTimeout(handler);
     }, [fetchLogs]);
 
-    // Reset page to 1 when filters or limit change
+    // Reset page to 1 when search or dates change
     useEffect(() => { 
         setPage(1); 
-    }, [filters.activitySearch, filters.startDate, filters.endDate, limit]);
-
-    const handlePageChange = (event, value) => {
-        setPage(value);
-    };
+    }, [filters.activitySearch, filters.actStart, filters.actEnd, limit]);
 
     const handleJumpPageSubmit = (e) => {
         e.preventDefault();
@@ -70,7 +68,7 @@ const AdminActivityLog = () => {
 
     if (loading && data.length === 0) {
         return (
-            <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="fixed inset-0 flex items-center justify-center z-50 bg-white/50">
                 <Loader />
             </div>
         );
@@ -86,8 +84,8 @@ const AdminActivityLog = () => {
             
             <Filters />
 
-            <div className="relative overflow-auto w-full border border-gray-300 rounded max-h-[500px] mt-4 bg-white shadow-sm">
-                <table className={`min-w-full text-sm border-collapse transition-opacity duration-300 ${loading ? 'opacity-60' : 'opacity-100'}`}>
+            <div className="relative overflow-auto w-full border border-gray-300 rounded max-h-[550px] mt-4 bg-white shadow-sm">
+                <table className={`min-w-full text-sm border-collapse transition-opacity duration-300 ${loading ? 'opacity-50' : 'opacity-100'}`}>
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr className="divide-x divide-gray-200">
                             {["Sr No", "Emp ID", "Punch Date", "Punch Time", "Device IP", "Device SN"].map((h, i) => (
@@ -100,7 +98,8 @@ const AdminActivityLog = () => {
                     <tbody className="divide-y divide-gray-200">
                         {data.length > 0 ? (
                             data.map((row, i) => {
-                                const punchTime = new Date(row.punch_time).toLocaleTimeString('en-IN', {
+                                const pDate = new Date(row.punch_time);
+                                const punchTime = isNaN(pDate) ? "--" : pDate.toLocaleTimeString('en-IN', {
                                     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
                                 });
 
@@ -124,54 +123,57 @@ const AdminActivityLog = () => {
                 </table>
             </div>
 
-            {/* Pagination Controls Footer */}
+            {/* Pagination Controls */}
             <div className="flex flex-col md:flex-row justify-between items-center mt-6 bg-white p-4 rounded-lg border shadow-sm gap-4">
                 <div className="flex items-center gap-4">
-                    <p className="text-sm text-gray-500 font-medium whitespace-nowrap">
+                    <p className="text-sm text-gray-500 font-medium">
                         Showing {data.length} records
                     </p>
-                    
-                    {/* Records per page select */}
                     <div className="flex items-center space-x-2 border-l pl-4">
                         <label className="text-sm font-medium text-gray-700">Records:</label>
                         <select 
                             value={limit}
                             onChange={(e) => setLimit(parseInt(e.target.value))}
-                            className="border border-gray-300 rounded text-sm p-1 px-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                            className="border border-gray-300 rounded text-sm p-1 px-2 focus:ring-blue-500 outline-none"
                         >
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
-                            <option value={50}>50</option>
-                            <option value={100}>100</option>
+                            {[10, 20, 50, 100].map(v => <option key={v} value={v}>{v}</option>)}
                         </select>
                     </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-6">
-                    {/* <Pagination
-                        count={pagination.totalPages}
-                        page={page}
-                        onChange={handlePageChange}
-                        color="primary"
-                        variant="outlined"
-                        shape="rounded"
-                        size="small"
-                    /> */}
+                    {/* Basic Next/Prev Controls */}
+                    {/* <div className="flex items-center gap-2 border-r pr-6">
+                        <button 
+                            disabled={page === 1}
+                            onClick={() => setPage(p => p - 1)}
+                            className="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                        >
+                            Prev
+                        </button>
+                        <span className="text-sm font-semibold text-gray-700">
+                            Page {page} of {pagination.totalPages}
+                        </span>
+                        <button 
+                            disabled={page >= pagination.totalPages}
+                            onClick={() => setPage(p => p + 1)}
+                            className="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                        >
+                            Next
+                        </button>
+                    </div> */}
 
-                    <nav aria-label="Page navigation" className="border-l pl-6">
+                    <nav aria-label="Jump to page">
                         <form onSubmit={handleJumpPageSubmit} className="flex items-center space-x-3">
-                            <div className="flex items-center space-x-2">
-                                <label htmlFor="jump-page" className="text-sm font-medium text-gray-700">Go to</label>
-                                <input 
-                                    type="number" 
-                                    id="jump-page" 
-                                    value={jumpPage}
-                                    onChange={(e) => setJumpPage(e.target.value)}
-                                    className="w-12 border border-gray-300 text-sm rounded-md px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500" 
-                                    placeholder={pagination.totalPages} 
-                                />
-                                <span className="text-sm font-medium text-gray-700">page</span>
-                            </div>
+                            <label htmlFor="jump-page" className="text-sm font-medium text-gray-700">Go to</label>
+                            <input 
+                                type="number" 
+                                id="jump-page" 
+                                value={jumpPage}
+                                onChange={(e) => setJumpPage(e.target.value)}
+                                className="w-14 border border-gray-300 text-sm rounded-md px-2 py-1.5 focus:ring-blue-500 outline-none" 
+                                placeholder={pagination.totalPages} 
+                            />
                             <button 
                                 type="submit" 
                                 className="text-white bg-[#222F7D] hover:bg-blue-800 font-medium rounded-md text-sm px-4 py-1.5 transition-colors shadow-sm"

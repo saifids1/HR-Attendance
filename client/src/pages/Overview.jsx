@@ -40,7 +40,7 @@ const Overview = () => {
 
   useEffect(() => {
     const fetchProfileImage = async () => {
-      // Logic: Only fetch if we don't already have an image or if the token is fresh
+ 
       try {
         const res = await axios.get("http://localhost:5000/api/employee/profile/image", {
           headers: { Authorization: `Bearer ${token}` },
@@ -93,15 +93,13 @@ const Overview = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-2">
-      <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6">
-        <Typography className="text-white text-2xl sm:text-3xl text-center font-bold tracking-wide">
+      <div className="sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] mt-2">
+        <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
           Dashboard
         </Typography>
       </div>
 
-      <div className="mb-5">
-        <GotoAdmin role={role} />
-      </div>
+    
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         <div className="xl:col-span-3 space-y-6">

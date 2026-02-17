@@ -1,14 +1,26 @@
-import React from "react";
-import { NavLink } from "react-router-dom";
+import React, { useContext } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { IoMdSettings } from "react-icons/io";
 import { MdOutlineHolidayVillage } from "react-icons/md";
 import { SlCalender } from "react-icons/sl";
+import { RiAdminFill } from "react-icons/ri";
+
 import { CgProfile } from "react-icons/cg";
 import { House, LockKeyhole, BookAIcon, X } from "lucide-react";
 import { Tooltip } from "@mui/material";
 import logo from "../assets/ids-logo.png"
+import GotoAdmin from "./GotoAdmin";
 
 const EmploySidebar = ({ open, setOpen }) => {
+
+  const user = JSON.parse(localStorage.getItem("user"));
+const location = useLocation();
+
+  
+  const isAdminInEmployeeView = user.role === "admin" && location.pathname.startsWith("/employee");
+
+  if (!isAdminInEmployeeView) return null;
+
   const navClass = ({ isActive }) =>
     `flex items-center gap-3 px-4 py-2 rounded transition border
      ${isActive
@@ -54,7 +66,7 @@ const EmploySidebar = ({ open, setOpen }) => {
 </div>
 
   {/* Menu */}
-  <nav className="mt-4 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
+ <nav className="mt-4 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
     
     <NavLink to="/employee" end className={navClass}>
       <House size={20} className="shrink-0" />
@@ -90,6 +102,17 @@ const EmploySidebar = ({ open, setOpen }) => {
       </Tooltip>
       <span className="ml-1">My Leaves</span>
     </NavLink>
+
+   {user.role === 'admin' && (
+        // <div className="mt-auto px-2 pb-4">
+          <NavLink to="/admin" className={navClass}>
+            <RiAdminFill size={18} className="shrink-0" />
+            <span className="text-nowrap">Go To Admin </span>
+          </NavLink>
+     
+      )}
+    
+  
 
   </nav>
 

@@ -55,7 +55,7 @@ const EducationTab = ({ educationData, onSave, empId }) => {
       } else {
         await addEducations(empId, formData);
         toast.success("New education added", { id: toastId });
-      }
+    }
 
       setDraft(null);
       setIsAddingNew(false);

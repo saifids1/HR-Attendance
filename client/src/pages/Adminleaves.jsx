@@ -73,7 +73,7 @@ const Adminleaves = () => {
 
   return (
     <div className="px-3 pb-6">
-      <div className="sticky top-0 z-50 bg-[#222F7D] rounded-lg">
+      <div className="sticky top-0 z-50 bg-[#222F7D] rounded-lg mt-[1rem]">
         <Typography className="text-white py-2 text-2xl text-center">Leave Requests</Typography>
       </div>
 

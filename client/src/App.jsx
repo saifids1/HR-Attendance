@@ -105,8 +105,8 @@ function App() {
             <Route path="reporting" element={<ReportingAdmin/> }/>
             <Route path="profile" element={<Profile />} />
             <Route path="help" element={<Help />} />
-            <Route path="cron-manager" element={<AttendanceSheet/>}/>
-            {/* <Route path="cron-manager" element={<CronManager/>}/> */}
+            {/* <Route path="cron-manager" element={<AttendanceSheet/>}/> */}
+            <Route path="cron-manager" element={<CronManager/>}/>
             <Route path="week" element={<WeeklyAttendance/>}/>
           </Route>
         </Route>

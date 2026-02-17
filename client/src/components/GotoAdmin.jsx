@@ -1,22 +1,26 @@
-import React from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import React from 'react';
+import { RiAdminFill } from 'react-icons/ri';
+import { NavLink, useLocation } from 'react-router-dom';
 
-const GotoAdmin = ({role}) => {
-   const location  = useLocation()
+const GotoAdmin = ({ role }) => {
+  const location = useLocation();
+
+  
+  const isAdminInEmployeeView = role === "admin" && location.pathname.startsWith("/employee");
+
+  if (!isAdminInEmployeeView) return null;
+
   return (
-    <div className="mb-5">
+    <div className="mt-auto px-2 pb-4"> 
+      <NavLink 
+        to="/admin" 
+        className="flex items-center justify-center gap-3 "
+      >
+        <RiAdminFill size={18} className="shrink-0 " />
+        <span className='text-nowrap'>Go To Admin Dashboard</span>
+      </NavLink>
+    </div>
+  );
+};
 
-    {role === "admin" && location.pathname === "/employee" && (
-    <NavLink 
-      to="/admin" 
-      className="bg-[#222F7D] px-2 py-3 text-white rounded-md shadow-md hover:bg-blue-900 transition-colors"
-    >
-      Go To Admin Dashboard
-    </NavLink>
-  )}
-        
-      </div>
-  )
-}
-
-export default GotoAdmin
+export default GotoAdmin;

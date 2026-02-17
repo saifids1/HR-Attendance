@@ -11,12 +11,14 @@ import {
   getPersonal,
   getContact,
   getBank,
+  getOrganization,
 } from "../../api/profile";
 
 import { EmployContext } from "../context/EmployContextProvider";
 import MainProfile from "../profile/MainProfile";
 import ReportingCard from "../components/ReportingCard";
 import api from "../../api/axiosInstance";
+import OrganizationTab from "../profile/tabs/OrganizationTab";
 
 const Profile = () => {
   const user = JSON.parse(localStorage.getItem("user"));
@@ -29,8 +31,10 @@ const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [reporting, setReporting] = useState([]);
-  
+
   // Data States
+  const [organizationData, setOrganizationData] = useState({});
+
   const [personalData, setPersonalData] = useState({});
   const [educationData, setEducationData] = useState([]);
   const [experienceData, setExperienceData] = useState([]);
@@ -42,13 +46,15 @@ const Profile = () => {
     if (!emp_id) return;
     try {
       const results = await Promise.allSettled([
+        getOrganization(),
         getPersonal(emp_id),
         getEducation(emp_id),
         getExperience(emp_id),
         getContact(emp_id),
         getBank(emp_id),
-      ]);
 
+      ]);
+      if (results[0].status === "fulfilled") setOrganizationData(results[0].value.data.organizationDetails || {});
       if (results[0].status === "fulfilled") setPersonalData(results[0].value.data.personalDetails || {});
       if (results[1].status === "fulfilled") setEducationData(results[1].value.data.education || []);
       if (results[2].status === "fulfilled") setExperienceData(results[2].value.data.experience || []);
@@ -117,8 +123,9 @@ const Profile = () => {
   return (
     <div className="min-h-screen py-4 px-3 sm:py-6 sm:px-4 bg-gray-50/70">
       {/* HEADER */}
-      <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6">
-        <Typography className="text-white text-xl sm:text-2xl font-bold">
+
+      <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] -mt-2">
+        <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
           {user?.role === "admin" ? "Admin Profile" : "Employee Profile"}
         </Typography>
       </div>
@@ -169,6 +176,7 @@ const Profile = () => {
       <div className="mx-auto mt-6">
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <MainProfile
+            organizationData={organizationData}
             personalData={personalData}
             educationData={educationData}
             experienceData={experienceData}

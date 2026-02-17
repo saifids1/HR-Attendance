@@ -17,7 +17,7 @@ const StatusBadge = ({ status }) => {
 
     return (
         <span className={`
-            inline-block w-20 text-center  /* Fixes the width and centers text */
+            inline-block w-20 text-center 
             px-2 py-0.5 rounded text-[10px] uppercase font-semibold 
             ${styles[status] || "bg-gray-300 text-gray-800"}
         `}>
@@ -25,6 +25,8 @@ const StatusBadge = ({ status }) => {
         </span>
     );
 };
+
+
 
 const WeeklyAttendance = () => {
     const {
@@ -40,6 +42,8 @@ const WeeklyAttendance = () => {
     // Safely extract attendance array
     const attendanceList = weeklyData?.attendance || [];
 
+    // console.log("weeklyData",weeklyData)
+
     useEffect(() => {
         if (weeklyData?.employee) {
             setEmpInfo({
@@ -49,6 +53,11 @@ const WeeklyAttendance = () => {
         }
     }, [weeklyData]);
 
+
+    // useEffect(()=>{
+
+    //     // console.log("attendanceList",weeklyData)
+    // },[attendanceList])
     const getDayName = (dateStr) => {
         if (!dateStr) return "";
         return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short" });
@@ -70,23 +79,12 @@ const WeeklyAttendance = () => {
                     Weekly Attendance
                 </Typography>
 
-                {/* Export Button inside the header */}
-                {/* <Button 
-                    variant="contained" 
-                    color="success" 
-                    size="small"
-                    startIcon={<FileDownloadIcon />}
-                    onClick={() => exportWeekToExcel(weeklyData)}
-                    disabled={attendanceList.length === 0}
-                    sx={{ textTransform: 'none', fontWeight: 'bold' }}
-                >
-                    Export
-                </Button> */}
+              
             </div>
 
             <Filters />
 
-            <div className="relative overflow-auto w-full border border-gray-300 rounded max-h-[600px] mt-4 bg-white shadow-sm">
+            <div className="relative overflow-auto w-full border border-gray-300 rounded max-h-[600px]  bg-white shadow-sm">
                 <table className={`min-w-full text-sm border-collapse ${weeklyLoading ? 'opacity-50' : 'opacity-100'}`}>
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
@@ -109,7 +107,7 @@ const WeeklyAttendance = () => {
                                 const isAbsent = !hasWork && !holidayMatch && !isSunday;
 
                                 return (
-                                    <tr key={i} className={`hover:bg-blue-50 transition-colors ${isSunday ? "bg-orange-500 text-white" : ""}`}>
+                                    <tr key={i} className={`transition-colors ${isSunday ? "bg-orange-500 text-white" : ""}`}>
                                         <td className={`px-4 py-2 font-bold ${isSunday ? "text-white" : "text-gray-800"}`}>
                                             {i + 1}
                                         </td>

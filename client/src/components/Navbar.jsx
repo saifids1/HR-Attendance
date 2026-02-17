@@ -50,7 +50,7 @@ const Navbar = ({ open, setOpen }) => {
   };
 
   return (
-    <header className="bg-white border-b px-4 py-3 flex items-center justify-between h-14">
+    <header className="bg-white  border-b px-4 py-3 flex items-center justify-between h-16">
       {/* Left: Hamburger */}
       <button
         className="p-2 rounded hover:bg-gray-200/60"
@@ -75,9 +75,7 @@ const Navbar = ({ open, setOpen }) => {
           className="flex items-center gap-2 cursor-pointer select-none"
           onClick={(e) => setAnchorEl(e.currentTarget)}
         >
-          {/* FIXED: Ensure src uses a reliable fallback. 
-              The 'key' attribute helps React identify when to force a refresh.
-          */}
+         
           <Avatar 
             src={profileImage || avatarImg} 
             alt="Avatar" 

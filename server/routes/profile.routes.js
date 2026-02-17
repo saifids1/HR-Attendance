@@ -24,11 +24,8 @@ router.get("/organization", auth, getOrganizationInfo)
 
 router.put("/organization", auth, isAdmin, updateOrganizationInfo)
 
-// Personal
-// ---------- DOB PARSER ----------
 
 
-// ---------- POST PERSONAL DETAILS ----------
 
 router.get("/personal/:emp_id", auth, getPersonalInfo);
 

@@ -189,7 +189,7 @@ async function getDeviceAttendance() {
           return [];
       }
 
-      /* ---------- GET LAST SYNC TRACKER ---------- */
+      
       const { rows: trackerRows } = await db.query(
           `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
           [deviceSN]

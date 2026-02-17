@@ -437,9 +437,9 @@ exports.addEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    console.log("emp_id",emp_id)
+    console.log("emp_id Added",emp_id)
 
-    if(emp_id){
+    if(!emp_id){
       return res.status(400).json({message:"emp_id required"});
     }
 
@@ -554,6 +554,8 @@ exports.updateEducationInfo = async (req, res) => {
   const client = await db.connect(); // Use a dedicated client for transaction
   try {
     const { emp_id } = req.params;
+
+    console.log("empId update",emp_id);
     const educationEntries = JSON.parse(req.body.education);
 
     await client.query('BEGIN');
@@ -1133,7 +1135,7 @@ exports.getBankInfo = async (req, res) => {
 exports.updateBankInfo =  async (req, res) => {
   try {
     const { emp_id } = req.params;
-    console.log("req.body bank update ",req.body);
+    // console.log("req.body bank update ",req.body);
     const {
       account_holder_name,
       bank_name,
@@ -1162,13 +1164,6 @@ exports.updateBankInfo =  async (req, res) => {
         message: "Required bank fields are missing"
       });
     }
-
-    // Authorization (employee can update own data, admin can update all)
-    // if (req.user.emp_id !== emp_id) {
-    //   return res.status(403).json({
-    //     message: "Unauthorized access"
-    //   });
-    // }
 
     const result = await db.query(
       `
