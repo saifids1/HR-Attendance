@@ -1,53 +1,66 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   addEducations,
   updateEducation,
   deleteEducation,
 } from "../../../api/profile";
-import { emptyEducation } from "../../constants/emptyData";
+import { emptyEducation, degreeOptions } from "../../constants/emptyData";
 import { FaPencilAlt, FaCheck, FaTimes } from "react-icons/fa";
-import { MdDelete, MdAdd } from "react-icons/md";
+import { MdDelete } from "react-icons/md";
 import { toast } from "react-hot-toast";
 
-const EducationTab = ({ educationData, onSave, empId }) => {
+const EducationTab = ({
+  educationData,
+  onSave,
+  empId,
+  isEditing,
+  isAddingNew,
+  setIsAddingNew,
+}) => {
   const [draft, setDraft] = useState(null);
   const [errors, setErrors] = useState({});
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
 
-  
+  /* ================= CHANGE ================= */
+
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
-    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: null }));
   };
 
-  const handleAddNew = () => {
-    if (draft) return toast.error("Please save or cancel current changes first");
-    setDraft({ ...emptyEducation });
-    setIsAddingNew(true);
+  /* ================= EDIT ================= */
+
+  const handleEdit = (education, index) => {
+    if (draft) {
+      toast.error("Please save or cancel current changes first");
+      return;
+    }
+
+    setEditingIndex(index);
+    setDraft({ ...emptyEducation, ...education });
   };
 
-  const handleEdit = (edu) => {
-    if (draft) return toast.error("Please save or cancel current changes first");
-    setDraft({ ...edu });
-    setIsAddingNew(false);
-  };
+  /* ================= CANCEL ================= */
 
   const handleCancel = () => {
     setDraft(null);
-    setErrors({});
+    setEditingIndex(null);
     setIsAddingNew(false);
   };
 
-  const handleSave = async () => {
-   
+  /* ================= SAVE ================= */
 
-    // Create a loading toast so the user knows work is happening
+  const handleSave = async () => {
+    if (!draft) return;
+
     const toastId = toast.loading("Saving education details...");
 
     try {
       const formData = new FormData();
       formData.append("education", JSON.stringify([draft]));
-      if (draft.marksheet_file) formData.append("file_0", draft.marksheet_file);
+
+      if (draft.marksheet_file) {
+        formData.append("file_0", draft.marksheet_file);
+      }
 
       if (draft.id) {
         await updateEducation(empId, draft.id, formData);
@@ -58,109 +71,114 @@ const EducationTab = ({ educationData, onSave, empId }) => {
       }
 
       setDraft(null);
+      setEditingIndex(null);
       setIsAddingNew(false);
-      
-      // REFRESH DATA INSTANTLY
-      if (onSave) {
-        await onSave(); 
-      }
+
+      if (onSave) await onSave();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Save failed", { id: toastId });
+      toast.error(err.response?.data?.message || "Save failed", {
+        id: toastId,
+      });
     }
   };
 
+  /* ================= DELETE ================= */
+
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this record?")) return;
-    
+
     const toastId = toast.loading("Deleting record...");
     try {
       await deleteEducation(empId, id);
       toast.success("Deleted", { id: toastId });
-      
-      // REFRESH DATA INSTANTLY
-      if (onSave) {
-        await onSave();
-      }
-    } catch (error) {
+      if (onSave) await onSave();
+    } catch {
       toast.error("Delete failed", { id: toastId });
     }
   };
 
+  /* ================= AUTO NEW ROW ================= */
+
+  useEffect(() => {
+    if (isAddingNew) {
+      setEditingIndex("new");
+      setDraft({ ...emptyEducation });
+    }
+  }, [isAddingNew]);
+
+  /* ================= UI ================= */
+
   return (
     <div className="container-fluid">
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex justify-end items-center mb-6 px-2">
-          {/* <h2 className="text-xl font-bold text-gray-800">Education Details</h2> */}
-          <button 
-            onClick={handleAddNew}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition-all text-sm"
-          >
-            <MdAdd size={18} /> ADD NEW
-          </button>
-        </div>
-
-        <div className="table-responsive">
-          <table className="table table-bordered w-full table-fixed align-middle mb-0">
-            <thead className="bg-gray-100 text-gray-700">
+      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+          <table className="min-w-full divide-y divide-gray-300">
+            <thead className="bg-gray-200">
               <tr>
-                <th className="w-[18%] text-center">Degree</th>
-                <th className="w-[20%] text-center">Field of Study</th>
-                <th className="w-[20%] text-center">Institution</th>
-                <th className="w-[12%] text-center">Year</th>
-                <th className="w-[20%] text-center">University</th>
-                <th className="w-[10%] text-center">Actions</th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700" >Degree</th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">Field of Study</th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">Institution</th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700" >Year</th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">University</th>
+                <th className="px-4 py-2 text-center font-bold text-gray-700">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {/* New Row Input */}
-              {isAddingNew && draft && !draft.id && (
-                <EditableRow 
-                  draft={draft} 
-                  errors={errors} 
-                  onChange={handleChange} 
-                  onSave={handleSave} 
-                  onCancel={handleCancel} 
-                />
-              )}
 
-              {educationData?.map((edu) => (
-                draft?.id === edu.id ? (
-                  <EditableRow 
-                    key={edu.id}
-                    draft={draft} 
-                    errors={errors} 
-                    onChange={handleChange} 
-                    onSave={handleSave} 
-                    onCancel={handleCancel} 
+            <tbody className="bg-white divide-y divide-gray-200">
+              {educationData?.map((edu, index) =>
+                editingIndex === index ? (
+                  <EditableRow
+                    key={edu.id || index}
+                    draft={draft}
+                    onChange={handleChange}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
                   />
                 ) : (
-                  <tr key={edu.id} className="text-center">
-                    <td className="p-3 truncate">{edu.degree}</td>
-                    <td className="p-3 truncate">{edu.field_of_study}</td>
-                    <td className="p-3 truncate">{edu.institution_name}</td>
+                  <tr key={edu.id || index}>
+                    <td className="px-4 py-2 text-sm">{edu.degree}</td>
+                    <td className="px-4 py-2 text-sm">{edu.field_of_study}</td>
+                    <td className="px-4 py-2 text-sm">{edu.institution_name}</td>
                     <td className="p-3">{edu.passing_year}</td>
-                    <td className="p-3 truncate">{edu.university}</td>
-                    <td className="p-3">
-                      <div className="flex gap-4 items-center justify-center">
-                        <button onClick={() => handleEdit(edu)} className="text-blue-500 hover:text-blue-700 transition-colors">
-                          <FaPencilAlt size={14} />
+                    <td className="px-4 py-2 text-sm">{edu.university}</td>
+                    <td className="px-4 py-2 text-sm text-center">
+                      <div className="flex gap-4 justify-center">
+                        <button
+                          onClick={() => handleEdit(edu, index)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <FaPencilAlt />
                         </button>
-                        <button onClick={() => handleDelete(edu.id)} className="text-red-500 hover:text-red-700 transition-colors">
-                          <MdDelete size={18} />
+
+                        <button
+                          onClick={() => handleDelete(edu.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <MdDelete size={20} />
                         </button>
                       </div>
                     </td>
                   </tr>
                 )
-              ))}
-              
-              {(!educationData || educationData.length === 0) && !isAddingNew && (
-                <tr>
-                  <td colSpan="6" className="text-center py-8 text-gray-500 italic bg-gray-50">
-                    No records found. Click "Add New" to start.
-                  </td>
-                </tr>
               )}
+
+              {editingIndex === "new" && draft && (
+                <EditableRow
+                  draft={draft}
+                  onChange={handleChange}
+                  onSave={handleSave}
+                  onCancel={handleCancel}
+                />
+              )}
+
+              {(!educationData || educationData.length === 0) &&
+                !isAddingNew && (
+                  <tr>
+                    <td colSpan="6" className="text-center py-8 text-gray-500 italic bg-gray-50">
+                      No Education records found
+                    </td>
+                  </tr>
+                )}
             </tbody>
           </table>
         </div>
@@ -169,49 +187,63 @@ const EducationTab = ({ educationData, onSave, empId }) => {
   );
 };
 
-const EditableRow = ({ draft, errors, onChange, onSave, onCancel }) => (
+/* ================= EDITABLE ROW ================= */
+
+const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
   <tr className="bg-blue-50/30">
-    <td className="p-2">
-      <input 
-        className={`w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-400 ${errors.degree ? 'border-red-500' : 'border-gray-300'}`}
-        value={draft.degree || ""} 
+    <td className="p-2" style={{width:"200px"}}>
+      <select
+        className="w-full border px-2 py-1 text-sm rounded"
+        value={draft.degree || ""}
         onChange={(e) => onChange("degree", e.target.value)}
-      />
+      >
+        {degreeOptions.map((deg) => (
+          <option key={deg} value={deg}>
+            {deg}
+          </option>
+        ))}
+      </select>
     </td>
-    <td className="p-2">
-      <input 
-        className={`w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-400 ${errors.field_of_study ? 'border-red-500' : 'border-gray-300'}`}
-        value={draft.field_of_study || ""} 
+
+    <td className="p-2" style={{width:"150px"}}>
+      <input
+        className="w-full px-2 py-1.5 text-sm border rounded border-gray-300"
+        value={draft.field_of_study || ""}
         onChange={(e) => onChange("field_of_study", e.target.value)}
       />
     </td>
+
     <td className="p-2">
-      <input 
-        className={`w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-400 ${errors.institution_name ? 'border-red-500' : 'border-gray-300'}`}
-        value={draft.institution_name || ""} 
+      <input
+        className="w-full px-2 py-1.5 text-sm border rounded border-gray-300"
+        value={draft.institution_name || ""}
         onChange={(e) => onChange("institution_name", e.target.value)}
       />
     </td>
-    <td className="p-2">
-      <input 
-        className={`w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-400 ${errors.passing_year ? 'border-red-500' : 'border-gray-300'}`}
-        value={draft.passing_year || ""} 
+
+    <td className="p-2" style={{width:"60px"}}>
+      <input
+        className="px-2 w-full py-1.5 text-sm border rounded border-gray-300"
+        
+        value={draft.passing_year || ""}
         onChange={(e) => onChange("passing_year", e.target.value)}
       />
     </td>
+
     <td className="p-2">
-      <input 
-        className="w-full px-2 py-1.5 text-sm border rounded border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
-        value={draft.university || ""} 
+      <input
+        className="w-full px-2 py-1.5 text-sm border rounded border-gray-300"
+        value={draft.university || ""}
         onChange={(e) => onChange("university", e.target.value)}
       />
     </td>
+
     <td className="p-2">
-      <div className="flex gap-4 items-center justify-center">
-        <button onClick={onSave} className="text-green-600 hover:text-green-800 transition-transform active:scale-90" title="Save">
+      <div className="flex gap-4 justify-center">
+        <button onClick={onSave} className="text-green-600">
           <FaCheck size={16} />
         </button>
-        <button onClick={onCancel} className="text-orange-500 hover:text-orange-700 transition-transform active:scale-90" title="Cancel">
+        <button onClick={onCancel} className="text-orange-500">
           <FaTimes size={16} />
         </button>
       </div>

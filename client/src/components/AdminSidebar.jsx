@@ -82,7 +82,7 @@ const AdminSidebar = ({ open, setOpen }) => {
             openSidebar={true}
             items={[
               { label: "Employee List", path: "/admin/employees" },
-              // { label: "Add Employee", path: "/admin/add-emp" },
+              { label: "Add Employee", path: "/admin/add-emp" },
               { label: "Daily Attendance", path: "/admin/attendance" },
               { label: "Weekly Attendance", path: "/admin/week" },
               // { label: "Employee Attendance", path: "/admin/all" },

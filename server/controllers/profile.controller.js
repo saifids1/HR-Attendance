@@ -7,49 +7,49 @@ const sendEmail = require("../utils/mailer");
 const sendNotification = require("../services/notification.services");
 // Organization
 
-exports.addOrganizationInfo = async(req,res)=>{
+exports.addOrganizationInfo = async (req, res) => {
 
-    try {
-     
-            const {
-              organizationName,
-              organizationCode,
-              industryType,
-              address,
-              city,
-              state,
-              country,
-              isactive
-            } = req.body;
-        
-            if (!organizationName || !organizationCode || !industryType || !address || !city || !state) {
-              return res.status(400).json({ message: "All fields required" });
-            }
-        
-            const { rows } = await db.query(
-              `
+  try {
+
+    const {
+      organizationName,
+      organizationCode,
+      industryType,
+      address,
+      city,
+      state,
+      country,
+      isactive
+    } = req.body;
+
+    if (!organizationName || !organizationCode || !industryType || !address || !city || !state) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    const { rows } = await db.query(
+      `
               INSERT INTO organizations 
                 (organization_name, organization_code, industry_type, address, city, state, country, is_active)
               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
               RETURNING organization_name, organization_code, industry_type, address, city, state, country, is_active
               `,
-              [organizationName, organizationCode, industryType, address, city, state, country || null, isactive || true]
-            );
+      [organizationName, organizationCode, industryType, address, city, state, country || null, isactive || true]
+    );
 
-            await sendEmail(req.user.email, "Profile Updated", "profile_update", {
-              name: data.name
-            });
-        
-        
-            res.status(201).json({
-              message: "Organization created successfully",
-              organization: rows[0]
-            });
-        
-         } catch (error) {
-        console.log(error);
-        req.status(500).json({message:"Internal Server Error"});
-    }
+    await sendEmail(req.user.email, "Profile Updated", "profile_update", {
+      name: data.name
+    });
+
+
+    res.status(201).json({
+      message: "Organization created successfully",
+      organization: rows[0]
+    });
+
+  } catch (error) {
+    console.log(error);
+    req.status(500).json({ message: "Internal Server Error" });
+  }
 }
 
 exports.getOrganizationInfo = async (req, res) => {
@@ -142,7 +142,7 @@ const parseDob = (dob) => {
   throw new Error("Invalid DOB format");
 };
 
-exports.addPersonInfo =  async (req, res) => {
+exports.addPersonInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
@@ -181,19 +181,19 @@ exports.addPersonInfo =  async (req, res) => {
 
     const parseDob = (dateStr) => {
       if (!dateStr) return null;
-    
+
       // Agar frontend se DD-MM-YYYY aa raha hai (e.g. 11-12-2000)
       const parts = dateStr.split("-");
-      
-      if (parts[0].length === 2) { 
+
+      if (parts[0].length === 2) {
         // DD-MM-YYYY -> YYYY-MM-DD
         const [day, month, year] = parts;
-        return `${year}-${month}-${day}`; 
+        return `${year}-${month}-${day}`;
       }
-    
+
       return dateStr; // Agar pehle se YYYY-MM-DD hai
     };
-    
+
     // Usage in Controller
     let formattedDob;
     try {
@@ -308,7 +308,7 @@ exports.updatePersonalInfo = async (req, res) => {
 
   try {
     const { emp_id } = req.params;
-    
+
     // Ensure req.user exists (from your Protect/Auth middleware)
     if (!req.user) {
       return res.status(401).json({ success: false, message: "User not authenticated" });
@@ -364,18 +364,18 @@ exports.updatePersonalInfo = async (req, res) => {
     const finalStatus = isAdmin ? (status === "Active") : req.user.is_active;
 
     const userResult = await client.query(userUpdateQuery, [
-      limit(name, 100), 
-      limit(email, 100), 
-      finalStatus, 
+      limit(name, 100),
+      limit(email, 100),
+      finalStatus,
       emp_id
     ]);
 
 
-    console.log("empId for personal",emp_id);
+    console.log("empId for personal", emp_id);
     // 3. Update 'personal' table
     // We save the "Job Title" in the designation column here
- // 1. Define the UPSERT Query
-const personalUpsertQuery = `
+    // 1. Define the UPSERT Query
+    const personalUpsertQuery = `
 INSERT INTO public.personal (
   dob, joining_date, gender, department, bloodgroup, 
   maritalstatus, nationality, nominee, aadharnumber, 
@@ -398,24 +398,24 @@ DO UPDATE SET
 RETURNING *;
 `;
 
-// 2. Execute the query
-const personalResult = await client.query(personalUpsertQuery, [
-formattedDob,           // $1
-formattedJoiningDate,   // $2
-limit(gender, 20),      // $3 (increased to 20 for safety)
-limit(department, 100), // $4
-limit(bloodgroup, 5),   // $5
-limit(maritalstatus, 20),// $6
-limit(nationality, 50), // $7
-limit(nominee, 255),    // $8
-limit(aadharnumber, 30),// $9
-limit(address, 500),    // $10 (increased to 500 for safety)
-limit(designation, 100),// $11
-emp_id                  // $12
-]);
+    // 2. Execute the query
+    const personalResult = await client.query(personalUpsertQuery, [
+      formattedDob,           // $1
+      formattedJoiningDate,   // $2
+      limit(gender, 20),      // $3 (increased to 20 for safety)
+      limit(department, 100), // $4
+      limit(bloodgroup, 5),   // $5
+      limit(maritalstatus, 20),// $6
+      limit(nationality, 50), // $7
+      limit(nominee, 255),    // $8
+      limit(aadharnumber, 30),// $9
+      limit(address, 500),    // $10 (increased to 500 for safety)
+      limit(designation, 100),// $11
+      emp_id                  // $12
+    ]);
 
-// 3. Commit the transaction
-await client.query('COMMIT');
+    // 3. Commit the transaction
+    await client.query('COMMIT');
 
     res.status(200).json({
       success: true,
@@ -437,10 +437,10 @@ exports.addEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    console.log("emp_id",emp_id)
+    // console.log("emp_id",emp_id)
 
-    if(emp_id){
-      return res.status(400).json({message:"emp_id required"});
+    if (!emp_id) {
+      return res.status(400).json({ message: "emp_id required" });
     }
 
 
@@ -586,16 +586,16 @@ exports.updateEducationInfo = async (req, res) => {
             degree=$1, field_of_study=$2, institution_name=$3, university=$4, 
             percentage_or_grade=$5, passing_year=$6, marksheet_url=COALESCE($7, marksheet_url), 
             updated_at=NOW() WHERE id=$8 AND emp_id=$9`,
-          [edu.degree, edu.field_of_study, edu.institution_name, edu.university, 
-           edu.percentage_or_grade, edu.passing_year, finalPath, edu.id, emp_id]
+          [edu.degree, edu.field_of_study, edu.institution_name, edu.university,
+          edu.percentage_or_grade, edu.passing_year, finalPath, edu.id, emp_id]
         );
       } else {
         // 3. INSERT only if it's truly new
         await client.query(
           `INSERT INTO education (emp_id, degree, field_of_study, institution_name, university, percentage_or_grade, passing_year, marksheet_url)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [emp_id, edu.degree, edu.field_of_study, edu.institution_name, edu.university, 
-           edu.percentage_or_grade, edu.passing_year, finalPath]
+          [emp_id, edu.degree, edu.field_of_study, edu.institution_name, edu.university,
+            edu.percentage_or_grade, edu.passing_year, finalPath]
         );
       }
     }
@@ -726,11 +726,11 @@ exports.addExperienceInfo = async (req, res) => {
   }
 };
 
-exports.getExperienceInfo =  async (req, res) => {
+exports.getExperienceInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    if(!emp_id) return 
+    if (!emp_id) return
     const { rows } = await db.query(
       `
       SELECT
@@ -770,7 +770,7 @@ exports.updateExperienceInfo = async (req, res) => {
       start_date,
       end_date,
       total_years,
-      location, 
+      location,
     } = req.body;
 
     // 1. Check for Missing Required Fields
@@ -879,7 +879,7 @@ exports.getContactInfo = async (req, res) => {
       [emp_id]
     );
 
-    console.log("result.rows",result.rows);
+    console.log("result.rows", result.rows);
     res.status(200).json({
       contacts: result.rows
     });
@@ -900,7 +900,7 @@ exports.addContactInfo = async (req, res) => {
       `SELECT contact_type, phone, email, relation, is_primary FROM contact WHERE emp_id = $1`,
       [emp_id]
     );
-    
+
     const existingContacts = currentContactsRes.rows;
 
     // 2. Combine existing contacts with the new one
@@ -969,7 +969,7 @@ exports.updateContactInfo = async (req, res) => {
           contact.relation || null,
           contact.is_primary ?? false
         );
-       
+
         return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, NOW())`;
       }).join(",");
 
@@ -995,13 +995,13 @@ exports.deleteContactInfo = async (req, res) => {
   const { emp_id, id } = req.params;
 
   try {
-   
+
     const checkQuery = `
         SELECT is_primary 
         FROM contact 
         WHERE id = $1 AND emp_id = $2
     `;
-    
+
     const result = await db.query(checkQuery, [id, emp_id]);
     const rows = result.rows; // db.query returns an object with a rows array in pg
 
@@ -1018,7 +1018,7 @@ exports.deleteContactInfo = async (req, res) => {
     if (isPrimary) {
       const countQuery = `SELECT COUNT(*) as total FROM contact WHERE emp_id = $1`;
       const countResult = await db.query(countQuery, [emp_id]);
-      
+
       if (parseInt(countResult.rows[0].total) > 1) {
         return res.status(400).json({
           success: false,
@@ -1100,7 +1100,7 @@ exports.addBankInfo = async (req, res) => {
       ]
     );
 
-    console.log("result.rows[0]",result.rows[0])
+    console.log("result.rows[0]", result.rows[0])
     // sendNotification(emp_id, "Bank", req.user.name);
     res.status(201).json({
       message: "Bank details saved successfully",
@@ -1130,10 +1130,10 @@ exports.getBankInfo = async (req, res) => {
   }
 }
 
-exports.updateBankInfo =  async (req, res) => {
+exports.updateBankInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
-    console.log("req.body bank update ",req.body);
+    console.log("req.body bank update ", req.body);
     const {
       account_holder_name,
       bank_name,
@@ -1147,7 +1147,7 @@ exports.updateBankInfo =  async (req, res) => {
     } = req.body;
 
 
-   
+
 
     // Basic validation
     if (
@@ -1229,7 +1229,7 @@ exports.updateBankInfo =  async (req, res) => {
 }
 
 
-exports.addBankDocInfo =  async (req, res) => {
+exports.addBankDocInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
@@ -1282,7 +1282,7 @@ exports.addBankDocInfo =  async (req, res) => {
       if (existing.length > 0 && existing[0].file_path) {
         // Adjust path resolution based on your folder structure
         const oldFilePath = path.join(__dirname, "../../", existing[0].file_path);
-        
+
         if (fs.existsSync(oldFilePath)) {
           fs.unlink(oldFilePath, (err) => {
             if (err) console.error("Could not delete old file:", err);
@@ -1340,7 +1340,7 @@ exports.getAllBankDoc = async (req, res) => {
   }
 }
 
-exports.addProfileImage =  async (req, res) => {
+exports.addProfileImage = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "Image is required" });

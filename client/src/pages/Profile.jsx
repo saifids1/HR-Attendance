@@ -11,6 +11,7 @@ import {
   getPersonal,
   getContact,
   getBank,
+  getOrganization,
 } from "../../api/profile";
 
 import { EmployContext } from "../context/EmployContextProvider";
@@ -23,18 +24,21 @@ const Profile = () => {
   const token = localStorage.getItem("token");
   const emp_id = user?.emp_id;
 
-  const { profileImage, setProfileImage, orgAddress } = useContext(EmployContext);
+  const { profileImage, setProfileImage, orgAddress } =
+    useContext(EmployContext);
 
   // --- State Management ---
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [reporting, setReporting] = useState([]);
-  
+
   // Data States
   const [personalData, setPersonalData] = useState({});
   const [educationData, setEducationData] = useState([]);
   const [experienceData, setExperienceData] = useState([]);
   const [contactsData, setContactsData] = useState([]);
+  const [organizationData, setOrganizationData] = useState({});
   const [bankData, setBankData] = useState({});
 
   // --- 1. Fetch All Profile Data ---
@@ -42,19 +46,30 @@ const Profile = () => {
     if (!emp_id) return;
     try {
       const results = await Promise.allSettled([
+        getOrganization(),
         getPersonal(emp_id),
         getEducation(emp_id),
         getExperience(emp_id),
         getContact(emp_id),
         getBank(emp_id),
       ]);
+      if (results[0].status === "fulfilled")
+        setOrganizationData(results[0].value.data.organizationDetails || {});
 
-      if (results[0].status === "fulfilled") setPersonalData(results[0].value.data.personalDetails || {});
-      if (results[1].status === "fulfilled") setEducationData(results[1].value.data.education || []);
-      if (results[2].status === "fulfilled") setExperienceData(results[2].value.data.experience || []);
-      if (results[3].status === "fulfilled") setContactsData(results[3].value.data.contact || []);
-      if (results[4].status === "fulfilled") setBankData(results[4].value.data.bankInfo || {});
+      if (results[1].status === "fulfilled")
+        setPersonalData(results[1].value.data.personalDetails || {});
 
+      if (results[2].status === "fulfilled")
+        setEducationData(results[2].value.data.education || []);
+
+      if (results[3].status === "fulfilled")
+        setExperienceData(results[3].value.data.experience || []);
+
+      if (results[4].status === "fulfilled")
+        setContactsData(results[4].value.data.contact || []);
+
+      if (results[5].status === "fulfilled")
+        setBankData(results[5].value.data.bankInfo || {});
     } catch (err) {
       console.error("Error fetching profile:", err);
     }
@@ -102,7 +117,7 @@ const Profile = () => {
       const res = await api.post(`employee/profile/image/${emp_id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setRefreshTrigger(prev => prev + 1);
+      setRefreshTrigger((prev) => prev + 1);
       toast.success("Profile Image Updated");
     } catch (error) {
       toast.error("Failed to upload image");
@@ -110,8 +125,8 @@ const Profile = () => {
   };
 
   // This function is passed to child tabs. When they save, they call this.
-  const handleDataRefresh = async () => {
-    await fetchProfileData();
+  const handleDataRefresh = () => {
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   return (
@@ -125,7 +140,7 @@ const Profile = () => {
 
       <div className="mx-auto grid grid-cols-1 lg:grid-cols-[4fr_1.5fr] gap-6">
         {/* LEFT: Profile Card */}
-        <div className="bg-white rounded-xl shadow p-4 sm:p-6">
+        <div className="bg-white rounded-xl shadow p-4 sm:p-6 h-25">
           <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
             <div className="relative w-32 h-32 group">
               <label className="cursor-pointer block w-full h-full">
@@ -134,7 +149,11 @@ const Profile = () => {
                   alt="Profile"
                   className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
                 />
-                <input type="file" className="hidden" onChange={handleProfileUpload} />
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleProfileUpload}
+                />
                 <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
                   ✎
                 </div>
@@ -143,15 +162,19 @@ const Profile = () => {
 
             <div className="w-full text-center md:text-left">
               <h2 className="text-xl font-bold text-gray-800">{user?.name}</h2>
-              <p className="text-[#222F7D] font-bold text-xs tracking-wider uppercase">{user?.role}</p>
+              <p className="text-[#222F7D] font-bold text-xs tracking-wider uppercase">
+                {user?.role}
+              </p>
               <p className="text-gray-500 text-sm mt-1">ID: {emp_id}</p>
 
               <div className="flex flex-col sm:flex-row gap-4 mt-4 text-gray-600 text-sm justify-center md:justify-start">
                 <span className="flex items-center gap-2">
-                  <IoHomeSharp className="text-[#222F7D]" /> {orgAddress?.address || "Office Address"}
+                  <IoHomeSharp className="text-[#222F7D]" />{" "}
+                  {orgAddress?.address || "Office Address"}
                 </span>
                 <span className="flex items-center gap-2">
-                  <MdOutlineEmail className="text-[#222F7D] text-lg" /> {user?.email}
+                  <MdOutlineEmail className="text-[#222F7D] text-lg" />{" "}
+                  {user?.email}
                 </span>
               </div>
             </div>
@@ -160,7 +183,7 @@ const Profile = () => {
         </div>
 
         {/* RIGHT: Reporting */}
-        <div className="bg-white rounded-xl shadow p-4 h-fit">
+        <div className="bg-white rounded-xl shadow p-4 h-25">
           <ReportingCard reportingManagers={reporting} />
         </div>
       </div>
@@ -169,6 +192,7 @@ const Profile = () => {
       <div className="mx-auto mt-6">
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <MainProfile
+            organizationData={organizationData}
             personalData={personalData}
             educationData={educationData}
             experienceData={experienceData}
@@ -179,6 +203,8 @@ const Profile = () => {
             setIsEditing={setIsEditing}
             onSave={handleDataRefresh} // Passing refresh function
             empId={emp_id}
+            isAddingNew={isAddingNew}
+            setIsAddingNew={setIsAddingNew}
           />
         </div>
       </div>

@@ -36,7 +36,7 @@ function Adminlayout() {
       <Navbar setOpen={setSidebarOpen} open={sidebarOpen} />
   
       {/* Page Content (Outlet) */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden py-2 ">
+      <main className="flex-1 overflow-y-auto scroll-m-0 overflow-x-hidden py-2 " style={{scrollbarWidth: "none"}}>
         <Outlet />
       </main>
 

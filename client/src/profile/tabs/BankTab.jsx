@@ -99,7 +99,7 @@ const BankTab = ({ isEditing, setIsEditing }) => {
   return (
     <div className="flex flex-col gap-6 w-full">
       {draft.map((bank, index) => (
-        <FormCard key={bank.id || index} title={`Bank Account Details`}>
+        <FormCard key={bank.id || index}>
           {/* Strict 3-column Grid Wrapper */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
             {Object.keys(emptyBank).map((key) => {
@@ -109,10 +109,10 @@ const BankTab = ({ isEditing, setIsEditing }) => {
               return (
                 <div key={key} className="flex flex-col w-full">
                   <Input
-                    label={key.replace(/_/g, " ").toUpperCase()}
+                    label={key.replace(/_/g, " ")}
                     value={bank[key] || ""}
                     disabled={!isEditing}
-                    className="w-full"
+                    className="w-full capitalized"
                     onChange={(e) => {
                       const copy = [...draft];
                       // Update the specific field in the specific bank object

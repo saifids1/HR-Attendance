@@ -1,232 +1,388 @@
 import React, { useContext, useRef, useState, useEffect } from "react";
-import FormCard from "../../components/FormCard";
 import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 import api from "../../../api/axiosInstance";
+import { FaPencilAlt, FaCheck, FaTimes, FaFileAlt } from "react-icons/fa";
+import { MdDelete } from "react-icons/md";
 
-const DOCUMENTS = [
-  { key: "aadhaar", label: "Aadhaar Document" },
-  { key: "pan", label: "PAN Document" },
-  { key: "passbook", label: "Bank Passbook" },
-  { key: "address_proof", label: "Address Proof" },
+const documentTypes = [
+  "Passport Size Photo",
+  "Aadhar Card",
+  "PAN Card",
+  "Bank PassBook",
+  "Passport",
+  "Updated CV",
+  "UAN Card",
 ];
 
-const DocumentTab = ({ isEditing,setIsEditing }) => {
-  const [files, setFiles] = useState({});
-  const [previews, setPreviews] = useState({});
-  const [loading, setLoading] = useState(true);
+const emptyDocument = {
+  documentType: "Aadhar Card",
+  documentNumber: "1234567",
+  file: null,
+};
+
+const DocumentTab = ({
+  isEditing,
+  setIsEditing,
+  setIsAddingNew,
+  isAddingNew,
+}) => {
   const { token } = useContext(AuthContext);
-
-  const refs = {
-    aadhaar: useRef(null),
-    pan: useRef(null),
-    passbook: useRef(null),
-    address_proof: useRef(null),
-  };
-
   const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
 
-  // --- 1. Fetch & Map Array Logic ---
+  const [documents, setDocuments] = useState([]);
+  const [draft, setDraft] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const fileRef = useRef(null);
+
+  /* ================= FETCH DOCUMENTS ================= */
+
   useEffect(() => {
     const fetchDocs = async () => {
       try {
-        setLoading(true);
         const res = await api.get(`/employee/profile/bank/doc/${emp_id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        // Backend returns: { documents: [ {file_type: 'aadhaar', file_path: '...'}, ... ] }
-        const docArray = res.data.documents || [];
-        const fetchedPreviews = {};
+        const BASE_URL = api.defaults.baseURL.split("/api")[0];
 
-        // Get Backend Base URL (e.g., http://localhost:5000)
-        const BASE_URL = api.defaults.baseURL.split('/api')[0];
+        const formatted =
+          res.data.documents?.map((doc) => ({
+            ...doc,
+            fullUrl: `${BASE_URL}${doc.file_path}`.replace(
+              /([^:]\/)\/+/g,
+              "$1"
+            ),
+            fileName: doc.file_path.split("/").pop(),
+          })) || [];
 
-        DOCUMENTS.forEach((doc) => {
-          const foundDoc = docArray.find((item) => item.file_type === doc.key);
-
-          if (foundDoc) {
-            // Clean URL: Combine and fix double slashes except after http:
-            const cleanUrl = `${BASE_URL}${foundDoc.file_path}`.replace(/([^:]\/)\/+/g, "$1");
-            
-            fetchedPreviews[doc.key] = {
-              url: cleanUrl,
-              type: foundDoc.file_path.toLowerCase().endsWith(".pdf") 
-                ? "application/pdf" 
-                : "image/jpeg",
-            };
-          }
-        });
-
-        setPreviews(fetchedPreviews);
+        setDocuments(formatted);
       } catch (err) {
-        console.error("Fetch error:", err);
-      } finally {
-        setLoading(false);
+        console.error(err);
       }
     };
 
     if (emp_id) fetchDocs();
-    
-    // Cleanup temporary URLs on unmount
-    return () => {
-      Object.values(previews).forEach(p => {
-        if (p.url && p.url.startsWith('blob:')) URL.revokeObjectURL(p.url);
-      });
-    };
   }, [emp_id, token]);
 
-  const handleFileChange = (e, key) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  /* ================= SHOW DRAFT IF EMPTY ================= */
 
-    const validTypes = ["image/jpeg", "image/jpg", "application/pdf"];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Invalid file format. Please upload JPG or PDF.");
+  useEffect(() => {
+    if (documents.length === 0) {
+      setDraft({ ...emptyDocument });
+      setEditingIndex("new"); // show as normal row first
+    }
+  }, [documents]);
+
+useEffect(() => {
+  if (isAddingNew) {
+    setDraft({ ...emptyDocument });
+    setEditingIndex("new-edit"); // directly editable row
+  }
+}, [isAddingNew]);
+  /* ================= EDIT EXISTING ================= */
+
+  const handleEdit = (doc, index) => {
+    if (draft && editingIndex !== null) {
+      toast.error("Please save or cancel current changes first");
       return;
     }
 
-    // Revoke old blob URL if replacing a file to save memory
-    if (previews[key]?.url?.startsWith('blob:')) {
-      URL.revokeObjectURL(previews[key].url);
-    }
+    setEditingIndex(index);
+    setDraft({
+      documentType: doc.file_type,
+      documentNumber: doc.document_no || "",
+      file: null,
+      id: doc.id,
+    });
 
-    setFiles((prev) => ({ ...prev, [key]: file }));
-    setPreviews((prev) => ({
+    setIsEditing(true);
+  };
+
+  /* ================= FILE CHANGE ================= */
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setDraft((prev) => ({
       ...prev,
-      [key]: {
-        url: URL.createObjectURL(file),
-        type: file.type,
-      },
+      file,
     }));
   };
 
-  const handleSaveDocuments = async () => {
+  /* ================= SAVE ================= */
+
+  const handleSave = async () => {
+    if (!draft) return;
+
     try {
       const fd = new FormData();
-      Object.entries(files).forEach(([key, file]) => {
-        if (file) fd.append(key, file);
-      });
 
-      if ([...fd.keys()].length === 0) {
-        toast.error("No changes to save");
-        return;
+      fd.append("documentType", draft.documentType);
+      fd.append("documentNumber", draft.documentNumber);
+
+      if (draft.file) {
+        fd.append("file", draft.file);
       }
 
-      await api.post(`employee/profile/bank/doc/${emp_id}`, fd, {
+      await api.post(`/employee/profile/bank/doc/${emp_id}`, fd, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
       });
 
-      toast.success("Documents uploaded successfully");
+      toast.success("Document saved");
+
+      setDraft(null);
+      setEditingIndex(null);
+      setIsAddingNew(false);
       setIsEditing(false);
-      // Trigger a page refresh or call a parent refresh function here if available
+
+      // Refresh list
+      const res = await api.get(`/employee/profile/bank/doc/${emp_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const BASE_URL = api.defaults.baseURL.split("/api")[0];
+
+      const formatted =
+        res.data.documents?.map((doc) => ({
+          ...doc,
+          fullUrl: `${BASE_URL}${doc.file_path}`.replace(
+            /([^:]\/)\/+/g,
+            "$1"
+          ),
+          fileName: doc.file_path.split("/").pop(),
+        })) || [];
+
+      setDocuments(formatted);
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to upload documents");
+      toast.error("Save failed");
     }
   };
 
-  const renderPreview = (preview, label) => {
-    if (loading) return <div className="w-24 h-24 bg-gray-100 animate-pulse rounded" />;
-    
-    if (!preview || !preview.url) {
-      return (
-        <div className="w-24 h-24 border-2 border-dashed border-gray-200 rounded flex items-center justify-center bg-gray-50 text-gray-400 text-[10px] text-center p-2">
-          Not Uploaded
-        </div>
-      );
+  /* ================= DELETE ================= */
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this document?")) return;
+
+    try {
+      await api.delete(`/employee/profile/bank/doc/${emp_id}/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      toast.success("Deleted");
+      setDocuments((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      toast.error("Delete failed");
     }
-
-    const isPDF = preview.type === "application/pdf" || preview.url.toLowerCase().endsWith('.pdf');
-
-    return (
-      <div className="w-24 h-24 border rounded flex flex-col items-center justify-center overflow-hidden bg-white shadow-sm transition-all hover:border-blue-300 group relative">
-        {isPDF ? (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-red-500 font-bold text-xs uppercase">PDF</span>
-            <a
-              href={preview.url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-600 text-[10px] font-medium underline hover:text-blue-800"
-            >
-              View File
-            </a>
-          </div>
-        ) : (
-          <img
-            src={preview.url}
-            alt={label}
-            className="w-full h-full object-cover cursor-zoom-in"
-            onError={(e) => {
-              e.target.src = "https://via.placeholder.com/100?text=Error";
-            }}
-            onClick={() => window.open(preview.url, "_blank")}
-          />
-        )}
-      </div>
-    );
   };
 
-  const handleCancel = ()=>{
+  /* ================= CANCEL ================= */
+
+  const handleCancel = () => {
+    if (editingIndex === "new-edit") {
+      setEditingIndex("new"); // go back to draft view
+    } else {
+      setDraft(null);
+      setEditingIndex(null);
+    }
+
+    setIsAddingNew(false);
     setIsEditing(false);
-  }
+  };
+
+  /* ================= UI ================= */
 
   return (
-    <>
-      <FormCard title="KYC & Bank Documents">
-        {DOCUMENTS.map((doc) => (
-          <div key={doc.key} className="flex items-center gap-4 mt-6 pb-4 border-b last:border-0">
-            <div className="flex-1">
-              <label className="block mb-2 text-sm font-semibold text-gray-700">
-                {doc.label}
-              </label>
-              {isEditing ? (
-                <div className="space-y-1">
-                  <input
-                    type="file"
-                    name={doc.key}
-                    ref={refs[doc.key]}
-                    accept=".jpg,.jpeg,.pdf"
-                    onChange={(e) => handleFileChange(e, doc.key)}
-                    className="block w-full text-xs text-gray-500 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+    <div className="container-fluid">
+      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+          <table className="min-w-full divide-y divide-gray-300">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="px-4 py-2 font-bold text-gray-700 text-left">
+                  Document type
+                </th>
+                <th className="px-4 py-2 font-bold text-gray-700 text-left">
+                  Document No.
+                </th>
+                <th className="px-4 py-2 font-bold text-gray-700 text-left">
+                  Document
+                </th>
+                <th className="px-4 py-2 font-bold text-gray-700 text-center">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="bg-white divide-y divide-gray-200">
+              {documents.map((doc, index) =>
+                editingIndex === index ? (
+                  <EditableRow
+                    key={doc.id}
+                    draft={draft}
+                    setDraft={setDraft}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                    fileRef={fileRef}
+                    handleFileChange={handleFileChange}
                   />
-                  <p className="text-[10px] text-gray-400">JPG, JPEG or PDF (Max 5MB)</p>
-                </div>
-              ) : (
-                <p className="text-xs text-gray-500 italic">
-                  {previews[doc.key] ? "Document uploaded" : "No document provided"}
-                </p>
+                ) : (
+                  <tr key={doc.id}>
+                    <td className="px-4 py-2 text-sm">{doc.file_type}</td>
+                    <td className="px-4 py-2 text-sm">
+                      {doc.document_no || "-"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-blue-600 underline cursor-pointer">
+                      <span onClick={() => window.open(doc.fullUrl, "_blank")}>
+                        {doc.fileName}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-sm text-center">
+                      <div className="flex gap-4 justify-center">
+                        <button
+                          onClick={() => handleEdit(doc, index)}
+                          className="text-blue-500"
+                        >
+                          <FaPencilAlt />
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(doc.id)}
+                          className="text-red-500"
+                        >
+                          <MdDelete size={20} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
               )}
-            </div>
 
-            <div className="flex-shrink-0">
-              {renderPreview(previews[doc.key], doc.label)}
-            </div>
-          </div>
-        ))}
-      </FormCard>
+              {/* Draft row normal view */}
+              {draft && editingIndex === "new" && (
+                <tr>
+                  <td className="px-4 py-2 text-sm">
+                    {draft.documentType}
+                  </td>
+                  <td className="px-4 py-2 text-sm">
+                    {draft.documentNumber || "-"}
+                  </td>
+                  <td className="px-4 py-2 text-sm">
+                    {draft.file ? draft.file.name : "-"}
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    <button
+                      onClick={() => setEditingIndex("new-edit")}
+                      className="text-blue-500"
+                    >
+                      <FaPencilAlt />
+                    </button>
+                  </td>
+                </tr>
+              )}
 
-      {isEditing && (
-        <div className="flex justify-end gap-3 mt-4">
+              {/* Draft editable */}
+              {editingIndex === "new-edit" && draft && (
+                <EditableRow
+                  draft={draft}
+                  setDraft={setDraft}
+                  onSave={handleSave}
+                  onCancel={handleCancel}
+                  fileRef={fileRef}
+                  handleFileChange={handleFileChange}
+                />
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ================= EDITABLE ROW ================= */
+
+const EditableRow = ({
+  draft,
+  setDraft,
+  onSave,
+  onCancel,
+  fileRef,
+  handleFileChange,
+}) => {
+  return (
+    <tr className="bg-blue-50/30">
+      <td className="p-2">
+        <select
+          className="w-full border px-2 py-1 text-sm rounded"
+          value={draft?.documentType || ""}
+          onChange={(e) =>
+            setDraft((prev) => ({
+              ...prev,
+              documentType: e.target.value,
+            }))
+          }
+        >
+          {documentTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td className="p-2">
+        <input
+          className="w-full px-2 py-1.5 text-sm border rounded"
+          value={draft.documentNumber}
+          placeholder="Document No"
+          onChange={(e) =>
+            setDraft((prev) => ({
+              ...prev,
+              documentNumber: e.target.value,
+            }))
+          }
+        />
+      </td>
+
+      <td className="p-2 text-left">
+        <input
+          type="file"
+          ref={fileRef}
+          accept=".jpg,.jpeg,.pdf"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        {draft.file ? (
+          <span className="text-sm text-blue-600 ms-4">
+            {draft.file.name}
+          </span>
+        ) : (
           <button
-            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-            onClick={handleCancel}
+            onClick={() => fileRef.current?.click()}
+            className="text-blue-500 ms-4"
           >
-            Cancel
+            <FaFileAlt size={18} />
           </button>
-          <button
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm"
-            onClick={handleSaveDocuments}
-          >
-            Save Changes
+        )}
+      </td>
+
+      <td className="p-2 text-center">
+        <div className="flex gap-4 justify-center">
+          <button onClick={onSave} className="text-green-600">
+            <FaCheck size={16} />
+          </button>
+          <button onClick={onCancel} className="text-orange-500">
+            <FaTimes size={16} />
           </button>
         </div>
-      )}
-    </>
+      </td>
+    </tr>
   );
 };
 

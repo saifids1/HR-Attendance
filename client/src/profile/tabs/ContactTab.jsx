@@ -1,291 +1,273 @@
-import React, { useContext, useEffect, useState, useCallback } from "react";
-import FormCard from "../../components/FormCard";
-import Input from "../../components/Input";
-import Loader from "../../components/Loader";
-import {
-  getContact,
-  addContact,
-  updateContact,
-  deleteContact,
-} from "../../../api/profile";
+import React, { useEffect, useState } from "react";
+import { addContact, updateContact, deleteContact } from "../../../api/profile";
 import { emptyContact } from "../../constants/emptyData";
-import { FaPencilAlt } from "react-icons/fa";
+import { FaPencilAlt, FaCheck, FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
 import { toast } from "react-hot-toast";
-import { AuthContext } from "../../context/AuthContextProvider";
 
-const ContactTab = ({contact, isEditing, setIsEditing }) => {
-  const user = JSON.parse(localStorage.getItem("user"));
-  const emp_id = user?.emp_id;
-  const { token } = useContext(AuthContext);
+const contactTypeOptions = ["Personal", "Emergency", "Work"];
 
-  const [draft, setDraft] = useState({ ...emptyContact });
-  const [savedContacts, setSavedContacts] = useState(contact ? contact:draft);
+const ContactTab = ({
+  contactData,
+  onSave,
+  empId,
+  isAddingNew,
+  setIsAddingNew,
+}) => {
+  const [draft, setDraft] = useState(null);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
 
-  const fetchContacts = useCallback(async () => {
-    if (!emp_id) return;
-    setLoading(true);
-    try {
-      const res = await getContact(emp_id);
-      const rawData = res?.data?.contacts || [];
-
-      const formattedData = rawData.map((c) => ({
-        ...c,
-        contactType: c.contact_type,
-      }));
-
-      setSavedContacts(formattedData);
-      setDraft({ ...emptyContact });
-      setErrors({});
-    } catch (err) {
-      console.error("Fetch Contact Error:", err);
-      toast.error(err.response?.data?.message || "Failed to load contacts");
-    } finally {
-      setLoading(false);
-    }
-  }, [emp_id]);
-
-  useEffect(() => {
-    if (token && emp_id) {
-      fetchContacts();
-    }
-  }, [emp_id, fetchContacts, token]);
+  /* ================= HANDLE CHANGE ================= */
 
   const handleChange = (key, value) => {
-    // Check if the field is meant to be numeric (e.g., phone, zip, emp_id)
-    // const numericFields = ['phone', 'zip_code', 'emp_id', 'aadhaar_no',];
-  
-    // if (numericFields.includes(key)) {
-    //   const cleanValue = value.replace(/\D/g, "");
-      
-    //   setDraft((prev) => ({ ...prev, [key]: cleanValue }));
-    // } else {
-      // Normal update for other fields
-      setDraft((prev) => ({ ...prev, [key]: value }));
-    // }
+    setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = async () => {
-    const newErrors = {};
-    // Validate fields based on emptyContact keys
-    Object.keys(emptyContact).forEach((key) => {
-      if (key !== "id" && key !== "is_primary" && (!draft[key] || draft[key].toString().trim() === "")) {
-        newErrors[key] = "REQUIRED";
-      }
-    });
+  /* ================= EDIT ================= */
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      toast.error("Please fill all fields");
+  const handleEdit = (contact, index) => {
+    if (draft) {
+      toast.error("Please save or cancel current changes first");
       return;
     }
 
+    setEditingIndex(index);
+    setDraft({ ...contact });
+  };
+
+  /* ================= CANCEL ================= */
+
+  const handleCancel = () => {
+    setDraft(null);
+    setEditingIndex(null);
+    setIsAddingNew(false);
+  };
+  /* ================= SAVE ================= */
+
+  const handleSave = async () => {
+    if (!draft) return;
+
+    const payload = {
+      contact_type: draft.contact_type,
+      phone: draft.phone,
+      email: draft.email,
+      relation: draft.relation,
+      is_primary: draft.is_primary ?? false,
+    };
+
     try {
-      // Prepare the object in the format backend expects (snake_case)
-      const contactObject = {
-        contact_type: draft.contactType || draft.contact_type,
-        phone: draft.phone,
-        email: draft.email,
-        relation: draft.relation,
-        is_primary: draft.is_primary ?? false,
-      };
-
       if (draft.id) {
-        /** * UPDATE CASE:
-         * Your backend update logic wipes the table and re-inserts the array.
-         * Therefore, we must send the CURRENT saved list with the edited item swapped in.
-         */
-        const updatedFullList = savedContacts.map((c) =>
-          c.id === draft.id ? contactObject : {
-            contact_type: c.contact_type,
-            phone: c.phone,
-            email: c.email,
-            relation: c.relation,
-            is_primary: c.is_primary
-          }
+        const updatedList = contactData.map((c) =>
+          c.id === draft.id ? { ...c, ...payload } : c,
         );
-
-        await updateContact(emp_id, updatedFullList);
-        toast.success("Contact updated successfully");
+        await updateContact(empId, updatedList);
+        toast.success("Contact updated");
       } else {
-
-        await addContact(emp_id, [contactObject]);
+        await addContact(empId, [payload]);
         toast.success("New contact added");
       }
 
-      fetchContacts();
-      setIsEditing(false);
+      setDraft(null);
+      setEditingIndex(null);
+      setIsAddingNew(false);
+
+      if (onSave) await onSave();
     } catch (err) {
-      console.error("Save Error:", err);
-      toast.error(err.response?.data?.message || "Save failed");
+      toast.error("Save failed");
     }
   };
+
+  /* ================= DELETE ================= */
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this contact record?")) return;
+    if (!window.confirm("Delete this record?")) return;
+
     try {
-      await deleteContact(emp_id, id);
+      await deleteContact(empId, id);
       toast.success("Deleted");
-      fetchContacts();
+
+      if (onSave) await onSave();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Delete failed");
+      toast.error("Delete failed");
     }
   };
 
-  const handleEdit = (contact) => {
-    setDraft({ ...contact });
-    setErrors({});
-    setIsEditing(true); // Ensure the form is enabled when clicking edit icon
-  };
+  /* ================= HANDLE NEW ROW ================= */
 
-  const handleCancel = () => {
-     setDraft({ ...emptyContact });
-     setErrors({});
-     setIsEditing(false);
-   };
+  useEffect(() => {
+    if (isAddingNew) {
+      setDraft({ ...emptyContact });
+    }
+  }, [isAddingNew]);
+
+  /* ================= DATA SOURCE ================= */
+
+  const rows =
+    contactData && contactData.length > 0 ? contactData : [emptyContact];
+
+  /* ================= UI ================= */
 
   return (
-    <>
-      <FormCard>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+    <div className="container-fluid">
+      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+          <table className="min-w-full divide-y divide-gray-300">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                  Type
+                </th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                  Phone
+                </th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                  Email
+                </th>
+                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                  Relation
+                </th>
+                <th className="px-4 py-2 text-center font-bold text-gray-700">
+                  Primary
+                </th>
+                <th className="px-4 py-2 text-center font-bold text-gray-700">
+                  Actions
+                </th>
+              </tr>
+            </thead>
 
-        {Object.keys(emptyContact).map((key) => {
-          if (key === "id") return null;
+            <tbody className="bg-white divide-y divide-gray-200">
+              {rows.map((contact, index) =>
+                editingIndex === index ? (
+                  <EditableRow
+                    key={contact.id || "new"}
+                    draft={draft}
+                    onChange={handleChange}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                  />
+                ) : (
+                  <tr key={contact.id || index}>
+                    <td className="px-4 py-2 text-sm">
+                      {contact.contact_type}
+                    </td>
+                    <td className="px-4 py-2 text-sm">{contact.phone}</td>
+                    <td className="px-4 py-2 text-sm">{contact.email}</td>
+                    <td className="px-4 py-2 text-sm">{contact.relation}</td>
+                    <td className="px-4 py-2 text-center">
+                      {contact.is_primary ? "Yes" : "No"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-center">
+                      <div className="flex gap-4 justify-center">
+                        <button
+                          onClick={() => handleEdit(contact, index)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          {draft && draft.id === contact.id ? (
+                            <FaCheck />
+                          ) : (
+                            <FaPencilAlt />
+                          )}
+                        </button>
 
-          const label = key
-            .replace(/([A-Z])/g, " $1")
-            .replace(/_/g, " ")
-            .toUpperCase();
-
-
-          if (key === "isPrimary") {
-            return (
-              <div key={key} className="flex items-center gap-2 mb-3">
-                <input
-                  type="checkbox"
-                  checked={draft[key] || false}
-                  disabled={!isEditing}
-                  onChange={(e) => handleChange(key, e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <label className="text-sm font-semibold">{label}</label>
-              </div>
-            );
-          }
-
-          //Dropdown for contact_type
-          if (key === "contact_type") {
-            return (
-              <div key={key} className="flex flex-col mb-3">
-                <label className="text-sm font-semibold mb-1">{label}</label>
-                <select
-                  value={draft[key] || ""}
-                  disabled={!isEditing}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  className={`border rounded p-2 ${!isEditing ? "bg-gray-200" : ""}`}
-                >
-                  <option value="">Select Type</option>
-                  <option value="Personal">Personal</option>
-                  <option value="Work">Work</option>
-                  <option value="Emergency">Emergency</option>
-                </select>
-              </div>
-            );
-          }
-
-          // Normal Input Fields
-          return (
-            <div key={key} className="flex flex-col mb-3">
-              <Input
-                label={label}
-                type="text" 
-                value={draft[key] || ""}
-                disabled={!isEditing}
-                onChange={(e) => {
-                  // Replace non-digits before passing to the handler
-                  // const onlyNums = e.target.value.replace(/[^0-9]/g, "");
-                  handleChange(key, e.target.value);
-                }}
-              />
-
-              {isEditing && errors[key] && (
-                <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                  * {errors[key]}
-                </p>
+                        <button
+                          onClick={() => handleDelete(contact.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <MdDelete size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ),
               )}
-            </div>
-          );
-        })}
+
+              {isAddingNew && draft && !draft.id && (
+                <EditableRow
+                  draft={draft}
+                  onChange={handleChange}
+                  onSave={handleSave}
+                  onCancel={handleCancel}
+                />
+              )}
+            </tbody>
+          </table>
         </div>
-      </FormCard>
-
-
-
-      {isEditing && (
-        <div className="flex justify-end gap-3 mt-2 p-3">
-          <button className="px-4 py-2 bg-gray-200 rounded" onClick={handleCancel}>
-            Cancel
-          </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={handleSave}>
-            {draft.id ? "Update Contact" : "Add Contact"}
-          </button>
-        </div>
-      )}
-
-      <div className="overflow-x-auto mt-6 shadow-sm rounded-lg border">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-4 py-3 text-left">Contact Type</th>
-              <th className="border px-4 py-3 text-left">Phone</th>
-              <th className="border px-4 py-3 text-left">Email</th>
-              <th className="border px-4 py-3 text-left">Relation</th>
-              <th className="border px-4 py-3 text-left">Actions</th>
-            </tr>
-          </thead>
-
-           
-  
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan="5" className="text-center py-10">
-                  <div className="flex justify-center mb-2"><Loader /></div>
-                  Fetching Contact Records...
-                </td>
-              </tr>
-            ) : savedContacts.length > 0 ? (
-              savedContacts.map((contact) => (
-                <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="border px-4 py-2 font-medium">{contact.contact_type}</td>
-                  <td className="border px-4 py-2">{contact.phone}</td>
-                  <td className="border px-4 py-2">{contact.email}</td>
-                  <td className="border px-4 py-2">{contact.relation}</td>
-                  <td className="border px-4 py-2">
-                    <div className="flex gap-3">
-                      <button onClick={() => handleEdit(contact)} className="text-blue-600 hover:text-blue-800">
-                        <FaPencilAlt size={14} />
-                      </button>
-                      <button onClick={() => handleDelete(contact.id)} className="text-red-600 hover:text-red-800">
-                        <MdDelete size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="text-center py-10 text-gray-400">
-                  No contact information added yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
       </div>
-    </>
+    </div>
+  );
+};
+
+/* ================= EDITABLE ROW ================= */
+
+const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
+  if (!draft) return null;
+
+  return (
+    <tr className="bg-blue-50/30">
+      <td className="p-2">
+        <select
+          className="w-full border px-2 py-1 text-sm rounded"
+          value={draft.contact_type || ""}
+          onChange={(e) => onChange("contact_type", e.target.value)}
+        >
+          {contactTypeOptions.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td className="p-2">
+        <input
+          className="w-full border px-2 py-1 text-sm rounded"
+          value={draft.phone || ""}
+          onChange={(e) => onChange("phone", e.target.value)}
+        />
+      </td>
+
+      <td className="p-2">
+        <input
+          className="w-full border px-2 py-1 text-sm rounded"
+          value={draft.email || ""}
+          onChange={(e) => onChange("email", e.target.value)}
+        />
+      </td>
+
+      <td className="p-2">
+        <input
+          className="w-full border px-2 py-1 text-sm rounded"
+          value={draft.relation || ""}
+          onChange={(e) => onChange("relation", e.target.value)}
+        />
+      </td>
+
+      <td className="p-2 text-center">
+        <input
+          type="checkbox"
+          checked={draft.is_primary || false}
+          onChange={(e) => onChange("is_primary", e.target.checked)}
+        />
+      </td>
+
+      <td className="p-2">
+        <div className="flex gap-4 items-center justify-center">
+          <button
+            onClick={onSave}
+            className="text-green-600 hover:text-green-800"
+          >
+            <FaCheck size={16} />
+          </button>
+          <button
+            onClick={onCancel}
+            className="text-orange-500 hover:text-orange-700"
+          >
+            <FaTimes size={16} />
+          </button>
+        </div>
+      </td>
+    </tr>
   );
 };
 
