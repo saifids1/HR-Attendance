@@ -171,139 +171,338 @@ function normalizePunchTime(recordTime) {
 //   }
 // }
 
-async function getDeviceAttendance() {
+// async function getDeviceAttendance({ forceSync = false } = {}) {
+//   const deviceSN = "EUF7251400009";
+//   const deviceIP = "60.254.61.177";
+//   const zk = new ZKLib(deviceIP, 4370, 10000, 4000);
+
+//   try {
+//     console.log("[SYNC] Connecting to device...");
+//     await zk.createSocket();
+//     await zk.enableDevice();
+
+//     console.log("[SYNC] Fetching logs from machine...");
+//     const logs = await zk.getAttendances();
+
+//     if (!logs?.data?.length) {
+//       console.log("[SYNC] No logs found.");
+//       return [];
+//     }
+
+//     /* ---------------- GET LAST SYNC ---------------- */
+//     const { rows: trackerRows } = await db.query(
+//       `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
+//       [deviceSN]
+//     );
+
+//     let lastSync = trackerRows[0]?.last_sync || "1970-01-01 00:00:00";
+//     let lastSyncDate = new Date(lastSync);
+//     lastSyncDate.setSeconds(lastSyncDate.getSeconds() - 2);
+
+//     /* ---------------- FILTER LOGS ---------------- */
+//     let filteredLogs;
+
+//     if (forceSync) {
+//       console.log("[SYNC] FULL SYNC MODE ENABLED");
+//       filteredLogs = logs.data;
+//     } else {
+//       filteredLogs = logs.data.filter((log) => {
+//         const punchTime = new Date(normalizePunchTime(log.recordTime));
+//         return punchTime > lastSyncDate;
+//       });
+//     }
+
+//     console.log(`[SYNC] Processing ${filteredLogs.length} logs...`);
+
+//     if (!filteredLogs.length) {
+//       console.log("[SYNC] No new logs to process.");
+//       return [];
+//     }
+
+//     let latestPunch = lastSyncDate;
+
+//     await db.query("BEGIN");
+
+//     for (const log of filteredLogs) {
+//       const punchTimeStr = normalizePunchTime(log.recordTime);
+//       if (!punchTimeStr) continue;
+
+//       const punchDate = new Date(punchTimeStr);
+
+//       /* -------- CHECK USER -------- */
+//       const { rows: userRows } = await db.query(
+//         `SELECT emp_id FROM users WHERE emp_id = $1`,
+//         [String(log.deviceUserId)]
+//       );
+
+//       if (!userRows.length) continue;
+
+//       const empId = userRows[0].emp_id;
+//       const cleanTimestamp = new Date(log.recordTime).toISOString();
+
+//       /* -------- INSERT MASTER LOG -------- */
+//       await db.query(
+//         `INSERT INTO attendance_logs 
+//         (emp_id, punch_time, device_sn, device_ip, raw_log, created_at)
+//          VALUES ($1, $2, $3, $4, $5, NOW())
+//          ON CONFLICT (emp_id, punch_time) DO NOTHING`,
+//         [
+//           empId,
+//           cleanTimestamp,
+//           deviceSN,
+//           deviceIP,
+//           JSON.stringify(log),
+//         ]
+//       );
+
+//       /* -------- INSERT ACTIVITY LOG -------- */
+//       const insertRes = await db.query(
+//         `INSERT INTO activity_log 
+//         (emp_id, punch_time, device_ip, device_sn)
+//          VALUES ($1, $2, $3, $4)
+//          ON CONFLICT (emp_id, punch_time) DO NOTHING
+//          RETURNING *`,
+//         [empId, punchTimeStr, deviceIP, deviceSN]
+//       );
+
+//       /* -------- UPDATE DAILY ATTENDANCE -------- */
+//       if (insertRes.rowCount > 0) {
+//         await db.query(
+//           `
+//           INSERT INTO daily_attendance
+//           (emp_id, attendance_date, punch_in, punch_out, total_hours, expected_hours, status)
+//           SELECT 
+//             $1,
+//             $2::date,
+//             MIN(punch_time),
+//             MAX(punch_time),
+//             MAX(punch_time) - MIN(punch_time),
+//             INTERVAL '9 hours 30 minutes',
+//             CASE 
+//               WHEN (MAX(punch_time) - MIN(punch_time)) >= INTERVAL '9 hours 30 minutes'
+//                 THEN 'Present'
+//               ELSE 'Working'
+//             END
+//           FROM attendance_logs
+//           WHERE emp_id = $1
+//           AND punch_time::date = $2::date
+//           GROUP BY emp_id, punch_time::date
+//           ON CONFLICT (emp_id, attendance_date)
+//           DO UPDATE SET
+//             punch_in = EXCLUDED.punch_in,
+//             punch_out = EXCLUDED.punch_out,
+//             total_hours = EXCLUDED.total_hours,
+//             status = EXCLUDED.status
+//           `,
+//           [empId, punchTimeStr]
+//         );
+
+//         console.log(`[SAVED] ${empId} - ${punchTimeStr}`);
+//       }
+
+//       if (punchDate > latestPunch) latestPunch = punchDate;
+//     }
+
+//     /* -------- UPDATE TRACKER -------- */
+//     const finalLastSync = latestPunch
+//       .toISOString()
+//       .slice(0, 19)
+//       .replace("T", " ");
+
+//     await db.query(
+//       `INSERT INTO attendance_tracker (device_sn, last_sync)
+//        VALUES ($1, $2)
+//        ON CONFLICT (device_sn)
+//        DO UPDATE SET last_sync = EXCLUDED.last_sync`,
+//       [deviceSN, finalLastSync]
+//     );
+
+//     await db.query("COMMIT");
+
+//     console.log("[SYNC] Completed successfully.");
+//     return filteredLogs;
+
+//   } catch (err) {
+//     await db.query("ROLLBACK");
+//     console.error("[SYNC ERROR]", err);
+//     throw err;
+//   } finally {
+//     try {
+//       await zk.disconnect();
+//     } catch {
+//       console.warn("[SYNC] Device disconnect cleanup failed.");
+//     }
+//   }
+// }
+
+
+// 5-minute cron sync
+async function getDeviceAttendance({ forceSync = false } = {}) {
   const deviceSN = "EUF7251400009";
-  const deviceIP = "60.254.61.177"; 
+  const deviceIP = "60.254.61.177";
   const zk = new ZKLib(deviceIP, 4370, 10000, 4000);
 
   try {
-      console.log("[SYNC] Connecting to device...");
-      await zk.createSocket();
-      await zk.enableDevice();
+    console.log("[SYNC] Connecting to device...");
+    await zk.createSocket();
+    await zk.enableDevice();
 
-      console.log("[SYNC] Fetching attendance logs from machine...");
-      const logs = await zk.getAttendances();
+    console.log("[SYNC] Fetching logs from machine...");
+    const logs = await zk.getAttendances();
 
-      if (!logs?.data?.length) {
-          console.log("[SYNC] No logs found on machine");
-          return [];
-      }
+    if (!logs?.data?.length) {
+      console.log("[SYNC] No logs found.");
+      return [];
+    }
 
-      
-      const { rows: trackerRows } = await db.query(
-          `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
-          [deviceSN]
-      );
+    /* ---------- GET LAST SYNC ---------- */
+    const { rows: trackerRows } = await db.query(
+      `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
+      [deviceSN]
+    );
 
-      let lastSync = trackerRows[0]?.last_sync || "1970-01-01 00:00:00";
-      let lastSyncDate = new Date(lastSync);
-      lastSyncDate.setSeconds(lastSyncDate.getSeconds() - 2); 
+    let lastSync = trackerRows[0]?.last_sync || "1970-01-01 00:00:00";
+    let lastSyncDate = new Date(lastSync);
+    lastSyncDate.setSeconds(lastSyncDate.getSeconds() - 2);
 
-      /* ---------- FILTER NEW LOGS ---------- */
-      const newLogs = logs.data.filter(log => {
-          const punchTime = new Date(normalizePunchTime(log.recordTime));
-          return punchTime > lastSyncDate;
+    /* ---------- FILTER LOGS ---------- */
+    let filteredLogs;
+
+    if (forceSync) {
+      console.log("[SYNC] FULL SYNC MODE ENABLED");
+      filteredLogs = logs.data;
+    } else {
+      filteredLogs = logs.data.filter((log) => {
+        const punchTime = new Date(normalizePunchTime(log.recordTime));
+        return punchTime > lastSyncDate;
       });
+    }
 
-      console.log(`[SYNC] Processing ${newLogs.length} new machine logs...`);
-      let latestPunch = lastSyncDate;
+    console.log(`[SYNC] Processing ${filteredLogs.length} logs...`);
 
-      /* ---------- PROCESS LOGS ---------- */
-      for (const log of newLogs) {
-          const punchTimeStr = normalizePunchTime(log.recordTime);
-          if (!punchTimeStr) continue;
+    if (!filteredLogs.length) {
+      console.log("[SYNC] No new logs to process.");
+      return [];
+    }
 
-          const punchDate = new Date(punchTimeStr);
+    let latestPunch = lastSyncDate;
 
-          // Find User
-          const { rows: userRows } = await db.query(
-              `SELECT emp_id, name, email FROM users WHERE emp_id = $1`,
-              [String(log.deviceUserId)]
-          );
+    await db.query("BEGIN");
 
-          if (!userRows.length) continue; 
-          const employee = userRows[0];
+    for (const log of filteredLogs) {
+      const normalizedTime = normalizePunchTime(log.recordTime);
+      if (!normalizedTime) continue;
 
-          /* MASTER ATTENDANCE LOG INSERTION 
-             Ensures every raw machine log is archived 
-          */
-             const cleanTimestamp = new Date(log.recordTime).toISOString(); 
+      const punchTimestamp = new Date(normalizedTime).toISOString();
+      const punchDateOnly = punchTimestamp.slice(0, 10);
+        const receivedTime = new Date();
 
-             await db.query(
-                 `INSERT INTO attendance_logs (emp_id, punch_time, device_sn, device_ip,raw_log,created_at)
-                  VALUES ($1, $2, $3, $4, $5,$6)
-                  ON CONFLICT DO NOTHING`, 
-                  [
-                     employee.emp_id,    // $1 (Matches emp_id)
-                     cleanTimestamp,     // $2 (Matches punch_time - MUST BE A VALID DATE STRING)
-                     deviceSN,           // $3 (Matches device_sn)
-                     deviceIP,           // $4 (Matches device_ip)
-                     JSON.stringify(log), // $5 (Matches raw_log - THE JSON GOES HERE)
-                     new Date()
-                  ]
-             );
+      /* ---------- CHECK USER ---------- */
+      const { rows: userRows } = await db.query(
+    `SELECT emp_id FROM users WHERE emp_id = $1`,
+    [String(log.deviceUserId)]
+  );
 
-          /* ACTIVITY LOG INSERTION 
-             Used for notifications and real-time UI tracking
-          */
-          const insertRes = await db.query(
-              `INSERT INTO activity_log (emp_id, punch_time, device_ip, device_sn)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT (emp_id, punch_time) DO NOTHING`,
-              [employee.emp_id, punchTimeStr, deviceIP, deviceSN]
-          );
+      if (!userRows.length) continue;
 
-          if (punchDate > latestPunch) latestPunch = punchDate;
+      const empId = userRows[0].emp_id;
 
-          // Notification Logic (Only if it's a new entry in activity_log)
-          if (insertRes.rowCount > 0) {
-              try {
-                  const timeStr = punchDate.toLocaleTimeString("en-IN", { 
-                      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' 
-                  });
+      /* ---------- INSERT ATTENDANCE LOG ---------- */
+await db.query(
+  `INSERT INTO attendance_logs 
+   (emp_id, punch_time, device_sn, device_ip, raw_log)
+   VALUES ($1, $2, $3, $4, $5)
+   ON CONFLICT (emp_id, punch_time) DO NOTHING`,
+  [
+    empId.toString(),
+    punchTimestamp,
+    deviceSN,
+    deviceIP,
+    JSON.stringify(log)
+  ]
+);
+/* ---------- INSERT ACTIVITY LOG ---------- */
+const insertRes = await db.query(
+  `INSERT INTO activity_log 
+     (emp_id, punch_time, received_time ,device_ip, device_sn)
+     VALUES ($1, $2, $3, $4,$5)
+     ON CONFLICT (emp_id, punch_time) DO NOTHING
+     RETURNING *`,
+  [empId.toString(), punchTimestamp,receivedTime, deviceIP, deviceSN]
+);
 
-                  const { rows: firstPunchRow } = await db.query(
-                      `SELECT MIN(punch_time) as first_punch 
-                       FROM activity_log 
-                       WHERE emp_id = $1 AND punch_time::DATE = $2::DATE`,
-                      [employee.emp_id, punchTimeStr]
-                  );
-            
-                  // ... (Existing duration/email logic remains unchanged)
-            
-              } catch (dbErr) {
-                  console.error("Internal processing error:", dbErr);
-              }
-          }
-      }
+/* ---------- UPDATE DAILY ATTENDANCE ---------- */
+if (insertRes.rowCount > 0) {
+  await db.query(
+    `
+    INSERT INTO daily_attendance
+      (emp_id, attendance_date, punch_in, punch_out, total_hours, expected_hours, status)
+    SELECT 
+      $1::varchar,
+      $2::date,
+      MIN(punch_time),
+      MAX(punch_time),
+      MAX(punch_time) - MIN(punch_time),
+      INTERVAL '9 hours 30 minutes',
+      CASE 
+        WHEN (MAX(punch_time) - MIN(punch_time)) >= INTERVAL '9 hours 30 minutes'
+          THEN 'Present'
+        ELSE 'Working'
+      END
+    FROM attendance_logs
+    WHERE emp_id = $1
+      AND punch_time::date = $2::date
+    GROUP BY emp_id, punch_time::date
+    ON CONFLICT (emp_id, attendance_date)
+    DO UPDATE SET
+      punch_in = EXCLUDED.punch_in,
+      punch_out = EXCLUDED.punch_out,
+      total_hours = EXCLUDED.total_hours,
+      status = EXCLUDED.status
+    `,
+    [empId.toString(), punchDateOnly]
+  );
 
-      /* ---------- UPDATE TRACKER ---------- */
-      if (newLogs.length) {
-          const finalLastSync = latestPunch.toISOString().slice(0, 19).replace("T", " ");
-          await db.query(
-              `INSERT INTO attendance_tracker (device_sn, last_sync)
-               VALUES ($1, $2)
-               ON CONFLICT (device_sn)
-               DO UPDATE SET last_sync = EXCLUDED.last_sync`,
-              [deviceSN, finalLastSync]
-          );
-      }
+  // console.log(`[SAVED] ${empId} - ${punchTimestamp}`);
+}
 
-      console.log("[SYNC] Machine logs archived and synced successfully");
-      return newLogs;
+
+      const punchDateObj = new Date(punchTimestamp);
+      if (punchDateObj > latestPunch) latestPunch = punchDateObj;
+    }
+
+    /* ---------- UPDATE TRACKER ---------- */
+    const finalLastSync = latestPunch
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+
+    await db.query(
+      `INSERT INTO attendance_tracker (device_sn, last_sync)
+       VALUES ($1, $2::timestamp)
+       ON CONFLICT (device_sn)
+       DO UPDATE SET last_sync = EXCLUDED.last_sync`,
+      [deviceSN, finalLastSync]
+    );
+
+    await db.query("COMMIT");
+
+    console.log("[SYNC] Completed successfully.");
+    return filteredLogs;
 
   } catch (err) {
-      console.error("[SYNC] Fatal Error:", err);
-      throw err;
+    await db.query("ROLLBACK");
+    console.error("[SYNC ERROR]", err);
+    throw err;
   } finally {
-      try {
-          await zk.disconnect();
-      } catch {
-          console.warn("[SYNC] Disconnect cleanup failed");
-      }
+    try {
+      await zk.disconnect();
+    } catch {
+      console.warn("[SYNC] Device disconnect cleanup failed.");
+    }
   }
 }
-// 5-minute cron sync
+
 let isSyncRunning = false;
 cron.schedule("*/5 * * * *", async () => {
   if (isSyncRunning) {

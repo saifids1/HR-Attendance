@@ -19,7 +19,7 @@ const location = useLocation();
   
   const isAdminInEmployeeView = user.role === "admin" && location.pathname.startsWith("/employee");
 
-  if (!isAdminInEmployeeView) return null;
+  // if (!isAdminInEmployeeView) return null;
 
   const navClass = ({ isActive }) =>
     `flex items-center gap-3 px-4 py-2 rounded transition border
@@ -37,12 +37,9 @@ const location = useLocation();
     fixed inset-y-0 left-0 z-40 bg-white shadow-xl
     transition-all duration-300 ease-in-out 
     flex flex-col h-screen overflow-hidden
+    ${open ? "translate-x-0 w-[260px] " : "-translate-x-full"}
     
-    /* MOBILE: Toggle logic using 'open' state */
-    ${open ? "translate-x-0" : "-translate-x-full"}
-    
-    /* DESKTOP: Always Open and Fixed Width */
-    md:static md:translate-x-0 md:w-[260px] 
+ md:static md:translate-x-0 md:w-[260px] 
   `}
 >
   {/* Header Section */}
@@ -70,26 +67,29 @@ const location = useLocation();
     
     <NavLink to="/employee" end className={navClass}>
       <House size={20} className="shrink-0" />
-      <span className="text-md">My Dashboard</span>
+      <span className="text-md">{isAdminInEmployeeView ? "Company Dashboard":"My Dashboard"}</span>
     </NavLink>
 
     <NavLink to="/employee/attendance" className={navClass}>
       <LockKeyhole size={20} className="shrink-0" />
-      <span>My Attendance</span>
+      {isAdminInEmployeeView ?   <span>Company Attendance</span>:<span>My Dashboard</span>}  
+    
     </NavLink>
 
     <NavLink to="/employee/profile" className={navClass}>
       <CgProfile size={20} className="shrink-0" />
-      <span>My Profile</span>
+       {isAdminInEmployeeView ?   <span>Company Profile</span>:<span>My Profile</span>}  
+      
     </NavLink>
 
     <NavLink to="/employee/holidays" className={navClass}>
       <MdOutlineHolidayVillage size={20} className="shrink-0" />
-      <span>My Holidays</span>
+        {isAdminInEmployeeView ?   <span>Company Holidays</span>:<span>My Holidays</span>}  
+    
     </NavLink>
 
     <NavLink to="/employee/leaves" className={navClass}>
-      {/* Tooltip can stay, but the label is now always visible */}
+   
       <Tooltip
         title="My Leaves"
         placement="right"
@@ -100,10 +100,11 @@ const location = useLocation();
           <SlCalender size={20} />
         </span>
       </Tooltip>
-      <span className="ml-1">My Leaves</span>
+       {isAdminInEmployeeView ?   <span>Company Leaves</span>:<span>My Leaves</span>} 
+    
     </NavLink>
 
-   {user.role === 'admin' && (
+   {isAdminInEmployeeView && (
         // <div className="mt-auto px-2 pb-4">
           <NavLink to="/admin" className={navClass}>
             <RiAdminFill size={18} className="shrink-0" />

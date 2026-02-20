@@ -15,6 +15,9 @@ const AdminActivityLog = () => {
 
     const { setActiveLogs, formatDate, filters } = useContext(EmployContext);
 
+    useEffect(()=>{
+        console.log("filters",filters);
+    },[filters])
     const fetchLogs = useCallback(async () => {
         try {
             setLoading(true);
@@ -86,9 +89,9 @@ const AdminActivityLog = () => {
 
             <div className="relative overflow-auto w-full border border-gray-300 rounded max-h-[550px] mt-4 bg-white shadow-sm">
                 <table className={`min-w-full text-sm border-collapse transition-opacity duration-300 ${loading ? 'opacity-50' : 'opacity-100'}`}>
-                    <thead className="bg-gray-100 sticky top-0 z-10">
+                    <thead className="bg-gray-100 sticky top-0 left-0 z-8">
                         <tr className="divide-x divide-gray-200">
-                            {["Sr No", "Emp ID", "Punch Date", "Punch Time", "Device IP", "Device SN"].map((h, i) => (
+                            {["Sr No", "Emp ID", "Punch Date", "Punch Time","Received Time", "Device IP", "Device SN"].map((h, i) => (
                                 <th key={i} className="border-b px-4 py-3 font-bold text-left text-[#222F7D] bg-gray-100">
                                     {h}
                                 </th>
@@ -102,6 +105,16 @@ const AdminActivityLog = () => {
                                 const punchTime = isNaN(pDate) ? "--" : pDate.toLocaleTimeString('en-IN', {
                                     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
                                 });
+                               const receivedDate = new Date(row.received_time);
+                                const receivedTime = isNaN(receivedDate)
+                                        ? "--"
+                                        : receivedDate.toLocaleTimeString("en-IN", {
+                                            timeZone: "Asia/Kolkata",
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                            second: "2-digit",
+                                            hour12: true,
+                                        });
 
                                 return (
                                     <tr key={i} className="hover:bg-blue-50 transition-colors">
@@ -109,6 +122,7 @@ const AdminActivityLog = () => {
                                         <td className="px-4 py-2 font-bold text-gray-800">{row.emp_id}</td>
                                         <td className="px-4 py-2">{formatDate(row.punch_time)}</td>
                                         <td className="px-4 py-2 text-blue-700 font-semibold">{punchTime}</td>
+                                          <td className="px-4 py-2 text-blue-700 font-semibold">{receivedTime}</td>
                                         <td className="px-4 py-2 text-gray-600">{row.device_ip}</td>
                                         <td className="px-4 py-2 text-xs font-mono text-gray-400">{row.device_sn}</td>
                                     </tr>

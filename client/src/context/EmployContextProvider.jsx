@@ -174,7 +174,11 @@ const fetchHolidays = (async()=>{
   const effectiveToken = auth.token || localStorage.getItem("token");
   
   if (!effectiveToken) return;
-    if (auth.role === "admin") fetchAdminAttendance();
+    if (auth.role === "admin") {
+      fetchAdminAttendance();
+       fetchHolidays();
+
+    }
     fetchEmployeeDashboard();
     fetchHolidays();
   }, [auth.token, auth.role]);

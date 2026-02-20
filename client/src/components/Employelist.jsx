@@ -24,7 +24,7 @@ const Employelist = () => {
 
 
   const filteredEmployees = adminAttendance.filter(
-    emp => emp.emp_id !== "202500021" && emp.emp_id !== "2020"&& emp.emp_id
+    emp =>  emp.emp_id !== "2020"&& emp.emp_id
   );
 
 

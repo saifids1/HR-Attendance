@@ -69,7 +69,7 @@ const AdminSidebar = ({ open, setOpen }) => {
        </div>
 
         {/* Navigation Menu */}
-        <nav className="mt-4 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
+        <nav className="mt-6 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
           <NavLink to="/admin" end className={navClass}>
             <House size={15} className="shrink-0" />
             <span className="text-[16px]">Overview</span>
@@ -85,9 +85,9 @@ const AdminSidebar = ({ open, setOpen }) => {
               { label: "Add Employee", path: "/admin/add-emp" },
               { label: "Daily Attendance", path: "/admin/attendance" },
               { label: "Weekly Attendance", path: "/admin/week" },
-              // { label: "Employee Attendance", path: "/admin/all" },
+              { label: "Monthly Attendance", path: "/admin/all" },
             ]}
-          />
+          /> 
 
           {/* <NavLink to="/admin/admin-attendance" className={navClass}>
             <LockKeyhole size={20} className="shrink-0" />

@@ -18,7 +18,7 @@ const StatusBadge = ({ status }) => {
     return (
         <span className={`
             inline-block w-20 text-center 
-            px-2 py-0.5 rounded text-[10px] uppercase font-semibold 
+            px-2 py-0.5 rounded text-[12px] uppercase font-semibold 
             ${styles[status] || "bg-gray-300 text-gray-800"}
         `}>
             {status || "No Data"}
@@ -69,10 +69,10 @@ const WeeklyAttendance = () => {
         return holidays.find(h => new Date(h.holiday_date).toDateString() === aDate);
     };
 
-    const headers = ["Sr No", "DATE", "Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"];
+    const headers = ["Sr No", "Day", "Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"];
 
     return (
-        <div className="min-h-screen px-4 bg-gray-50">
+        <div className="min-h-max px-4 bg-gray-50">
             <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6">
                 <div className="w-10"></div> {/* Spacer to center text */}
                 <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
@@ -85,11 +85,11 @@ const WeeklyAttendance = () => {
             <Filters />
 
             <div className="relative overflow-auto w-full border border-gray-300 rounded max-h-[600px]  bg-white shadow-sm">
-                <table className={`min-w-full text-sm border-collapse ${weeklyLoading ? 'opacity-50' : 'opacity-100'}`}>
+                <table className={`min-w-full text-sm border-collapse ${weeklyLoading ? 'opacity-50' : 'opacity-100'} h-[400px]`}>
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
                             {headers.map((h, i) => (
-                                <th key={i} className="border-b px-4 py-3 font-bold text-left text-[#222F7D] bg-gray-100 whitespace-nowrap">
+                                <th key={i} className="border-b px-4 py-3 font-bold text-left text-gray-700 whitespace-nowrap">
                                     {h}
                                 </th>
                             ))}

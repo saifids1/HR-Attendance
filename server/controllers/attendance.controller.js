@@ -681,7 +681,8 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
   try {
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-    const query = `
+   
+   const query = `
       WITH missing_records AS (
         SELECT 
           al.emp_id,
@@ -717,7 +718,9 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
            p.department,   
           p.joining_date,
         '${todayIST}' AS attendance_date,
-        da.punch_in, da.punch_out,
+       -- Replace the punch_in and punch_out lines in your final SELECT with this:
+      (da.punch_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_in,
+      (da.punch_out AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_out,
         CASE 
           WHEN u.is_active = false THEN 'Inactive'
           WHEN da.status IS NULL THEN 'Absent'
@@ -730,7 +733,6 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
       WHERE u.role IN ('employee', 'admin') 
       ORDER BY u.is_active DESC, u.name ASC;
     `;
-
     const { rows } = await db.query(query);
 
     // --- EMAIL LOGIC ---
@@ -829,7 +831,7 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
 
 exports.getTodayOrganizationAttendance = async (req, res) => {
   try {
-    // Change 'true' to 'false' so manual API hits don't trigger the email
+    
     const data = await exports.processAndSendAttendanceReport(false); 
     res.status(200).json(data);
   } catch (error) {
@@ -1060,10 +1062,32 @@ exports.getMyTodayAttendance = async (req, res) => {
     let today = null;
     let todayHours = "00:00";
 
-   
+    // Helper to format interval to HH:mm
+    const intervalToHHMM = (interval) => {
+      if (!interval) return "00:00";
+      const totalSeconds = Math.floor(interval.total_seconds ?? interval);
+      const hrs = Math.floor(totalSeconds / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+    };
+
+    // Helper to format timestamp to IST string
+    const formatIST = (ts) => {
+      if (!ts) return null;
+      return new Date(ts).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: "Asia/Kolkata",
+      });
+    };
+
+    // Fetch today from daily_attendance if exists
     const dailyResult = await db.query(
       `
-      SELECT punch_in, punch_out, total_hours, status
+      SELECT punch_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS punch_in,
+             punch_out AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS punch_out,
+             total_hours, status
       FROM daily_attendance
       WHERE emp_id = $1
         AND attendance_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
@@ -1075,19 +1099,21 @@ exports.getMyTodayAttendance = async (req, res) => {
     if (dailyResult.rows.length > 0) {
       today = dailyResult.rows[0];
       todayHours = intervalToHHMM(today.total_hours);
+      today.punch_in = formatIST(today.punch_in);
+      today.punch_out = formatIST(today.punch_out);
     }
 
-
+    // If no record in daily_attendance, compute from live activity_log
     if (!today) {
       const liveResult = await db.query(
         `
         WITH today_logs AS (
           SELECT
-            MIN(punch_time AT TIME ZONE 'Asia/Kolkata') AS punch_in,
-            MAX(punch_time AT TIME ZONE 'Asia/Kolkata') AS punch_out
+            MIN(punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_in,
+            MAX(punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_out
           FROM activity_log
           WHERE emp_id = $1
-            AND (punch_time AT TIME ZONE 'Asia/Kolkata')::DATE =
+            AND (punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::DATE =
                 (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
         )
         SELECT
@@ -1115,49 +1141,41 @@ exports.getMyTodayAttendance = async (req, res) => {
 
       today = liveResult.rows[0];
       todayHours = intervalToHHMM(today?.total_hours);
+      today.punch_in = formatIST(today?.punch_in);
+      today.punch_out = formatIST(today?.punch_out);
     }
 
-
-
+    // Weekly total hours
     const weeklyResult = await db.query(
       `
-  WITH week_bounds AS (
-    SELECT
-      DATE_TRUNC('week', (NOW() AT TIME ZONE 'Asia/Kolkata'))::date AS week_start,
-      ((NOW() AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day')::date AS week_end
-  ),
-
-  daily_logs AS (
-    SELECT
-      (punch_time AT TIME ZONE 'Asia/Kolkata')::date AS work_date,
-      MIN(punch_time AT TIME ZONE 'Asia/Kolkata') AS punch_in,
-      MAX(punch_time AT TIME ZONE 'Asia/Kolkata') AS punch_out
-    FROM activity_log
-    WHERE emp_id = $1
-    GROUP BY (punch_time AT TIME ZONE 'Asia/Kolkata')::date
-  )
-
-  SELECT
-    COALESCE(
-      SUM(
-        EXTRACT(EPOCH FROM (dl.punch_out - dl.punch_in))
+      WITH week_bounds AS (
+        SELECT
+          DATE_TRUNC('week', (NOW() AT TIME ZONE 'Asia/Kolkata'))::date AS week_start,
+          ((NOW() AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day')::date AS week_end
       ),
-      0
-    ) AS total_seconds
-  FROM daily_logs dl, week_bounds wb
-  WHERE dl.work_date BETWEEN wb.week_start AND wb.week_end
-    AND dl.punch_in IS NOT NULL
-    AND dl.punch_out IS NOT NULL
-    AND dl.punch_out > dl.punch_in
-  `,
+      daily_logs AS (
+        SELECT
+          (punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date AS work_date,
+          MIN(punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_in,
+          MAX(punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_out
+        FROM activity_log
+        WHERE emp_id = $1
+        GROUP BY (punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date
+      )
+      SELECT
+        COALESCE(SUM(EXTRACT(EPOCH FROM (dl.punch_out - dl.punch_in))), 0) AS total_seconds
+      FROM daily_logs dl, week_bounds wb
+      WHERE dl.work_date BETWEEN wb.week_start AND wb.week_end
+        AND dl.punch_in IS NOT NULL
+        AND dl.punch_out IS NOT NULL
+        AND dl.punch_out > dl.punch_in
+      `,
       [empId]
     );
 
     const weeklySeconds = Number(weeklyResult.rows[0].total_seconds || 0);
     const weeklyHrs = Math.floor(weeklySeconds / 3600);
     const weeklyMins = Math.floor((weeklySeconds % 3600) / 60);
-
-
 
     res.json({
       today: {
@@ -1167,16 +1185,16 @@ exports.getMyTodayAttendance = async (req, res) => {
         status: today?.status ?? "Absent",
       },
       weekly: {
-        total_hours: `${String(weeklyHrs).padStart(2, "0")}:${String(
-          weeklyMins
-        ).padStart(2, "0")}`,
+        total_hours: `${String(weeklyHrs).padStart(2, "0")}:${String(weeklyMins).padStart(2, "0")}`,
       },
     });
   } catch (err) {
-    console.error(" getMyTodayAttendance error:", err);
+    console.error("getMyTodayAttendance error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
 
 // Device → activity_log (every punch, real time)
 //         ↓
@@ -1187,197 +1205,87 @@ exports.getMyTodayAttendance = async (req, res) => {
 // UI
 
 
-// exports.getMyAttendance = async (req, res) => {
-//   try {
-//     const empId = req.user.emp_id;
-
-//     const { rows } = await db.query(`
-//       WITH date_range AS (
-//           -- Generates a master list of dates for the last 365 days
-//           SELECT generate_series(
-//             CURRENT_DATE - INTERVAL '365 days', 
-//             CURRENT_DATE, 
-//             '1 day'::interval
-//           )::date AS attendance_date
-//       ),
-
-//       activity_data AS (
-//         SELECT emp_id, attendance_date,
-//                MIN(local_time) FILTER (WHERE local_time::time >= TIME '10:00') AS punch_in,
-//                MAX(local_time) AS punch_out
-//         FROM (
-//           SELECT emp_id, punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
-//           CASE WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00' 
-//                THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
-//                ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date END AS attendance_date
-//           FROM activity_log WHERE emp_id = $1
-//         ) t GROUP BY emp_id, attendance_date
-//       ),
-
-//       attendance_log_data AS (
-//         SELECT emp_id, attendance_date, MIN(local_time) AS punch_in, MAX(local_time) AS punch_out
-//         FROM (
-//           SELECT emp_id, punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
-//           CASE WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00' 
-//                THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
-//                ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date END AS attendance_date
-//           FROM attendance_logs WHERE emp_id = $1
-//         ) x GROUP BY emp_id, attendance_date
-//       )
-
-//       SELECT 
-//         $1 AS emp_id,
-//         u.name AS employee_name,
-//         to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
-//         COALESCE(ad.punch_in, da.punch_in, al.punch_in) AS punch_in,
-//         COALESCE(ad.punch_out, da.punch_out, al.punch_out) AS punch_out,
-//         EXTRACT(EPOCH FROM (COALESCE(ad.punch_out, da.punch_out, al.punch_out) - COALESCE(ad.punch_in, da.punch_in, al.punch_in))) AS total_seconds,
-//         da.expected_hours,
-//         CASE 
-//           WHEN COALESCE(ad.punch_in, da.punch_in, al.punch_in) IS NULL THEN 'Absent'
-//           -- If they punched in today but haven't punched out yet
-//           WHEN COALESCE(ad.punch_out, da.punch_out, al.punch_out) IS NULL 
-//                AND dr.attendance_date = CURRENT_DATE THEN 'Working'
-//           -- If it's a past date and they have a punch in but no punch out
-//           WHEN COALESCE(ad.punch_out, da.punch_out, al.punch_out) IS NULL 
-//                AND COALESCE(ad.punch_in, da.punch_in, al.punch_in) IS NOT NULL THEN 'Incomplete'
-//           ELSE 'Present'
-//         END AS status
-//       FROM date_range dr
-//       CROSS JOIN (SELECT name FROM users WHERE emp_id = $1) u
-//       LEFT JOIN activity_data ad ON ad.attendance_date = dr.attendance_date
-//       LEFT JOIN daily_attendance da ON da.attendance_date = dr.attendance_date AND da.emp_id = $1
-//       LEFT JOIN attendance_log_data al ON al.attendance_date = dr.attendance_date
-//       ORDER BY dr.attendance_date DESC;
-//     `, [empId]);
-
-//     // Format the hours and minutes for the frontend
-//     const attendance = rows.map(r => {
-//       let total_hours = null;
-//       if (r.total_seconds) {
-//         const secs = Math.abs(Number(r.total_seconds));
-//         total_hours = {
-//           hours: Math.floor(secs / 3600),
-//           minutes: Math.floor((secs % 3600) / 60)
-//         };
-//       }
-//       return { ...r, total_hours };
-//     });
-
-//     res.status(200).json({ success: true, count: attendance.length, attendance });
-
-//   } catch (err) {
-//     console.error("❌ getMyAttendance error:", err);
-//     res.status(500).json({ message: "Server error" });
-//   }
-// };
 exports.getMyAttendance = async (req, res) => {
   try {
     const empId = req.user.emp_id;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
-    const offset = (page - 1) * limit;
 
-    const startDate = req.query.startDate; 
-    const endDate = req.query.endDate || new Date().toISOString().split('T')[0];
-    const finalStartDate = startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { rows } = await db.query(`
+    WITH date_range AS (
+  SELECT generate_series(
+    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
+    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
+    '1 day'
+  )::date AS attendance_date
+),
 
-    // Total Count Query
-    const countQuery = `
-      SELECT COUNT(*)::int as total 
-      FROM generate_series($1::date, $2::date, '1 day'::interval)
-    `;
-    const countRes = await db.query(countQuery, [finalStartDate, endDate]);
-    const totalCount = countRes.rows[0].total;
+punch_summary AS (
+  SELECT 
+      emp_id,
+      (punch_time AT TIME ZONE 'Asia/Kolkata')::date AS attendance_day,
+      MIN(punch_time AT TIME ZONE 'Asia/Kolkata') AS first_punch,
+      MAX(punch_time AT TIME ZONE 'Asia/Kolkata') AS last_punch
+  FROM attendance_logs
+  WHERE emp_id = $1
+    AND punch_time >= (
+      ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '32 days')
+      AT TIME ZONE 'Asia/Kolkata'
+    )
+  GROUP BY emp_id, attendance_day
+)
 
-    const query = `
-      WITH date_range AS (
-          SELECT generate_series($1::date, $2::date, '1 day'::interval)::date AS attendance_date
-      ),
-      activity_data AS (
-        SELECT emp_id, attendance_date,
-               MIN(local_time) FILTER (WHERE local_time::time >= TIME '10:00') AS punch_in,
-               MAX(local_time) AS punch_out
-        FROM (
-          SELECT emp_id, punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
-          CASE WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00' 
-               THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
-               ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date END AS attendance_date
-          FROM activity_log WHERE emp_id = $3
-        ) t GROUP BY emp_id, attendance_date
-      ),
-      attendance_log_data AS (
-        SELECT emp_id, attendance_date, MIN(local_time) AS punch_in, MAX(local_time) AS punch_out
-        FROM (
-          SELECT emp_id, punch_time AT TIME ZONE 'Asia/Kolkata' AS local_time,
-          CASE WHEN (punch_time AT TIME ZONE 'Asia/Kolkata')::time < TIME '04:00' 
-               THEN (punch_time AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '1 day'
-               ELSE (punch_time AT TIME ZONE 'Asia/Kolkata')::date END AS attendance_date
-          FROM attendance_logs WHERE emp_id = $3
-        ) x GROUP BY emp_id, attendance_date
-      )
-      SELECT 
-        $3 AS emp_id,
-        u.name AS employee_name,
-        to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
-        -- FORMATTING TIME IN BACKEND TO AVOID FRONTEND PARSING ERRORS
-        to_char(COALESCE(ad.punch_in, da.punch_in, al.punch_in), 'HH12:MI AM') AS punch_in,
-        to_char(COALESCE(ad.punch_out, da.punch_out, al.punch_out), 'HH12:MI AM') AS punch_out,
-        EXTRACT(EPOCH FROM (COALESCE(ad.punch_out, da.punch_out, al.punch_out) - COALESCE(ad.punch_in, da.punch_in, al.punch_in))) AS total_seconds,
-        da.expected_hours,
-        CASE 
-          WHEN COALESCE(ad.punch_in, da.punch_in, al.punch_in) IS NULL THEN 'Absent'
-          WHEN COALESCE(ad.punch_out, da.punch_out, al.punch_out) IS NULL 
-               AND dr.attendance_date = CURRENT_DATE THEN 'Working'
-          WHEN COALESCE(ad.punch_out, da.punch_out, al.punch_out) IS NULL 
-               AND COALESCE(ad.punch_in, da.punch_in, al.punch_in) IS NOT NULL THEN 'Incomplete'
-          ELSE 'Present'
-        END AS status
-      FROM date_range dr
-      CROSS JOIN (SELECT name FROM users WHERE emp_id = $3) u
-      LEFT JOIN activity_data ad ON ad.attendance_date = dr.attendance_date
-      LEFT JOIN daily_attendance da ON da.attendance_date = dr.attendance_date AND da.emp_id = $3
-      LEFT JOIN attendance_log_data al ON al.attendance_date = dr.attendance_date
-      ORDER BY dr.attendance_date DESC
-      LIMIT $4 OFFSET $5;
-    `;
+SELECT 
+  $1 AS emp_id,
+  u.name AS employee_name,
+  to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+  ps.first_punch AS punch_in,
+  ps.last_punch AS punch_out,
 
-    const { rows } = await db.query(query, [finalStartDate, endDate, empId, limit, offset]);
+  CASE 
+    WHEN ps.first_punch IS NULL THEN 0
+    WHEN ps.first_punch = ps.last_punch THEN 0
+    ELSE EXTRACT(EPOCH FROM (ps.last_punch - ps.first_punch))
+  END AS total_seconds,
 
+  CASE 
+    WHEN ps.first_punch IS NULL THEN 'Absent'
+    WHEN ps.first_punch = ps.last_punch 
+         AND dr.attendance_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+      THEN 'Working'
+    ELSE 'Present'
+  END AS status
+
+FROM date_range dr
+CROSS JOIN (SELECT name FROM users WHERE emp_id = $1) u
+LEFT JOIN punch_summary ps 
+  ON ps.attendance_day = dr.attendance_date
+
+ORDER BY dr.attendance_date DESC;
+    `, [empId]);
+
+    // Format the hours and minutes for the frontend
     const attendance = rows.map(r => {
-      let total_hours = { hours: 0, minutes: 0 };
-      if (r.total_seconds) {
+      let total_hours = null;
+      if (r.total_seconds && r.punch_in !== r.punch_out) {
         const secs = Math.abs(Number(r.total_seconds));
         total_hours = {
           hours: Math.floor(secs / 3600),
           minutes: Math.floor((secs % 3600) / 60)
         };
       }
-      return { 
-        ...r, 
-        total_hours,
-        // Ensure nulls are strings for the table
-        punch_in: r.punch_in || "--",
-        punch_out: r.punch_out || "--"
-      };
+      return { ...r, total_hours };
     });
 
-    res.status(200).json({ 
-      success: true, 
-      pagination: {
-        totalItems: totalCount,
-        currentPage: page,
-        totalPages: Math.ceil(totalCount / limit),
-        limit: limit
-      },
-      attendance 
-    });
+    res.status(200).json({ success: true, count: attendance.length, attendance });
 
   } catch (err) {
     console.error("getMyAttendance error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
+
 
 
 
@@ -1398,76 +1306,99 @@ exports.getMyHolidays = async (req, res) => {
 
 exports.getActivityLog = async (req, res) => {
   try {
-    // 1. Extract parameters
     const { from, to, emp_id, page = 1, limit = 20 } = req.query;
 
-    console.log("Get activity from",from,"to",to)
-    
-    // Check if we should skip pagination
-    const isExport = limit === "-1" || limit === -1;
-    const parsedLimit = parseInt(limit);
-    const parsedPage = parseInt(page);
+    const isExport = Number(limit) === -1;
+    const parsedLimit = Number(limit) || 20;
+    const parsedPage = Number(page) || 1;
     const offset = (parsedPage - 1) * parsedLimit;
 
-    let queryText = `SELECT * FROM activity_log`;
-    let countQueryText = `SELECT COUNT(*) FROM activity_log`;
-    
-    const queryParams = [];
-    const filters = [];
+    const conditions = [];
+    const values = [];
 
-    // 2. Build dynamic filters
+    /* ---------------- Date Filter ---------------- */
     if (from && to) {
-      queryParams.push(from, to);
-      filters.push(`punch_time::DATE BETWEEN $${queryParams.length - 1} AND $${queryParams.length}`);
+      values.push(from, to);
+      conditions.push(`
+        (punch_time AT TIME ZONE 'UTC' 
+         AT TIME ZONE 'Asia/Kolkata')::date 
+        BETWEEN $${values.length - 1} AND $${values.length}
+      `);
     }
 
+    /* ---------------- Employee Filter ---------------- */
     if (emp_id) {
-      queryParams.push(emp_id);
-      filters.push(`emp_id = $${queryParams.length}`);
+      values.push(emp_id);
+      conditions.push(`emp_id = $${values.length}`);
     }
 
-    // 3. Construct WHERE clause
-    if (filters.length > 0) {
-      const whereClause = ` WHERE ` + filters.join(" AND ");
-      queryText += whereClause;
-      countQueryText += whereClause;
-    }
+    const whereClause = conditions.length
+      ? ` WHERE ${conditions.join(" AND ")}`
+      : "";
 
-    // 4. Handle Ordering (Always Sort)
-    queryText += ` ORDER BY punch_time DESC`;
+    /* ---------------- Data Query ---------------- */
+   let dataQuery = `
+  SELECT 
+  
+    emp_id,
+    device_ip,
+    device_sn,
 
-    // 5. Apply Pagination ONLY if not an export
-    let finalQueryParams = [...queryParams];
+    TO_CHAR(
+      punch_time AT TIME ZONE 'UTC' 
+      AT TIME ZONE 'Asia/Kolkata',
+      'YYYY-MM-DD HH24:MI:SS'
+    ) AS punch_time,
+
+      TO_CHAR(
+      received_time AT TIME ZONE 'UTC' 
+      AT TIME ZONE 'Asia/Kolkata',
+      'YYYY-MM-DD HH24:MI:SS'
+    ) AS received_time
+
+  FROM activity_log
+  ${whereClause}
+  ORDER BY punch_time DESC
+`;
+    /* ---------------- Count Query ---------------- */
+    let countQuery = `
+      SELECT COUNT(*)
+      FROM activity_log
+      ${whereClause}
+    `;
+
+    let finalValues = [...values];
+
+    /* ---------------- Pagination ---------------- */
     if (!isExport) {
-      finalQueryParams.push(parsedLimit, offset);
-      queryText += ` LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+      finalValues.push(parsedLimit, offset);
+      dataQuery += ` LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
     }
 
-    // 6. Execute Queries
-    // If it's an export, we don't strictly need the count, but keeping Promise.all is cleaner
-    const [dataResult, countResult] = await Promise.all([
-      db.query(queryText, finalQueryParams),
-      db.query(countQueryText, queryParams)
+    const [data, count] = await Promise.all([
+      db.query(dataQuery, finalValues),
+      db.query(countQuery, values),
     ]);
 
-    const totalRecords = parseInt(countResult.rows[0].count);
-
-    res.status(200).json({
+    res.json({
       success: true,
-      pagination: isExport ? null : {
-        totalRecords,
-        currentPage: parsedPage,
-        totalPages: Math.ceil(totalRecords / parsedLimit),
-        limit: parsedLimit
-      },
-      data: dataResult.rows
+      pagination: isExport
+        ? null
+        : {
+            totalRecords: Number(count.rows[0].count),
+            currentPage: parsedPage,
+            totalPages: Math.ceil(count.rows[0].count / parsedLimit),
+            limit: parsedLimit,
+          },
+      data: data.rows,
     });
 
-  } catch (error) {
-    console.error("Activity Log Fetch Error:", error);
+  } catch (err) {
+    console.error("Activity Log Error:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 // GET /api/activity-log/export
 exports.exportActivityLog = async (req, res) => {

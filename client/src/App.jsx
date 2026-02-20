@@ -30,6 +30,7 @@ import AdminEditEmpProfile from "./pages/AdminEditEmpProfile";
 import SingleEmpAttendance from "./pages/SingleEmpAttendance";
 import AttendanceSheet from "./components/AttendanceSheet";
 import WeeklyAttendance from "./pages/WeeklyAttendance";
+import MonthlyAttendance from "./pages/MonthlyAttendance";
 
 function App() {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem("user") || "null"));
@@ -101,13 +102,14 @@ function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="employee-details/:emp_id" element={<EmployeeDetails />} />
             <Route path="employee-details/edit/:emp_id" element={<AdminEditEmpProfile />} />
-            <Route path="all" element={<SingleEmpAttendance/>}/>
+            {/* <Route path="all" element={<SingleEmpAttendance/>}/> */}
             <Route path="reporting" element={<ReportingAdmin/> }/>
             <Route path="profile" element={<Profile />} />
             <Route path="help" element={<Help />} />
             {/* <Route path="cron-manager" element={<AttendanceSheet/>}/> */}
             <Route path="cron-manager" element={<CronManager/>}/>
             <Route path="week" element={<WeeklyAttendance/>}/>
+            <Route path="all" element={<MonthlyAttendance/>}/>
           </Route>
         </Route>
 

@@ -114,14 +114,23 @@ const Attendance = () => {
   }, [rawData, isAdmin, pagination]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br blur-0 from-gray-50 to-gray-300 px-3 pb-6">
+    <div className="min-h-max bg-gradient-to-br blur-0 bg-white px-3 pb-6">
           
       {isAdmin && (
-         <div className="sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] mt-4">
-                <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
-               {isDaily ? "Daily Attendance":"Attendance"}
-                </Typography>
-              </div>
+        //  <div className="sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] mt-4">
+        //         <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
+        //        {isDaily ? "Daily Attendance":"Attendance"}
+        //         </Typography>
+        //       </div>
+
+         <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-1 shadow-lg flex justify-center items-center px-6">
+                        <div className="w-10"></div> {/* Spacer to center text */}
+                        <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
+                         {isDaily ? "Daily Attendance":"Attendance"}
+                        </Typography>
+        
+                      
+                    </div>
       )}
     
       {loading ? (
@@ -129,7 +138,7 @@ const Attendance = () => {
           <Loader />
         </div>
       ) : (
-        <div className="mt-4">
+        <div className="-inset-1.5">
           <Filters />
 
           <Table

@@ -13,7 +13,7 @@ const StatusBadge = ({ status }) => {
   };
 
   return (
-   <span className={`inline-block px-2 py-1 w-20 text-center rounded text-[10px] uppercase font-semibold ${styles[status] || "bg-gray-300 text-gray-800"}`}>
+   <span className={`inline-block px-2 py-1 w-20 text-center rounded text-[12px] uppercase font-semibold ${styles[status] || "bg-gray-300 text-gray-800"}`}>
   {status}
 </span>
   );
@@ -67,8 +67,6 @@ const Table = () => {
 
  const formatDate = (dateString) => {
   if (!dateString || dateString === "--") return "--";
-  
-  // Handes YYYY-MM-DD from the backend
   if (dateString.includes('-')) {
     const [year, month, day] = dateString.split('-');
     if (year.length === 4) return `${day}-${month}-${year}`;
@@ -105,14 +103,14 @@ const Table = () => {
   }, [data, filters, isAdmin]);
 
   const headers = isAdmin
-    ? ["Sr No", "Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"]
+    ? ["Sr No","Day","Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"]
     : ["Day","Emp ID", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"];
 
   if (loading) return <div className="flex items-center justify-center h-[70vh]"><Loader /></div>;
   if (!filteredData.length) return <div className="flex items-center justify-center h-[70vh] text-gray-500">No attendance data found</div>;
 
   return (
-    <div className="w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+    <div className="max-h-[500px] w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
       <table className="min-w-full text-sm border-collapse">
         <thead className="bg-gray-100 sticky top-0 left-0 z-8">
           <tr>
@@ -134,7 +132,7 @@ const Table = () => {
               const isSaturday = dayStr === "Sat";
               const isAbsent = row.status === "Absent" && !holidayMatch && !isSunday;
               const displayName = row.employee_name || row.name || "--";
-              const dateDisplay = new Date(row.attendance_date).toLocaleDateString('en-IN');
+              // const dateDisplay = new Date(row.attendance_date).toLocaleDateString('en-IN');
 
               return (
                 <tr
@@ -144,6 +142,7 @@ const Table = () => {
                   {isAdmin ? (
                     <>
                       <td className="border-b px-4 py-2 text-gray-600">{i + 1}</td>
+                       <td className="border-b px-4 py-2 font-semibold text-gray-600">{dayStr}</td>
                       <td className="border-b px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{row.emp_id || "--"}</td>
                       <td className="border-b px-4 py-2 whitespace-nowrap">{displayName}</td>
                       <td className="border-b px-4 py-2 whitespace-nowrap">{formatDate(row.attendance_date)}</td>
