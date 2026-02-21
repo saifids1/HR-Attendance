@@ -13,12 +13,12 @@ const EducationTab = ({
   educationData,
   onSave,
   empId,
-  isEditing,
   isAddingNew,
   setIsAddingNew,
 }) => {
   const [draft, setDraft] = useState(null);
   const [errors, setErrors] = useState({});
+    const [loading, setLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
   /* ================= CHANGE ================= */
@@ -115,12 +115,12 @@ const EducationTab = ({
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left font-bold text-gray-700" >Degree</th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">Field of Study</th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">Institution</th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700" >Year</th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">University</th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">Actions</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium" >Degree</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">Field of Study</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">Institution</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium" >Year</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">University</th>
+                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">Actions</th>
               </tr>
             </thead>
 
@@ -135,13 +135,13 @@ const EducationTab = ({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  <tr key={edu.id || index}>
-                    <td className="px-4 py-2 text-sm">{edu.degree}</td>
-                    <td className="px-4 py-2 text-sm">{edu.field_of_study}</td>
-                    <td className="px-4 py-2 text-sm">{edu.institution_name}</td>
-                    <td className="p-3">{edu.passing_year}</td>
-                    <td className="px-4 py-2 text-sm">{edu.university}</td>
-                    <td className="px-4 py-2 text-sm text-center">
+                  <tr key={edu.id || index} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm text-gray-600">{edu.degree}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{edu.field_of_study}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{edu.institution_name}</td>
+                    <td className="p-3 text-sm text-gray-600">{edu.passing_year}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{edu.university}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600 text-center">
                       <div className="flex gap-4 justify-center">
                         <button
                           onClick={() => handleEdit(edu, index)}
@@ -174,7 +174,7 @@ const EducationTab = ({
               {(!educationData || educationData.length === 0) &&
                 !isAddingNew && (
                   <tr>
-                    <td colSpan="6" className="text-center py-8 text-gray-500 italic bg-gray-50">
+                    <td colSpan="6" className="text-center py-8 text-sm text-gray-600 italic bg-gray-50">
                       No Education records found
                     </td>
                   </tr>
@@ -191,7 +191,7 @@ const EducationTab = ({
 
 const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
   <tr className="bg-blue-50/30">
-    <td className="p-2" style={{width:"200px"}}>
+    <td className="p-2 text-sm text-gray-600" style={{width:"200px"}}>
       <select
         className="w-full border px-2 py-1 text-sm rounded"
         value={draft.degree || ""}
@@ -205,7 +205,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       </select>
     </td>
 
-    <td className="p-2" style={{width:"150px"}}>
+    <td className="p-2 text-sm text-gray-600" style={{width:"150px"}}>
       <input
         className="w-full px-2 py-1.5 text-sm border rounded border-gray-300"
         value={draft.field_of_study || ""}
@@ -213,7 +213,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       />
     </td>
 
-    <td className="p-2">
+    <td className="p-2 text-sm text-gray-600">
       <input
         className="w-full px-2 py-1.5 text-sm border rounded border-gray-300"
         value={draft.institution_name || ""}
@@ -221,7 +221,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       />
     </td>
 
-    <td className="p-2" style={{width:"60px"}}>
+    <td className="p-2 text-sm text-gray-600" style={{width:"70px"}}>
       <input
         className="px-2 w-full py-1.5 text-sm border rounded border-gray-300"
         
@@ -238,7 +238,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       />
     </td>
 
-    <td className="p-2">
+    <td className="p-2 text-sm text-gray-600">
       <div className="flex gap-4 justify-center">
         <button onClick={onSave} className="text-green-600">
           <FaCheck size={16} />

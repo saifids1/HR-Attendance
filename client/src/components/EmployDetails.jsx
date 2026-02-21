@@ -245,6 +245,14 @@ const EmployeeDetails = () => {
                   alt="Profile"
                   className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
                 />
+                <input
+                  type="file"
+                  className="hidden"
+                  // onChange={handleProfileUpload}
+                />
+                <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
+                  ✎
+                </div>
               </div>
 
               <div className="w-full text-center md:text-left">

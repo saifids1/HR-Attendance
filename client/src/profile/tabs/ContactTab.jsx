@@ -115,22 +115,22 @@ const ContactTab = ({
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
                   Type
                 </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
                   Phone
                 </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
                   Email
                 </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
                   Relation
                 </th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">
+                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
                   Primary
                 </th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">
+                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
                   Actions
                 </th>
               </tr>
@@ -148,16 +148,16 @@ const ContactTab = ({
                   />
                 ) : (
                   <tr key={contact.id || index}>
-                    <td className="px-4 py-2 text-sm">
+                    <td className="px-4 py-2 text-sm text-gray-600">
                       {contact.contact_type}
                     </td>
-                    <td className="px-4 py-2 text-sm">{contact.phone}</td>
-                    <td className="px-4 py-2 text-sm">{contact.email}</td>
-                    <td className="px-4 py-2 text-sm">{contact.relation}</td>
-                    <td className="px-4 py-2 text-center">
+                    <td className="px-4 py-2 text-sm text-gray-600">{contact.phone}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{contact.email}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{contact.relation}</td>
+                    <td className="px-4 py-2 text-center text-sm text-gray-600">
                       {contact.is_primary ? "Yes" : "No"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-center">
+                    <td className="px-4 py-2 text-sm text-center text-gray-600">
                       <div className="flex gap-4 justify-center">
                         <button
                           onClick={() => handleEdit(contact, index)}
@@ -205,7 +205,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
 
   return (
     <tr className="bg-blue-50/30">
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <select
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.contact_type || ""}
@@ -219,7 +219,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
         </select>
       </td>
 
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.phone || ""}
@@ -227,7 +227,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
         />
       </td>
 
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.email || ""}
@@ -235,7 +235,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
         />
       </td>
 
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.relation || ""}
@@ -243,7 +243,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
         />
       </td>
 
-      <td className="p-2 text-center">
+      <td className="p-2 text-center text-sm text-gray-600">
         <input
           type="checkbox"
           checked={draft.is_primary || false}
@@ -251,7 +251,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
         />
       </td>
 
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <div className="flex gap-4 items-center justify-center">
           <button
             onClick={onSave}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  addExperienceses,
+  addExperienceses, // ✅ FIXED NAME
   updateExperience,
   deleteExperience,
 } from "../../../api/profile";
@@ -11,29 +11,23 @@ import { toast } from "react-hot-toast";
 import Loader from "../../components/Loader";
 
 const ExperienceTab = ({
-  experienceData = [],
-  isEditing,
+  experienceData, // ✅ prevents crash
   isAddingNew,
   setIsAddingNew,
   empId,
   onSave,
 }) => {
   const [draft, setDraft] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [editingIndex, setEditingIndex] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  /* ================= DATE FORMAT ================= */
+  /* ================= DATE HELPERS ================= */
 
   const formatDate = (date) => {
     if (!date) return "";
     const d = new Date(date);
     if (isNaN(d)) return date;
-
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-
-    return `${day}-${month}-${year}`;
+    return d.toLocaleDateString("en-GB");
   };
 
   const toInputDate = (date) => {
@@ -42,13 +36,14 @@ const ExperienceTab = ({
     return !isNaN(d) ? d.toISOString().split("T")[0] : "";
   };
 
-  /* ================= HANDLE NEW ROW ================= */
+  /* ================= HANDLE ADD NEW ================= */
 
   useEffect(() => {
     if (isAddingNew && !draft) {
+      setEditingIndex("new");
       setDraft({ ...emptyExperience });
     }
-  }, [isAddingNew,draft]);
+  }, [isAddingNew]);
 
   /* ================= HANDLE CHANGE ================= */
 
@@ -68,7 +63,7 @@ const ExperienceTab = ({
           const diff = (end - start) / (1000 * 60 * 60 * 24 * 365.25);
           updated.total_years = diff.toFixed(1);
         } else {
-          updated.total_years = "0";
+          updated.total_years = "";
         }
       }
 
@@ -78,18 +73,21 @@ const ExperienceTab = ({
 
   /* ================= EDIT ================= */
 
-  const handleEdit = (exp) => {
+  const handleEdit = (exp, index) => {
     if (draft) {
       toast.error("Please save or cancel current changes first");
       return;
     }
 
+    setEditingIndex(index);
     setDraft({
-      ...exp,
+      id: exp.id,
       companyName: exp.company_name,
       companyLocation: exp.location,
+      designation: exp.designation,
       start_date: toInputDate(exp.start_date),
       end_date: toInputDate(exp.end_date),
+      total_years: exp.total_years,
     });
   };
 
@@ -97,8 +95,17 @@ const ExperienceTab = ({
 
   const handleCancel = () => {
     setDraft(null);
-    setErrors({});
+    setEditingIndex(null);
     setIsAddingNew(false);
+  };
+
+  /* ================= VALIDATION ================= */
+
+  const validateDraft = () => {
+    if (!draft.companyName) return "Company name required";
+    if (!draft.designation) return "Designation required";
+    if (!draft.start_date) return "Start date required";
+    return null;
   };
 
   /* ================= SAVE ================= */
@@ -106,7 +113,19 @@ const ExperienceTab = ({
   const handleSave = async () => {
     if (!draft) return;
 
+    const error = validateDraft();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    if (!empId) {
+      toast.error("Employee ID missing");
+      return;
+    }
+
     const toastId = toast.loading("Saving experience...");
+    setLoading(true);
 
     try {
       const payload = {
@@ -123,39 +142,41 @@ const ExperienceTab = ({
         toast.success("Experience updated", { id: toastId });
       } else {
         await addExperienceses(empId, payload);
-        toast.success("New experience added", { id: toastId });
+        toast.success("Experience added", { id: toastId });
       }
 
       setDraft(null);
+      setEditingIndex(null);
       setIsAddingNew(false);
 
-      if (onSave) {
-        console.log("calling after save")
-        await onSave(); // refresh parent
-      }
+      if (onSave) await onSave();
     } catch (err) {
-      console.log(err);
+      console.error(err);
       toast.error("Save failed", { id: toastId });
+    } finally {
+      setLoading(false);
     }
   };
 
   /* ================= DELETE ================= */
 
   const handleDelete = async (id) => {
+    if (!empId) return;
     if (!window.confirm("Delete this record?")) return;
 
-    const toastId = toast.loading("Deleting record...");
+    const toastId = toast.loading("Deleting...");
+    setLoading(true);
 
     try {
       await deleteExperience(empId, id);
       toast.success("Deleted", { id: toastId });
 
-      if (onSave) {
-        await onSave(); // refresh parent
-      }
-    } catch (error) {
-      console.log(error);
+      if (onSave) await onSave();
+    } catch (err) {
+      console.error(err);
       toast.error("Delete failed", { id: toastId });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -164,95 +185,87 @@ const ExperienceTab = ({
   return (
     <div className="container-fluid">
       <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+        <div className="overflow-x-auto rounded-lg border">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
-                  Company
-                </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
-                  Location
-                </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
-                  Designation
-                </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
-                  Start Date
-                </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
-                  End Date
-                </th>
-                <th className="px-4 py-2 text-left font-bold text-gray-700">
-                  Years
-                </th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">
-                  Actions
-                </th>
+                {[
+                  "Company",
+                  "Location",
+                  "Designation",
+                  "Start Date",
+                  "End Date",
+                  "Years",
+                  "Actions",
+                ].map((head) => (
+                  <th
+                    key={head}
+                    className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium"
+                  >
+                    {head}
+                  </th>
+                ))}
               </tr>
             </thead>
-
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-10">
+                  <td colSpan="7" className="text-center py-10 text-sm text-gray-600">
                     <Loader />
                   </td>
                 </tr>
+              ) : experienceData.length === 0 && editingIndex !== "new" ? (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="text-center py-8 text-sm text-gray-600 italic bg-gray-50"
+                  >
+                    No experience records found
+                  </td>
+                </tr>
               ) : (
-                experienceData.map((exp) =>
-                  draft && String(draft.id) === String(exp.id) ? (
+                experienceData.map((exp, index) =>
+                  editingIndex === index ? (
                     <EditableRow
-                      key={exp.id}
+                      key={exp.id || index}
                       draft={draft}
                       onChange={handleChange}
                       onSave={handleSave}
                       onCancel={handleCancel}
                     />
                   ) : (
-                    <tr key={exp.id} className="hover:bg-gray-50">
-                      <td className="text-sm px-4 py-2">
-                        {exp.company_name}
-                      </td>
-                      <td className="text-sm px-4 py-2">
-                        {exp.location}
-                      </td>
-                      <td className="text-sm px-4 py-2">
-                        {exp.designation}
-                      </td>
-                      <td className="text-sm px-4 py-2">
+                    <tr key={exp.id || index} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.company_name}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.location}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.designation}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">
                         {formatDate(exp.start_date)}
                       </td>
-                      <td className="text-sm px-4 py-2">
-                        {formatDate(exp.end_date)}
-                      </td>
-                      <td className="text-sm px-4 py-2">
-                        {exp.total_years} yrs
-                      </td>
-                      <td className="text-sm px-4 py-2 text-center">
+                      <td className="px-4 py-2 text-sm text-gray-600">{formatDate(exp.end_date)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.total_years} yrs</td>
+                      <td className="px-4 py-2 text-sm text-gray-600 text-center">
                         <div className="flex justify-center gap-4">
                           <button
-                            onClick={() => handleEdit(exp)}
+                            onClick={() => handleEdit(exp, index)}
                             className="text-blue-600"
                           >
                             <FaPencilAlt />
                           </button>
-
                           <button
                             onClick={() => handleDelete(exp.id)}
                             className="text-red-500"
                           >
-                            <MdDelete size={20} />
+                            <MdDelete size={18} />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  )
+                  ),
                 )
               )}
 
               {/* NEW ROW */}
-              {isAddingNew && draft && !draft.id && (
+              {editingIndex === "new" && draft && (
                 <EditableRow
                   draft={draft}
                   onChange={handleChange}
@@ -269,32 +282,18 @@ const ExperienceTab = ({
 };
 
 const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
-  <tr className="bg-blue-50/30">
-    <td className="p-2">
-      <input
-        value={draft.companyName || ""}
-        onChange={(e) => onChange("companyName", e.target.value)}
-        className="w-full border px-2 py-1 text-sm rounded"
-      />
-    </td>
+  <tr className="bg-blue-50">
+    {[["companyName"], ["companyLocation"], ["designation"]].map(([field]) => (
+      <td key={field} className="p-2 text-sm text-gray-600">
+        <input
+          value={draft[field] || ""}
+          onChange={(e) => onChange(field, e.target.value)}
+          className="w-full border px-2 py-1 text-sm rounded"
+        />
+      </td>
+    ))}
 
-    <td className="p-2">
-      <input
-        value={draft.companyLocation || ""}
-        onChange={(e) => onChange("companyLocation", e.target.value)}
-        className="w-full border px-2 py-1 text-sm rounded"
-      />
-    </td>
-
-    <td className="p-2">
-      <input
-        value={draft.designation || ""}
-        onChange={(e) => onChange("designation", e.target.value)}
-        className="w-full border px-2 py-1 text-sm rounded"
-      />
-    </td>
-
-    <td className="p-2">
+    <td className="p-2 text-sm text-gray-600">
       <input
         type="date"
         value={draft.start_date || ""}
@@ -303,7 +302,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       />
     </td>
 
-    <td className="p-2">
+    <td className="p-2 text-sm text-gray-600">
       <input
         type="date"
         value={draft.end_date || ""}
@@ -312,15 +311,15 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       />
     </td>
 
-    <td className="p-2">
+    <td className="p-2 text-sm text-gray-600">
       <input
         value={draft.total_years || ""}
-        onChange={(e) => onChange("total_years", e.target.value)}
-        className="w-full border px-2 py-1 text-sm rounded"
+        readOnly
+        className="w-full border px-2 py-1 text-sm rounded bg-gray-100"
       />
     </td>
 
-    <td className="p-2 text-center">
+    <td className="p-2 text-center text-sm text-gray-600">
       <div className="flex justify-center gap-4">
         <button onClick={onSave} className="text-green-600">
           <FaCheck />

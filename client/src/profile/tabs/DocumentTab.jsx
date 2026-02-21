@@ -203,16 +203,16 @@ useEffect(() => {
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 font-bold text-gray-700 text-left">
+                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-left">
                   Document type
                 </th>
-                <th className="px-4 py-2 font-bold text-gray-700 text-left">
+                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-left">
                   Document No.
                 </th>
-                <th className="px-4 py-2 font-bold text-gray-700 text-left">
+                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-left">
                   Document
                 </th>
-                <th className="px-4 py-2 font-bold text-gray-700 text-center">
+                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-center">
                   Actions
                 </th>
               </tr>
@@ -232,16 +232,16 @@ useEffect(() => {
                   />
                 ) : (
                   <tr key={doc.id}>
-                    <td className="px-4 py-2 text-sm">{doc.file_type}</td>
-                    <td className="px-4 py-2 text-sm">
+                    <td className="px-4 py-2 text-sm text-gray-600">{doc.file_type}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">
                       {doc.document_no || "-"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-blue-600 underline cursor-pointer">
+                    <td className="px-4 py-2 text-sm text-gray-600 underline cursor-pointer">
                       <span onClick={() => window.open(doc.fullUrl, "_blank")}>
                         {doc.fileName}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-sm text-center">
+                    <td className="px-4 py-2 text-sm text-gray-600 text-center">
                       <div className="flex gap-4 justify-center">
                         <button
                           onClick={() => handleEdit(doc, index)}
@@ -265,16 +265,16 @@ useEffect(() => {
               {/* Draft row normal view */}
               {draft && editingIndex === "new" && (
                 <tr>
-                  <td className="px-4 py-2 text-sm">
+                  <td className="px-4 py-2 text-sm text-gray-600">
                     {draft.documentType}
                   </td>
-                  <td className="px-4 py-2 text-sm">
+                  <td className="px-4 py-2 text-sm text-gray-600">
                     {draft.documentNumber || "-"}
                   </td>
-                  <td className="px-4 py-2 text-sm">
+                  <td className="px-4 py-2 text-sm text-gray-600">
                     {draft.file ? draft.file.name : "-"}
                   </td>
-                  <td className="px-4 py-2 text-center">
+                  <td className="px-4 py-2 text-center text-sm text-gray-600">
                     <button
                       onClick={() => setEditingIndex("new-edit")}
                       className="text-blue-500"
@@ -316,7 +316,7 @@ const EditableRow = ({
 }) => {
   return (
     <tr className="bg-blue-50/30">
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <select
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft?.documentType || ""}
@@ -335,7 +335,7 @@ const EditableRow = ({
         </select>
       </td>
 
-      <td className="p-2">
+      <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full px-2 py-1.5 text-sm border rounded"
           value={draft.documentNumber}
@@ -349,7 +349,7 @@ const EditableRow = ({
         />
       </td>
 
-      <td className="p-2 text-left">
+      <td className="p-2 text-left text-sm text-gray-600">
         <input
           type="file"
           ref={fileRef}
@@ -359,20 +359,20 @@ const EditableRow = ({
         />
 
         {draft.file ? (
-          <span className="text-sm text-blue-600 ms-4">
+          <span className="text-sm text-gray-600 ms-4">
             {draft.file.name}
           </span>
         ) : (
           <button
             onClick={() => fileRef.current?.click()}
-            className="text-blue-500 ms-4"
+            className="text-gray-600 ms-4 mt-1"
           >
             <FaFileAlt size={18} />
           </button>
         )}
       </td>
 
-      <td className="p-2 text-center">
+      <td className="p-2 text-center text-sm text-gray-600">
         <div className="flex gap-4 justify-center">
           <button onClick={onSave} className="text-green-600">
             <FaCheck size={16} />
