@@ -4,6 +4,7 @@ import axios from 'axios';
 import Filters from '../components/Filters';
 import Loader from '../components/Loader';
 import { EmployContext } from '../context/EmployContextProvider';
+import api from '../../api/axiosInstance';
 
 const AdminActivityLog = () => {
     const [data, setData] = useState([]);
@@ -24,14 +25,14 @@ const AdminActivityLog = () => {
             const token = localStorage.getItem("token");
             
             // Build the base URL
-            let url = `http://localhost:5000/api/admin/attendance/activity-log?page=${page}&limit=${limit}`;
+            let url = `admin/attendance/activity-log?page=${page}&limit=${limit}`;
 
             // Access keys defined in Filters.jsx config: actStart, actEnd, activitySearch
             if (filters.actStart) url += `&from=${filters.actStart}`;
             if (filters.actEnd) url += `&to=${filters.actEnd}`;
             if (filters.activitySearch) url += `&emp_id=${filters.activitySearch.trim()}`;
 
-            const res = await axios.get(url, {
+            const res = await api.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -78,12 +79,15 @@ const AdminActivityLog = () => {
     }
 
     return (
-        <div className="min-h-screen py-6 px-4 bg-gray-50">
-            <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-6 shadow-lg">
-                <Typography className="text-white text-2xl text-center font-bold">
-                    Activity Logs
-                </Typography>
-            </div>
+        <div className="min-h-screen py-1 px-4 bg-gray-50">
+          <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-1 shadow-lg flex justify-center items-center px-6">
+                                 <div className="w-10"></div> {/* Spacer to center text */}
+                                 <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
+                                Activity-Log
+                                 </Typography>
+                 
+                               
+                             </div>
             
             <Filters />
 

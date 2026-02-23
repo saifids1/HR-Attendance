@@ -687,8 +687,8 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
         SELECT 
           al.emp_id,
           '${todayIST}'::DATE as attendance_date,
-          MIN(al.punch_time) as first_p,
-          MAX(al.punch_time) as last_p,
+          MIN(al.punch_time AT TIME ZONE 'Asia/Kolkata') as first_p,
+          MAX(al.punch_time AT TIME ZONE 'Asia/Kolkata') as last_p,
           COUNT(al.punch_time) as p_count
         FROM activity_log al
         INNER JOIN users u ON al.emp_id = u.emp_id
@@ -1337,28 +1337,28 @@ exports.getActivityLog = async (req, res) => {
       : "";
 
     /* ---------------- Data Query ---------------- */
-   let dataQuery = `
+let dataQuery = `
   SELECT 
-  
     emp_id,
     device_ip,
     device_sn,
 
+    -- UTC → IST
     TO_CHAR(
       punch_time AT TIME ZONE 'UTC' 
       AT TIME ZONE 'Asia/Kolkata',
       'YYYY-MM-DD HH24:MI:SS'
     ) AS punch_time,
 
-      TO_CHAR(
-      received_time AT TIME ZONE 'UTC' 
-      AT TIME ZONE 'Asia/Kolkata',
+  
+    TO_CHAR(
+      created_at,
       'YYYY-MM-DD HH24:MI:SS'
     ) AS received_time
 
   FROM activity_log
   ${whereClause}
-  ORDER BY punch_time DESC
+  ORDER BY activity_log.punch_time DESC
 `;
     /* ---------------- Count Query ---------------- */
     let countQuery = `
@@ -1399,7 +1399,14 @@ exports.getActivityLog = async (req, res) => {
   }
 };
 
-
+/**
+ * 
+ *  TO_CHAR(
+      received_time AT TIME ZONE 'UTC' 
+      AT TIME ZONE 'Asia/Kolkata',
+      'YYYY-MM-DD HH24:MI:SS'
+    ) AS received_time
+ */
 // GET /api/activity-log/export
 exports.exportActivityLog = async (req, res) => {
   try {

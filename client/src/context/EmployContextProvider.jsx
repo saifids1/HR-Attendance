@@ -121,36 +121,56 @@ const EmployProvider = ({ children }) => {
   };
 
   // 3. UPDATED: Weekly logs logic
- const fetchLogs = useCallback(async () => {
-    const currentSearch = (filters.activitySearch || filters.search || filters.weekSearch || "").toString().trim();
-    
-    // Fallback logic: if no search, use logged in user's ID
-    const searchTerm = currentSearch || auth.emp_id;
+const fetchLogs = useCallback(async () => {
+  const currentSearch = (
+    filters.activitySearch ||
+    filters.search ||
+    filters.weekSearch ||
+    ""
+  )
+    .toString()
+    .trim();
 
-    if (!auth.token || !searchTerm) return;
+  if (!auth.token) return;
 
-    try {
-        setWeeklyLoading(true);
-        
-        const params = new URLSearchParams();
-        params.append("search", searchTerm);
-        if (filters.startDate) params.append("from", filters.startDate);
-        if (filters.endDate) params.append("to", filters.endDate);
+  try {
+    setWeeklyLoading(true);
 
-        const url = `admin/attendance/weekly-attendance?${params.toString()}`;
-        console.log("Fetching URL:", url);
+    const params = new URLSearchParams();
 
-        const res = await api.get(url, axiosConfig);
-        
-        // Ensure we set data correctly based on your API response structure
-        setWeeklyData(res.data); 
-    } catch (err) {
-        console.error("Fetch error:", err);
-        setWeeklyData({ attendance: [] }); 
-    } finally {
-        setWeeklyLoading(false);
+    // ✅ Only append if search exists
+    if (currentSearch) {
+      params.append("search", currentSearch);
     }
-}, [filters.search, filters.activitySearch, filters.weekSearch, filters.startDate, filters.endDate, auth.token, auth.emp_id, axiosConfig]);
+
+    if (filters.startDate) params.append("from", filters.startDate);
+    if (filters.endDate) params.append("to", filters.endDate);
+
+    const queryString = params.toString();
+    const url = `admin/attendance/weekly-attendance${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    console.log("Fetching URL:", url);
+
+    const res = await api.get(url, axiosConfig);
+
+    setWeeklyData(res.data);
+  } catch (err) {
+    console.error("Fetch error:", err);
+    setWeeklyData({ data: [] });
+  } finally {
+    setWeeklyLoading(false);
+  }
+}, [
+  filters.search,
+  filters.activitySearch,
+  filters.weekSearch,
+  filters.startDate,
+  filters.endDate,
+  auth.token,
+  axiosConfig,
+]);
  
 const fetchHolidays = (async()=>{
    

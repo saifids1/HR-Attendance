@@ -881,7 +881,7 @@ exports.getContactInfo = async (req, res) => {
       [emp_id]
     );
 
-    console.log("result.rows",result.rows);
+    // console.log("result.rows",result.rows);
     res.status(200).json({
       contacts: result.rows
     });
@@ -1102,7 +1102,7 @@ exports.addBankInfo = async (req, res) => {
       ]
     );
 
-    console.log("result.rows[0]",result.rows[0])
+    // console.log("result.rows[0]",result.rows[0])
     // sendNotification(emp_id, "Bank", req.user.name);
     res.status(201).json({
       message: "Bank details saved successfully",

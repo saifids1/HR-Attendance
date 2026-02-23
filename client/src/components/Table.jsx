@@ -48,7 +48,7 @@ const Table = () => {
 
   const getDayName = (dateStr) => {
     if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short" });
+    return new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" });
   };
 
   const getHolidayMatch = (attendanceDate, holidaysList = []) => {
@@ -110,7 +110,7 @@ const Table = () => {
   if (!filteredData.length) return <div className="flex items-center justify-center h-[70vh] text-gray-500">No attendance data found</div>;
 
   return (
-    <div className="max-h-[500px] w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+    <div className="max-h-[800px] w-full overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
       <table className="min-w-full text-sm border-collapse">
         <thead className="bg-gray-100 sticky top-0 left-0 z-8">
           <tr>
