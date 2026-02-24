@@ -13,9 +13,9 @@ const StatusBadge = ({ status }) => {
   };
 
   return (
-   <span className={`inline-block px-2 py-1 w-20 text-center rounded text-[12px] uppercase font-semibold ${styles[status] || "bg-gray-300 text-gray-800"}`}>
-  {status}
-</span>
+    <span className={`inline-block px-2 py-1 w-20 text-center rounded text-[12px] uppercase font-semibold ${styles[status] || "bg-gray-300 text-gray-800"}`}>
+      {status}
+    </span>
   );
 };
 
@@ -46,10 +46,17 @@ const Table = () => {
   const isAdminRoute = location.pathname.includes("admin");
   const isAdmin = (user?.role || "").toLowerCase() === "admin" && isAdminRoute;
 
-  const getDayName = (dateStr) => {
-    if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" });
-  };
+  function getDayName(dateStr) {
+    if (!dateStr) return null;
+
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
+
+    return date.toLocaleDateString("en-IN", {
+      weekday: "long",
+      timeZone: "Asia/Kolkata"
+    });
+  }
 
   const getHolidayMatch = (attendanceDate, holidaysList = []) => {
     if (!attendanceDate || !holidaysList.length) return null;
@@ -59,28 +66,31 @@ const Table = () => {
 
   const getRowClass = (dayStr, isToday, isHoliday, index) => {
     if (isHoliday) return "bg-blue-50 text-blue-900 font-medium";
-    if (dayStr === "Sun" && !isAdmin) return "bg-[#faa307] text-white font-semibold";
-    if (dayStr === "Sat" && !isAdmin) return "bg-[#D1FFBD] text-dark font-semibold";
+    if (dayStr === "Sunday" && !isAdmin) return "bg-[#faa307] text-white font-semibold";
+    if (dayStr === "Saturday" && !isAdmin) return "bg-[#D1FFBD] text-dark font-semibold";
     if (isToday) return "bg-white font-semibold";
     return index % 2 === 0 ? "bg-white" : "bg-gray-50";
   };
 
- const formatDate = (dateString) => {
-  if (!dateString || dateString === "--") return "--";
-  if (dateString.includes('-')) {
-    const [year, month, day] = dateString.split('-');
-    if (year.length === 4) return `${day}-${month}-${year}`;
-  }
-  
-  return dateString;
-};
+  const formatDate = (dateString) => {
+    if (!dateString || dateString === "--") return "--";
+
+    const date = new Date(dateString);
+    if (isNaN(date)) return dateString; // fallback if invalid
+
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0'); // months are 0-based
+    const yyyy = date.getFullYear();
+
+    return `${dd}-${mm}-${yyyy}`;
+  };
 
   // Logic to switch data source
   const data = isAdmin ? adminAttendance : employeeAttendance;
 
   const filteredData = useMemo(() => {
     let result = [...data];
-    
+
     // Date Filtering
     if (filters?.startDate) {
       const start = new Date(filters.startDate).setHours(0, 0, 0, 0);
@@ -94,8 +104,8 @@ const Table = () => {
     // Search Filtering (Admin only)
     if (isAdmin && filters?.attendanceSearch) {
       const search = filters.attendanceSearch.toLowerCase();
-      result = result.filter(row => 
-        (row.name || row.employee_name)?.toLowerCase().includes(search) || 
+      result = result.filter(row =>
+        (row.name || row.employee_name)?.toLowerCase().includes(search) ||
         String(row.emp_id).includes(search)
       );
     }
@@ -103,8 +113,8 @@ const Table = () => {
   }, [data, filters, isAdmin]);
 
   const headers = isAdmin
-    ? ["Sr No","Day","Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"]
-    : ["Day","Emp ID", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"];
+    ? ["Sr No", "Day", "Emp ID", "Employee", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"]
+    : ["Day", "Emp ID", "Date", "Status", "Punch In", "Punch Out", "Working Hours", "Expected Hours"];
 
   if (loading) return <div className="flex items-center justify-center h-[70vh]"><Loader /></div>;
   if (!filteredData.length) return <div className="flex items-center justify-center h-[70vh] text-gray-500">No attendance data found</div>;
@@ -123,66 +133,173 @@ const Table = () => {
         </thead>
         <tbody className="bg-white">
           {filteredData
-            .filter((row) => row.emp_id && (isAdmin ? row.is_active === true : true) && row.emp_id !== '2020')
+            .filter(
+              (row) =>
+                row.emp_id &&
+                (isAdmin ? row.is_active === true : true) &&
+                row.emp_id !== "2020"
+            )
             .map((row, i) => {
-              const dayStr = getDayName(row.attendance_date);
+              //  Safe date parsing (prevents timezone shift)
+              const [year, month, day] = row.attendance_date.split("-");
+              const dateObj = new Date(year, month - 1, day);
+
+              const dayIndex = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+              const isSunday = dayIndex === 0;
+              const isSaturday = dayIndex === 6;
+
+              const dayStr = dateObj.toLocaleDateString("en-IN", {
+                weekday: "long",
+              });
+
+              // console.log("dayStr",dayStr);
+
               const holidayMatch = getHolidayMatch(row.attendance_date, holidays);
-              const isToday = new Date(row.attendance_date).toDateString() === new Date().toDateString();
-              const isSunday = dayStr === "Sun";
-              const isSaturday = dayStr === "Sat";
-              const isAbsent = row.status === "Absent" && !holidayMatch && !isSunday;
+
+              const today = new Date();
+              const isToday =
+                today.getFullYear() === dateObj.getFullYear() &&
+                today.getMonth() === dateObj.getMonth() &&
+                today.getDate() === dateObj.getDate();
+
+              const isAbsent =
+                row.status === "Absent" && !holidayMatch && !isSunday;
+
               const displayName = row.employee_name || row.name || "--";
-              // const dateDisplay = new Date(row.attendance_date).toLocaleDateString('en-IN');
 
               return (
                 <tr
                   key={row.emp_id ? `${row.emp_id}-${i}` : i}
-                  className={`${getRowClass(dayStr, isToday, !!holidayMatch, i)} transition-colors`}
+                  className={`${getRowClass(
+                    dayStr,
+                    isToday,
+                    !!holidayMatch,
+                    i
+                  )} transition-colors`}
                 >
                   {isAdmin ? (
                     <>
-                      <td className="border-b px-4 py-2 text-gray-600">{i + 1}</td>
-                       <td className="border-b px-4 py-2 font-semibold text-gray-600">{dayStr}</td>
-                      <td className="border-b px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{row.emp_id || "--"}</td>
-                      <td className="border-b px-4 py-2 whitespace-nowrap">{displayName}</td>
-                      <td className="border-b px-4 py-2 whitespace-nowrap">{formatDate(row.attendance_date)}</td>
+                      <td className="border-b px-4 py-2 text-gray-600">
+                        {i + 1}
+                      </td>
+
+                      <td className={`border-b px-4 py-2 font-semibold`}>
+                        {dayStr}
+                      </td>
+
+                      <td className="border-b px-4 py-2 font-medium text-gray-800 whitespace-nowrap">
+                        {row.emp_id || "--"}
+                      </td>
+
+                      <td className="border-b px-4 py-2 whitespace-nowrap">
+                        {displayName}
+                      </td>
+
+                      <td className="border-b px-4 py-2 whitespace-nowrap">
+                        {formatDate(row.attendance_date)}
+                      </td>
+
                       <td className="border-b px-4 py-2">
                         {holidayMatch ? (
                           <span className="inline-block text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded border border-blue-200 text-[10px] uppercase">
                             {holidayMatch.holiday_name}
                           </span>
                         ) : isSunday ? (
-                          <span className="text-white font-bold bg-orange-600 px-2 py-0.5 rounded text-[10px] uppercase">Weekday Off</span>
+                          <span className="text-white font-bold px-2 py-0.5 rounded text-[10px] uppercase">
+                            Weekday Off
+                          </span>
                         ) : (
                           <StatusBadge status={row.status} />
                         )}
                       </td>
-                      <td className="border-b px-4 py-2">{(isAbsent || holidayMatch || isSunday) ? "--" : formatTime(row.punch_in)}</td>
+
                       <td className="border-b px-4 py-2">
-                        {(isAbsent || holidayMatch || isSunday) ? "--" : row.punch_out ? formatTime(row.punch_out) : <span className="text-orange-500">Working...</span>}
+                        {isAbsent || holidayMatch || isSunday
+                          ? "--"
+                          : formatTime(row.punch_in)}
                       </td>
-                      <td className="border-b px-4 py-2">{(isAbsent || holidayMatch || isSunday) ? "--" : formatInterval(row.total_hours)}</td>
-                      <td className="border-b px-4 py-2">{(holidayMatch || isSunday) ? "0" : (isSaturday ? "5" : "9.3")}</td>
+
+                      <td className="border-b px-4 py-2">
+                        {isAbsent || holidayMatch || isSunday
+                          ? "--"
+                          : row.punch_out
+                            ? formatTime(row.punch_out)
+                            : (
+                              <span className="text-orange-500">
+                                Working...
+                              </span>
+                            )}
+                      </td>
+
+                      <td className="border-b px-4 py-2">
+                        {isAbsent || holidayMatch || isSunday
+                          ? "--"
+                          : formatInterval(row.total_hours)}
+                      </td>
+
+                      <td className="border-b px-4 py-2">
+                        {holidayMatch || isSunday
+                          ? "0"
+                          : isSaturday
+                            ? "5"
+                            : "9.3"}
+                      </td>
                     </>
                   ) : (
                     <>
-                      <td className="border-b px-4 py-2 font-semibold text-gray-600">{dayStr}</td>
-                       <td className="border-b px-4 py-2 whitespace-nowrap">{row.emp_id}</td>
-                      <td className="border-b px-4 py-2 whitespace-nowrap">{formatDate(row.attendance_date)}</td>
-                      
+                      <td className={`border-b px-4 py-2 font-semibold text-gray-600 ${isSunday ? "text-white" : "text-gray-600"}`}>
+                        {dayStr}
+                      </td>
+
+                      <td className="border-b px-4 py-2 whitespace-nowrap">
+                        {row.emp_id}
+                      </td>
+
+                      <td className="border-b px-4 py-2 whitespace-nowrap">
+                        {formatDate(row.attendance_date)}
+                      </td>
+
                       <td className="border-b px-4 py-2">
                         {holidayMatch ? (
-                          <span className="text-blue-700 font-bold whitespace-nowrap">{holidayMatch.holiday_name}</span>
+                          <span className="text-blue-700 font-bold whitespace-nowrap">
+                            {holidayMatch.holiday_name}
+                          </span>
                         ) : isSunday ? (
-                          <span className="text-white font-bold">WeekDay Off</span>
+                          <span className=" text-white font-bold">
+                            Weekday Off
+                          </span>
                         ) : (
                           <StatusBadge status={row.status} />
                         )}
                       </td>
-                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch || isAbsent) ? "" : formatTime(row.punch_in)}</td>
-                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch || isAbsent) ? "" : row.punch_out ? formatTime(row.punch_out) : "Working..."}</td>
-                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch || isAbsent) ? "" : formatInterval(row.total_hours)}</td>
-                      <td className="border-b px-4 py-2">{(isSunday || holidayMatch) ? "" : (isSaturday ? "5" : "9.3")}</td>
+
+                      <td className="border-b px-4 py-2">
+                        {isSunday || holidayMatch || isAbsent
+                          ? ""
+                          : formatTime(row.punch_in)}
+                      </td>
+
+                      <td className="border-b px-4 py-2">
+                        {isSunday || holidayMatch || isAbsent
+                          ? ""
+                          : row.punch_out
+                            ? formatTime(row.punch_out)
+                            : "Working..."}
+                      </td>
+
+                      <td className="border-b px-4 py-2">
+                        {isSunday || holidayMatch || isAbsent
+                          ? ""
+                          : formatInterval(row.total_hours)}
+                      </td>
+
+                      <td className="border-b px-4 py-2">
+                        {isSunday || holidayMatch
+                          ? ""
+                          : isSaturday
+                            ? "5"
+                            : "9.3"}
+                      </td>
                     </>
                   )}
                 </tr>
@@ -196,4 +313,3 @@ const Table = () => {
 
 export default Table;
 
-// export default Table;

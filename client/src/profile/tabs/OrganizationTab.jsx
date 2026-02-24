@@ -1,6 +1,7 @@
-// 
-
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
+import FormCard from "../../components/FormCard";
+import Input from "../../components/Input";
+import { getOrganization, updateOrganization } from "../../../api/profile"; // Ensure updateOrganization is imported
 import { EmployContext } from "../../context/EmployContextProvider";
 import { AuthContext } from "../../context/AuthContextProvider";
 import { toast } from "react-hot-toast";

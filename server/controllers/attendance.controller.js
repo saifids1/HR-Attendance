@@ -683,55 +683,42 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
 
    
    const query = `
-      WITH missing_records AS (
-        SELECT 
-          al.emp_id,
-          '${todayIST}'::DATE as attendance_date,
-          MIN(al.punch_time AT TIME ZONE 'Asia/Kolkata') as first_p,
-          MAX(al.punch_time AT TIME ZONE 'Asia/Kolkata') as last_p,
-          COUNT(al.punch_time) as p_count
-        FROM activity_log al
-        INNER JOIN users u ON al.emp_id = u.emp_id
-        LEFT JOIN daily_attendance da 
-          ON al.emp_id = da.emp_id 
-          AND (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE = da.attendance_date
-        WHERE (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE = '${todayIST}'::DATE
-          AND da.emp_id IS NULL 
-          AND u.is_active = true
-        GROUP BY al.emp_id
-      ),
-      auto_sync AS (
-        INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, total_hours, status)
-        SELECT 
-          mr.emp_id, mr.attendance_date, mr.first_p,
-          CASE WHEN mr.p_count > 1 THEN mr.last_p ELSE NULL END,
-          CASE WHEN mr.p_count > 1 THEN (mr.last_p - mr.first_p) ELSE INTERVAL '0 hours' END,
-          CASE WHEN mr.p_count = 1 THEN 'Working' ELSE 'Present' END
-        FROM missing_records mr
-        RETURNING *
-      )
-      SELECT 
-        u.emp_id,
-         u.name,
-          u.email,
-           u.is_active,
-           p.department,   
-          p.joining_date,
-        '${todayIST}' AS attendance_date,
-       -- Replace the punch_in and punch_out lines in your final SELECT with this:
-      (da.punch_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_in,
-      (da.punch_out AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_out,
-        CASE 
-          WHEN u.is_active = false THEN 'Inactive'
-          WHEN da.status IS NULL THEN 'Absent'
-          ELSE da.status 
-        END as status,
-        da.total_hours -- Keeping interval for formatInterval helper
-      FROM users u
-      LEFT JOIN personal p ON u.emp_id = p.emp_id
-      LEFT JOIN daily_attendance da ON u.emp_id = da.emp_id AND da.attendance_date = '${todayIST}'::DATE
-      WHERE u.role IN ('employee', 'admin') 
-      ORDER BY u.is_active DESC, u.name ASC;
+WITH attendance_summary AS (
+    SELECT
+        da.emp_id,
+        da.attendance_date,
+        da.punch_in,
+        da.punch_out,
+        da.total_hours,
+        -- handle status: if null -> Absent
+        CASE
+            WHEN da.status IS NOT NULL THEN da.status
+            ELSE 'Absent'
+        END AS status
+    FROM public.daily_attendance da
+    WHERE da.attendance_date = '${todayIST}'::DATE
+)
+SELECT
+    u.emp_id,
+    u.name,
+    u.email,
+    u.is_active,
+    p.department,
+    p.joining_date,
+    COALESCE(a.attendance_date, '${todayIST}'::DATE) AS attendance_date,
+    a.punch_in,
+    a.punch_out,
+    CASE
+        WHEN a.emp_id IS NULL THEN 'Absent'
+        WHEN a.punch_in = a.punch_out THEN 'Working'
+        ELSE 'Present'
+    END AS status,
+    a.total_hours
+FROM users u
+LEFT JOIN personal p ON u.emp_id = p.emp_id
+LEFT JOIN attendance_summary a ON u.emp_id = a.emp_id
+WHERE u.role IN ('employee', 'admin')
+ORDER BY u.is_active DESC, u.name ASC;
     `;
     const { rows } = await db.query(query);
 
@@ -850,22 +837,22 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 //   timezone: "Asia/Kolkata"
 // });
 
-// cron.schedule('36 18 * * 1-6', async () => {
-//   console.log(`[${new Date().toISOString()}] Starting 18:55 attendance report...`);
-//   exports.runAttendanceTask();
-// }, {
-//   scheduled: true,
-//   timezone: "Asia/Kolkata"
-// });
-
-
-cron.schedule('4 12 * * *', async () => {
-  console.log(`[${new Date().toISOString()}] Starting 8:30 PM attendance report...`);
+cron.schedule('45 15 * * 1-6', async () => {
+  console.log(`[${new Date().toISOString()}] Starting 18:55 attendance report...`);
   exports.runAttendanceTask();
 }, {
   scheduled: true,
   timezone: "Asia/Kolkata"
 });
+
+
+// cron.schedule('4 12 * * *', async () => {
+//   console.log(`[${new Date().toISOString()}] Starting 8:30 PM attendance report...`);
+//   exports.runAttendanceTask();
+// }, {
+//   scheduled: true,
+//   timezone: "Asia/Kolkata"
+// });
 
 
   
@@ -1085,8 +1072,8 @@ exports.getMyTodayAttendance = async (req, res) => {
     // Fetch today from daily_attendance if exists
     const dailyResult = await db.query(
       `
-      SELECT punch_in AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS punch_in,
-             punch_out AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS punch_out,
+      SELECT punch_in  AS punch_in,
+             punch_out  AS punch_out,
              total_hours, status
       FROM daily_attendance
       WHERE emp_id = $1
@@ -1095,13 +1082,30 @@ exports.getMyTodayAttendance = async (req, res) => {
       `,
       [empId]
     );
+  
+  
+   if (dailyResult.rows.length > 0) {
+  today = dailyResult.rows[0];
 
-    if (dailyResult.rows.length > 0) {
-      today = dailyResult.rows[0];
-      todayHours = intervalToHHMM(today.total_hours);
-      today.punch_in = formatIST(today.punch_in);
-      today.punch_out = formatIST(today.punch_out);
-    }
+  // 1. Get the raw difference in milliseconds
+  const msDiff = new Date(today.punch_out) - new Date(today.punch_in);
+
+  // 2. Convert to total minutes
+  const totalMinutes = Math.floor(msDiff / (1000 * 60));
+
+  // 3. Extract Hours and remaining Minutes
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  // 4. Format as a string (e.g., "08h 30m")
+  todayHours = `${hrs}h ${mins}m`;
+
+  console.log("Duration:", todayHours);
+
+  // 5. Format the timestamps for display AFTER the math
+  today.punch_in = formatIST(today.punch_in);
+  today.punch_out = formatIST(today.punch_out);
+}
 
     // If no record in daily_attendance, compute from live activity_log
     if (!today) {
@@ -1109,11 +1113,11 @@ exports.getMyTodayAttendance = async (req, res) => {
         `
         WITH today_logs AS (
           SELECT
-            MIN(punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_in,
-            MAX(punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') AS punch_out
+            MIN(punch_time ) AS punch_in,
+            MAX(punch_time) AS punch_out
           FROM activity_log
           WHERE emp_id = $1
-            AND (punch_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::DATE =
+            AND (punch_time)::DATE =
                 (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE
         )
         SELECT
@@ -1320,8 +1324,7 @@ exports.getActivityLog = async (req, res) => {
     if (from && to) {
       values.push(from, to);
       conditions.push(`
-        (punch_time AT TIME ZONE 'UTC' 
-         AT TIME ZONE 'Asia/Kolkata')::date 
+        (punch_time)::date 
         BETWEEN $${values.length - 1} AND $${values.length}
       `);
     }
@@ -1343,10 +1346,9 @@ let dataQuery = `
     device_ip,
     device_sn,
 
-    -- UTC → IST
+  
     TO_CHAR(
-      punch_time AT TIME ZONE 'UTC' 
-      AT TIME ZONE 'Asia/Kolkata',
+      punch_time,
       'YYYY-MM-DD HH24:MI:SS'
     ) AS punch_time,
 

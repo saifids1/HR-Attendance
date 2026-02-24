@@ -338,6 +338,7 @@ export default function MonthlyAttendance() {
               const isFutureDate = currentDate < cellDate;
 
               const isHoliday = holidayDates.includes(dateStr);
+              
               const dayData = emp.attendance?.find(
                 (a) => a.date === dateStr
               );
