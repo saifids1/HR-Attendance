@@ -69,7 +69,7 @@ const AdminSidebar = ({ open, setOpen }) => {
        </div>
 
         {/* Navigation Menu */}
-        <nav className="mt-3 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
+        <nav className="mt-4 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
           <NavLink to="/admin" end className={navClass}>
             <House size={15} className="shrink-0" />
             <span className="text-[15px]">Company Dashboard </span>

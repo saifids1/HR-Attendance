@@ -26,7 +26,8 @@ function normalizePunchTime(recordTime) {
 
   // Append +05:30 so the system knows this is India Time (IST)
   // Format: YYYY-MM-DD HH:mm:ss+05:30
-  return `${year}-${month}-${day} ${time}+05:30`;
+//   return `${year}-${month}-${day} ${time}+05:30`;
+  return `${year}-${month}-${day} ${time}`
 }
 
 // Fetch and sync punches
@@ -408,7 +409,7 @@ async function getDeviceAttendance() {
             const punchTimeStr = normalizePunchTime(log.recordTime);
             if (!punchTimeStr) continue;
 
-            const punchDate = new Date(punchTimeStr);
+            const punchDate = new Date(punchTimeStr); //
             if (isNaN(punchDate.getTime())) continue;
 
             const { rows: userRows } = await db.query(
@@ -430,7 +431,7 @@ async function getDeviceAttendance() {
             );
 
             // --- Insert into activity_log ---
-            await db.query(
+           const insertRes =  await db.query(
                 `INSERT INTO activity_log (emp_id, punch_time, device_ip, device_sn)
                  VALUES ($1, $2, $3, $4)
                  ON CONFLICT (emp_id, punch_time) DO NOTHING`,
@@ -443,6 +444,8 @@ async function getDeviceAttendance() {
             const dayStr = punchDate.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
             let firstPunch, lastPunch, durationStr;
             let emailNeeded = false;
+
+
 
             const { rows: dailyRow } = await db.query(
                 `SELECT * FROM daily_attendance 
@@ -481,7 +484,8 @@ async function getDeviceAttendance() {
                         dayStr
                     ]
                 );
-            } else {
+            } 
+            else {
                 firstPunch = lastPunch = punchDate;
                 durationStr = "0h 0m";
                 emailNeeded = true;
@@ -511,29 +515,29 @@ async function getDeviceAttendance() {
                 const formattedDate = `${String(firstPunch.getDate()).padStart(2, '0')}-${String(firstPunch.getMonth() + 1).padStart(2, '0')}-${firstPunch.getFullYear()}`;
                 const dayName = firstPunch.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' });
 
-                try {
-                    await sendEmail(
-                        "s.imran@i-diligence.com",
-                        `Attendance Notification: Punch`,
-                        "punch_in_out",
-                        {
-                            name: employee.name,
-                            emp_id: employee.emp_id,
-                            action: "Punch",
-                            date: formattedDate,
-                            day: dayName,
-                            time: formattedPunch,
-                            punch_in: punchInTimeStr,
-                            punch_out: punchOutTimeStr,
-                            duration: durationStr,
-                            is_out: punchOutTimeStr !== punchInTimeStr
-                        }
-                    );
+                // try {
+                //     await sendEmail(
+                //         "s.imran@i-diligence.com",
+                //         `Attendance Notification: Punch`,
+                //         "punch_in_out",
+                //         {
+                //             name: employee.name,
+                //             emp_id: employee.emp_id,
+                //             action: "Punch",
+                //             date: formattedDate,
+                //             day: dayName,
+                //             time: formattedPunch,
+                //             punch_in: punchInTimeStr,
+                //             punch_out: punchOutTimeStr,
+                //             duration: durationStr,
+                //             is_out: punchOutTimeStr !== punchInTimeStr
+                //         }
+                //     );
 
-                    console.log("Email sent to:", employee.email);
-                } catch (emailErr) {
-                    console.error("Email error:", emailErr);
-                }
+                //     console.log("Email sent to:", employee.email);
+                // } catch (emailErr) {
+                //     console.error("Email error:", emailErr);
+                // }
             }
         }
 

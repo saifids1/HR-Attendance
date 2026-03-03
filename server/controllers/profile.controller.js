@@ -39,164 +39,260 @@ state
 */
 
 exports.addOrganizationInfo = async (req, res) => {
-
-  // const {emp_id} = req.params;
-  // Use a client from the pool for transactions
-  const client = await db.connect(); 
+  const { emp_id } = req.params;
+  const client = await db.connect();
 
   try {
     const {
-      emp_id,
-      organizationName, organizationCode, organizationLocation,
-      industryType, department, designation, joiningDate, leavingDate,
-      employeeType, reportingTo, reportingLocation,
-      // address, city, state, country, isactive // Ensure these are sent in body
+      organization_name,
+      organization_code,
+      organization_location,
+      industry_type,
+      department,
+      designation,
+      joining_date,
+      leaving_date,
+      employee_type,     // ✅ FIXED (no camelCase mismatch)
+      reportingTo,
+      reportingLocation,
     } = req.body;
 
-    // const emp_id = req.user.id; // Assuming user ID comes from auth middleware
-
-    if (!organizationName || !organizationCode || !industryType || !department) {
+    if (!organization_name || !organization_code || !industry_type || !department) {
       return res.status(400).json({ message: "Required fields are missing" });
     }
 
-    await client.query('BEGIN'); // START TRANSACTION
+    await client.query("BEGIN");
 
-    // 1. Insert Organization
- const orgResult = await client.query(
-  `INSERT INTO organizations 
-    (id, organization_name, organization_code, organization_location, industry_type)
-   VALUES ($1, $2, $3, $4, $5)
-   ON CONFLICT (id) 
-   DO UPDATE SET 
-     organization_name = EXCLUDED.organization_name,
-     organization_code = EXCLUDED.organization_code,
-     organization_location = EXCLUDED.organization_location,
-     industry_type = EXCLUDED.industry_type
-   RETURNING *`,
-  [1, organizationName, organizationCode, organizationLocation, industryType]
-  
-);
-
-// This 'id' will always be 1 for "IDILIGENCE"
-const orgId = orgResult.rows[0].id;
-
-    // 2. Update Personal Table
-   const personalResult =  await client.query(
-      `UPDATE personal
-       SET department = $1, designation = $2 ,joining_date = $3, leaving_date = $4, 
-           employee_type = $5, reporting_location = $6
-       WHERE emp_id = $7`,
-      [department,designation, joiningDate, leavingDate || null, employeeType, reportingLocation, emp_id]
+    // 1️⃣ Insert / Update Organization (Fixed ID = 1)
+    const orgResult = await client.query(
+      `INSERT INTO organizations 
+        (id, organization_name, organization_code, organization_location, industry_type)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) 
+       DO UPDATE SET 
+         organization_name = EXCLUDED.organization_name,
+         organization_code = EXCLUDED.organization_code,
+         organization_location = EXCLUDED.organization_location,
+         industry_type = EXCLUDED.industry_type
+       RETURNING *`,
+      [1, organization_name, organization_code, organization_location, industry_type]
     );
-  
-    console.log("Rows updated:", personalResult.rowCount);
-    // 3. Insert/Update Reporting
-   const reportingResult =  await client.query(
-      `INSERT INTO employee_reporting (emp_id,reports_to)
+
+    // 2️⃣ Update Personal
+    const personalResult = await client.query(
+      `UPDATE personal
+       SET department = $1,
+           designation = $2,
+           joining_date = $3,
+           leaving_date = $4,
+           employee_type = $5,
+           reporting_location = $6
+       WHERE emp_id = $7
+       RETURNING *`,
+      [
+        department,
+        designation,
+        joining_date,
+        leaving_date || null,
+        employee_type,
+        reportingLocation,
+        emp_id,
+      ]
+    );
+
+    if (personalResult.rowCount === 0) {
+      throw new Error("Employee not found in personal table");
+    }
+
+    // 3️⃣ Update Active Status
+    const isActive = leaving_date ? false : true;
+
+    await client.query(
+      `UPDATE users 
+       SET is_active = $1
+       WHERE emp_id = $2`,
+      [isActive, emp_id]
+    );
+
+    // 4️⃣ Insert / Update Reporting
+    const reportingResult = await client.query(
+      `INSERT INTO employee_reporting (emp_id, reports_to)
        VALUES ($1, $2)
-       ON CONFLICT (emp_id) DO UPDATE SET  reports_to = $2`,
+       ON CONFLICT (emp_id)
+       DO UPDATE SET reports_to = EXCLUDED.reports_to
+       RETURNING *`,
       [emp_id, reportingTo]
     );
 
-    await client.query('COMMIT'); // SUCCESS: SAVE EVERYTHING
+    await client.query("COMMIT");
 
-    // Non-DB tasks can happen after commit
-    // await sendEmail(req.user.email, "Profile Updated", "profile_update", {
-    //   name: req.user.name 
-    // });
-
-    res.status(201).json({
+    res.status(200).json({
+      success: true,
       message: "Information updated successfully",
-      organization: orgResult.rows[0],
-      personal:personalResult.rows[0],
-      reporting:reportingResult.rows[0]
+      organizationData: orgResult.rows[0],
+      personalData: personalResult.rows[0],
+      reportingData: reportingResult.rows[0],
     });
 
   } catch (error) {
-    await client.query('ROLLBACK'); // FAILURE: UNDO EVERYTHING
+    await client.query("ROLLBACK");
     console.error("Transaction Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   } finally {
-    client.release(); // Important: Release client back to pool
+    client.release();
   }
 };
 
 exports.getOrganizationInfo = async (req, res) => {
   try {
-
-    // const {emp_id} = req.params;
-    const result = await db.query(
-      `
-      SELECT * FROM organizations 
-      `
-    )
-
-    res.status(200).json({ message: "Personal Data Fetched", organizationDetails: result.rows[0] });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-}
-
-exports.updateOrganizationInfo = async (req, res) => {
-  try {
     const { emp_id } = req.params;
 
+    const orgQuery = `SELECT * FROM organizations LIMIT 1`;
+    const orgResult = await db.query(orgQuery);
+
+    const personalQuery = `
+      SELECT department, designation, employee_type,
+             joining_date, leaving_date, reporting_location
+      FROM personal
+      WHERE emp_id = $1
+    `;
+    const personalResult = await db.query(personalQuery, [emp_id]);
+
+    const reportingQuery = `
+      SELECT reports_to
+      FROM employee_reporting
+      WHERE emp_id = $1
+    `;
+    const reportingResult = await db.query(reportingQuery, [emp_id]);
+
+    res.status(200).json({
+      success: true,
+      organizationData: orgResult.rows[0] || {},
+      personalData: personalResult.rows[0] || {},
+      reportingData: reportingResult.rows[0] || {}
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+exports.updateOrganizationInfo = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const {emp_id} = req.params
+
+    console.log("empId updateOrg",emp_id);
     const {
       organization_name,
       organization_code,
+      organization_location,
       industry_type,
-      address,
-      city,
-      state,
-      country,
-      is_Active,
+      department,
+      designation,
+      joining_date,
+      leaving_date,
+      employeeType,
+      reportingTo,
+      reportingLocation
     } = req.body;
 
-    const result = await db.query(
-      `
-        UPDATE organizations
-        SET
-          organization_name = $1,
-          organization_code = $2,
-          industry_type = $3,
-          address = $4,
-          city = $5,
-          state = $6,
-          country = $7,
-          is_active = $8
-        RETURNING *
-        `,
+    console.log("req.body update",req.body)
+    await client.query("BEGIN");
+
+
+    // console.log("organization_name,organization_name,industry_type,department", organization_name,organization_name,industry_type,department)
+    if (!organization_name || !organization_name || !industry_type || !department) {
+      return res.status(400).json({ message: "Required fields are missing" });
+    }
+
+    //  Update Organization (ONLY UPDATE)
+    const orgResult = await client.query(
+      `UPDATE organizations
+       SET organization_name = $1,
+           organization_code = $2,
+           organization_location = $3,
+           industry_type = $4
+       WHERE id = 1
+       RETURNING *`,
       [
         organization_name,
-        organization_code,
-        industry_type,
-        address,
-        city,
-        state,
-        country,
-        is_Active,
-
+      organization_code,
+      organization_location,
+         industry_type
       ]
     );
 
-  
-
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Employee not found" });
+    if (orgResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    res.status(200).json({
-      message: "Organization details updated successfully",
-      data: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Organization Update Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-}
+    //  Update Personal
+    const personalResult = await client.query(
+      `UPDATE personal
+       SET department = $1,
+           designation = $2,
+           joining_date = $3,
+           leaving_date = $4,
+           employee_type = $5,
+           reporting_location = $6
+       WHERE emp_id = $7
+       RETURNING *`,
+      [
+        department,
+        designation,
+        joining_date,
+        leaving_date || null,
+        employeeType,
+        reportingLocation,
+      emp_id
+      ]
+    );
+    // Toggle is_active based on leavingDate
+const isActive = leaving_date ? false : true;
 
+await client.query(
+  `UPDATE users
+   SET is_active = $1
+   WHERE emp_id = $2`,
+  [isActive, emp_id]
+);
+
+console.log("leavingDate updateOrg",leaving_date)
+    // console.log("reportingTo",reportingTo)
+    //  Update Reporting
+    const reportingResult = await client.query(
+  `
+  INSERT INTO employee_reporting (emp_id, reports_to)
+  VALUES ($1, $2)
+  ON CONFLICT (emp_id)
+  DO UPDATE SET reports_to = EXCLUDED.reports_to
+  RETURNING *;
+  `,
+  [empId, reportingTo || null]
+);
+    // console.log("reportingResult",reportingResult)
+
+    await client.query("COMMIT");
+
+    res.status(200).json({
+      message: "Organization updated successfully",
+      organization: orgResult.rows[0],
+      personal: personalResult.rows[0],
+      reporting: reportingResult.rows[0]
+    });
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Update Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  } finally {
+    client.release();
+  }
+};
 
 // Personal
 const parseDob = (dob) => {
@@ -349,12 +445,17 @@ exports.getPersonalInfo = async (req, res) => {
         p.department,
         TO_CHAR(p.joining_date, 'DD-MM-YYYY') as joining_date, -- Formats to DD-MM-YYYY
         p.maritalstatus,
+        p.leaving_date,
         p.nominee,
         p.aadharnumber,
         p.bloodgroup,
         p.nationality,
-        p.address,
-        p.designation
+        p.designation,
+        p.first_name,
+        p.last_name,
+        p.current_address,
+        p.permanent_address,
+        p.contact
       FROM users u
       LEFT JOIN personal p
         ON u.emp_id = p.emp_id
@@ -376,142 +477,93 @@ exports.getPersonalInfo = async (req, res) => {
 }
 
 exports.updatePersonalInfo = async (req, res) => {
-  const client = await db.connect();
-
   try {
     const { emp_id } = req.params;
 
-    // Ensure req.user exists (from your Protect/Auth middleware)
-    if (!req.user) {
-      return res.status(401).json({ success: false, message: "User not authenticated" });
-    }
-
-    const requesterId = req.user.emp_id;
-    const requesterRole = req.user.role || ''; // Default to empty string if undefined
-
-    // 1. Authorization Logic
-    const isAdmin = requesterRole.toLowerCase() === 'admin';
-    const isOwner = requesterId === emp_id;
-
-    if (!isAdmin && !isOwner) {
-      return res.status(403).json({ success: false, message: "Access Denied" });
-    }
-
     const {
-      name, email, department, designation, status,
-      dob, joining_date, gender, maritalstatus,
-      nationality, bloodgroup, aadharnumber, address, nominee
+      first_name,
+      last_name,
+      email,
+      contact,
+      dob,
+      gender,
+      maritalstatus,
+      nationality,
+      bloodgroup,
+      current_address,
+      permanent_address
     } = req.body;
 
-    // Helpers
-    const parseDate = (dateStr) => {
-      if (!dateStr || dateStr === "" || dateStr === "null") return null;
-      const parts = dateStr.split("-");
-      if (parts.length === 3 && parts[0].length === 2) {
-        return `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-      return dateStr;
-    };
+    //  Update users table (name + email)
+    const fullName = `${first_name || ""} ${last_name || ""}`.trim();
 
-    const limit = (str, max) => (str ? String(str).substring(0, max) : null);
+    await db.query(
+      `
+      UPDATE users
+      SET name = $1,
+          email = $2
+      WHERE emp_id = $3
+      `,
+      [fullName, email, emp_id]
+    );
 
-    const formattedDob = parseDate(dob);
-    const formattedJoiningDate = parseDate(joining_date);
-
-    await client.query('BEGIN');
-
-    // 2. Update 'users' table 
-    // We update name and email, but NOT role (to avoid check constraint errors)
-    const userUpdateQuery = `
-      UPDATE public.users 
-      SET 
-        name = $1, 
-        email = $2, 
-        is_active = $3
-      WHERE emp_id = $4
-      RETURNING name, email, role, is_active;
-    `;
-
-    // Only Admin can change status; otherwise, use existing value from database/req.user
-    const finalStatus = isAdmin ? (status === "Active") : req.user.is_active;
-
-    const userResult = await client.query(userUpdateQuery, [
-      limit(name, 100),
-      limit(email, 100),
-      finalStatus,
-      emp_id
-    ]);
-
-
-    console.log("empId for personal", emp_id);
-    // 3. Update 'personal' table
-    // We save the "Job Title" in the designation column here
-    // 1. Define the UPSERT Query
-    const personalUpsertQuery = `
-INSERT INTO public.personal (
-  dob, joining_date, gender, department, bloodgroup, 
-  maritalstatus, nationality, nominee, aadharnumber, 
-  address, designation, emp_id
-) 
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-ON CONFLICT (emp_id) 
-DO UPDATE SET 
-  dob = EXCLUDED.dob,
-  joining_date = EXCLUDED.joining_date,
-  gender = EXCLUDED.gender,
-  department = EXCLUDED.department,
-  bloodgroup = EXCLUDED.bloodgroup,
-  maritalstatus = EXCLUDED.maritalstatus,
-  nationality = EXCLUDED.nationality,
-  nominee = EXCLUDED.nominee,
-  aadharnumber = EXCLUDED.aadharnumber,
-  address = EXCLUDED.address,
-  designation = EXCLUDED.designation
-RETURNING *;
-`;
-
-    // 2. Execute the query
-    const personalResult = await client.query(personalUpsertQuery, [
-      formattedDob,           // $1
-      formattedJoiningDate,   // $2
-      limit(gender, 20),      // $3 (increased to 20 for safety)
-      limit(department, 100), // $4
-      limit(bloodgroup, 5),   // $5
-      limit(maritalstatus, 20),// $6
-      limit(nationality, 50), // $7
-      limit(nominee, 255),    // $8
-      limit(aadharnumber, 30),// $9
-      limit(address, 500),    // $10 (increased to 500 for safety)
-      limit(designation, 100),// $11
-      emp_id                  // $12
-    ]);
-
-    // 3. Commit the transaction
-    await client.query('COMMIT');
+    //  Update personal table
+    const result = await db.query(
+      `
+      UPDATE personal
+      SET first_name = $1,
+          last_name = $2,
+          contact = $3,
+          dob = $4,
+          gender = $5,
+          maritalstatus = $6,
+          nationality = $7,
+          bloodgroup = $8,
+          current_address = $9,
+          permanent_address = $10
+      WHERE emp_id = $11
+      RETURNING *
+      `,
+      [
+        first_name,
+        last_name,
+        contact,
+        dob || null,
+        gender,
+        maritalstatus,
+        nationality,
+        bloodgroup,
+        current_address,
+        permanent_address,
+        emp_id
+      ]
+    );
 
     res.status(200).json({
       success: true,
-      message: "Update successful",
-      data: { ...userResult.rows[0], ...personalResult.rows[0] }
+      message: "Profile updated successfully",
+      data: result.rows[0]
     });
 
   } catch (error) {
-    if (client) await client.query('ROLLBACK');
     console.error("Update Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  } finally {
-    client.release();
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
+
+
 
 // Education
 exports.addEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    console.log("emp_id",emp_id)
+    console.log("emp_id Add Education", emp_id)
 
-    if(emp_id){
+    if(!emp_id){
       return res.status(400).json({message:"emp_id required"});
     }
 
@@ -590,6 +642,10 @@ exports.getEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
     // console.log("Education GET Route Call ")
+
+    const empIdInt = parseInt(emp_id);
+
+    console.log("empId getEducation",empIdInt);
     const { rows } = await db.query(
       `
         SELECT
@@ -604,13 +660,14 @@ exports.getEducationInfo = async (req, res) => {
         WHERE emp_id = $1
         ORDER BY passing_year DESC
         `,
-      [emp_id]
+      [empIdInt]
     );
 
     if (!rows.length) {
       return res.status(404).json({ message: "No education records found" });
     }
 
+    // console.log("empId",empIdInt,"Education",rows);
     res.status(200).json({
       total: rows.length,
       education: rows
@@ -1119,6 +1176,134 @@ exports.deleteContactInfo = async (req, res) => {
   }
 };
 
+
+exports.getNomineeInfo = async (req, res) => {
+  try {
+    const { emp_id } = req.params;
+
+    console.log("getNominee:", emp_id);
+
+    //  Ensure integer (important if column type integer hai)
+    const empIdInt = parseInt(emp_id);
+
+    const query = `
+      SELECT *
+      FROM nominee
+      WHERE emp_id = $1
+      LIMIT 1
+    `;
+
+    const result = await db.query(query, [empIdInt]);
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        nominee: null
+      });
+    }
+
+    console.log("Get Nominee",result.rows[0]);
+
+    res.status(200).json({
+      success: true,
+      nominee: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error("Get Nominee Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+exports.addNomineeInfo = async (req, res) => {
+  try {
+    const { nominee_name, nominee_relation, nominee_contact } = req.body;
+    const { emp_id } = req.params;
+
+    const empId = emp_id ? emp_id : req.user.emp_id;
+
+    console.log("empId:", empId);
+    console.log("Body:", req.body);
+
+    // ✅ Validate input
+    if (!nominee_name || !nominee_relation || !nominee_contact) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const query = `
+      INSERT INTO nominee 
+      (emp_id, nominee_name, nominee_relation, nominee_contact)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `;
+
+    const result = await db.query(query, [
+      empId,
+      nominee_name,
+      nominee_relation,
+      nominee_contact,
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Nominee added successfully",
+      data: result.rows[0],
+    });
+
+  } catch (error) {
+    console.error("Add Nominee Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+exports.updateNomineeInfo = async (req, res) => {
+  try {
+    const { nominee_name, nominee_relation, nominee_contact } = req.body;
+    const emp_id = req.user.emp_id;
+
+    if (!nominee_name || !nominee_relation || !nominee_contact) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const query = `
+      UPDATE nominee
+      SET 
+        nominee_name = $1,
+        nominee_relation = $2,
+        nominee_contact = $3
+      WHERE emp_id = $4
+      RETURNING *;
+    `;
+
+    const result = await db.query(query, [
+      nominee_name,
+      nominee_relation,
+      nominee_contact,
+      emp_id
+    ]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Nominee not found for this employee" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Nominee info updated successfully",
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error("Update Nominee Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 exports.addBankInfo = async (req, res) => {
   try {
     const emp_id = req.params.emp_id;
@@ -1296,85 +1481,199 @@ exports.updateBankInfo = async (req, res) => {
 }
 
 
+// exports.addBankDocInfo = async (req, res) => {
+//   try {
+//     const { emp_id } = req.params;
+    
+//     const {documentType,documentNumber} = req.body;
+
+
+//     console.log("documentType,documentNumber",documentType,documentNumber)
+
+//     if (!req.files || Object.keys(req.files).length === 0) {
+//       return res.status(400).json({ message: "No files uploaded" });
+//     }
+
+//     const uploadedDocs = [];
+
+//     for (const field in req.files) {
+//       const file = req.files[field][0];
+
+//       // 1. Get the old file path BEFORE updating the DB
+//       const { rows: existing } = await db.query(
+//         "SELECT file_path FROM bank_documents WHERE emp_id = $1 AND file_type = $2",
+//         [emp_id, file.fieldname]
+//       );
+
+//       // 2. Perform the Upsert (Insert or Update)
+//       const result = await db.query(
+//         `
+//         INSERT INTO bank_documents (
+//           bank_account_id, 
+//           file_type, 
+//           file_name, 
+//           file_path, 
+//           file_size, 
+//           created_at, 
+//           updated_at
+//         )
+//         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+//         ON CONFLICT (bank_account_id, file_type) 
+//         DO UPDATE SET 
+//           file_name = EXCLUDED.file_name,
+//           file_path = EXCLUDED.file_path,
+//           file_size = EXCLUDED.file_size,
+//           updated_at = NOW()
+//         RETURNING *;
+//         `,
+//         [
+//           emp_id,
+//           file.fieldname,
+//           file.originalname,
+//           `/uploads/bank-docs/${file.filename}`,
+//           file.size,
+//         ]
+//       );
+
+//       // 3. Delete the old physical file from disk ONLY IF the DB update succeeded
+//       if (existing.length > 0 && existing[0].file_path) {
+//         // Adjust path resolution based on your folder structure
+//         const oldFilePath = path.join(__dirname, "../../", existing[0].file_path);
+
+//         if (fs.existsSync(oldFilePath)) {
+//           fs.unlink(oldFilePath, (err) => {
+//             if (err) console.error("Could not delete old file:", err);
+//           });
+//         }
+//       }
+
+//       uploadedDocs.push(result.rows[0]);
+//     }
+
+//     // sendNotification(emp_id, "Bank Documents", req.user?.name || "Employee");
+
+//     return res.status(201).json({
+//       message: "Bank documents uploaded successfully",
+//       documents: uploadedDocs,
+//     });
+
+//   } catch (error) {
+//     console.error("Database Error details:", error.hint || error.message);
+//     if (!res.headersSent) {
+//       res.status(500).json({
+//         message: "Internal Server Error",
+//         error: error.message
+//       });
+//     }
+//   }
+// }
 exports.addBankDocInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
+    const { documentType, documentNumber } = req.body;
+    const file = req.file;
 
-    if (!req.files || Object.keys(req.files).length === 0) {
-      return res.status(400).json({ message: "No files uploaded" });
+    if (!file) {
+      return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const uploadedDocs = [];
+    if (!documentType) {
+      return res.status(400).json({ message: "Document type is required" });
+    }
 
-    for (const field in req.files) {
-      const file = req.files[field][0];
+    //  Get old file BEFORE update
+    const { rows: existing } = await db.query(
+      "SELECT file_path FROM bank_documents WHERE emp_id = $1 AND document_type = $2",
+      [emp_id, documentType]
+    );
 
-      // 1. Get the old file path BEFORE updating the DB
-      const { rows: existing } = await db.query(
-        "SELECT file_path FROM bank_documents WHERE bank_account_id = $1 AND file_type = $2",
-        [emp_id, file.fieldname]
+    //  Insert or Update
+    const result = await db.query(
+      `
+      INSERT INTO bank_documents (
+        emp_id,
+        document_type,
+        document_number,
+        file_name,
+        file_path,
+        file_size,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ON CONFLICT (emp_id, document_type)
+      DO UPDATE SET
+        document_number = EXCLUDED.document_number,
+        file_name = EXCLUDED.file_name,
+        file_path = EXCLUDED.file_path,
+        file_size = EXCLUDED.file_size,
+        updated_at = NOW()
+      RETURNING *;
+      `,
+      [
+        emp_id,
+        documentType,
+        documentNumber,
+        file.originalname,
+        `/uploads/bank-docs/${file.filename}`,
+        file.size,
+      ]
+    );
+
+    // Delete old physical file if exists
+    if (existing.length > 0 && existing[0].file_path) {
+      const oldFilePath = path.join(
+        __dirname,
+        "..",
+        "..",
+        existing[0].file_path
       );
 
-      // 2. Perform the Upsert (Insert or Update)
-      const result = await db.query(
-        `
-        INSERT INTO bank_documents (
-          bank_account_id, 
-          file_type, 
-          file_name, 
-          file_path, 
-          file_size, 
-          created_at, 
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-        ON CONFLICT (bank_account_id, file_type) 
-        DO UPDATE SET 
-          file_name = EXCLUDED.file_name,
-          file_path = EXCLUDED.file_path,
-          file_size = EXCLUDED.file_size,
-          updated_at = NOW()
-        RETURNING *;
-        `,
-        [
-          emp_id,
-          file.fieldname,
-          file.originalname,
-          `/uploads/bank-docs/${file.filename}`,
-          file.size,
-        ]
-      );
-
-      // 3. Delete the old physical file from disk ONLY IF the DB update succeeded
-      if (existing.length > 0 && existing[0].file_path) {
-        // Adjust path resolution based on your folder structure
-        const oldFilePath = path.join(__dirname, "../../", existing[0].file_path);
-
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlink(oldFilePath, (err) => {
-            if (err) console.error("Could not delete old file:", err);
-          });
-        }
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlink(oldFilePath, (err) => {
+          if (err) console.error("Could not delete old file:", err);
+        });
       }
-
-      uploadedDocs.push(result.rows[0]);
     }
-
-    // sendNotification(emp_id, "Bank Documents", req.user?.name || "Employee");
 
     return res.status(201).json({
-      message: "Bank documents uploaded successfully",
-      documents: uploadedDocs,
+      message: "Bank document saved successfully",
+      document: result.rows[0],
     });
 
   } catch (error) {
-    console.error("Database Error details:", error.hint || error.message);
+    console.error("Database Error:", error.message);
+
     if (!res.headersSent) {
       res.status(500).json({
         message: "Internal Server Error",
-        error: error.message
+        error: error.message,
       });
     }
+  }
+};
+
+
+exports.deleteDocument = async (req, res) => {
+  try {
+    const { id, emp_id } = req.params;
+
+    const queryDelete = `
+      DELETE FROM bank_documents
+      WHERE id = $1 AND emp_id = $2
+    `;
+
+    const result = await db.query(queryDelete, [id, emp_id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    res.status(200).json({ message: "Doc Deleted Successfully" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 }
 
@@ -1385,9 +1684,9 @@ exports.getAllBankDoc = async (req, res) => {
     // Fetch documents from DB
     const result = await db.query(
       `
-      SELECT bank_account_id, file_type, file_name, file_path, file_size, created_at, updated_at
+      SELECT id,emp_id, document_type,document_number, file_name, file_path, file_size, created_at, updated_at
       FROM bank_documents
-      WHERE bank_account_id = $1
+      WHERE emp_id = $1
       ORDER BY created_at ASC
       `,
       [emp_id]
@@ -1413,49 +1712,69 @@ exports.addProfileImage = async (req, res) => {
       return res.status(400).json({ message: "Image is required" });
     }
 
-    const emp_id = req.user.emp_id;
+    const requestedEmpId = req.params.emp_id;   
+    const loggedInEmpId = req.user.emp_id;    
+    const userRole = req.user.role;
+
+   
+    if (userRole !== "admin" && requestedEmpId !== loggedInEmpId) {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
     const imagePath = `/uploads/profile-images/${req.file.filename}`;
 
-    // Delete old image if exists
+    // Get old image
     const oldImageResult = await db.query(
       `SELECT profile_image FROM users WHERE emp_id = $1`,
-      [emp_id]
+      [requestedEmpId]
     );
+
     const oldImagePath = oldImageResult.rows[0]?.profile_image;
+
+    // Delete old image
     if (oldImagePath) {
       const fullPath = path.join(__dirname, "..", oldImagePath);
+
       if (fs.existsSync(fullPath)) {
         fs.unlink(fullPath, (err) => {
           if (err) console.error("Failed to delete old profile image:", err);
         });
-      } else {
-        console.log("Old profile image not found, skipping deletion");
       }
     }
 
     // Update DB
     await db.query(
       `UPDATE users SET profile_image = $1 WHERE emp_id = $2`,
-      [imagePath, emp_id]
+      [imagePath, requestedEmpId]
     );
 
     res.status(200).json({
-      message: oldImagePath ? "Profile image updated successfully" : "Profile image added successfully",
+      message: oldImagePath
+        ? "Profile image updated successfully"
+        : "Profile image added successfully",
       profile_image: imagePath,
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("Upload error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};
 
 exports.getProfileImage = async (req, res) => {
   try {
-    const emp_id = req.user.emp_id;
+    const requestedEmpId = req.params.emp_id;   
+    const loggedInEmpId = req.user.emp_id;    
+    const userRole = req.user.role;
+
+    // If normal employee → only allow own image
+    if (userRole !== "admin" && requestedEmpId !== loggedInEmpId) {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
 
     const result = await db.query(
       `SELECT profile_image FROM users WHERE emp_id = $1`,
-      [emp_id]
+      [requestedEmpId]
     );
 
     if (result.rowCount === 0) {
@@ -1463,10 +1782,9 @@ exports.getProfileImage = async (req, res) => {
     }
 
     const profileImage = result.rows[0].profile_image;
-    let formattedPath = profileImage;
 
-    // Add leading slash if missing
-    if (profileImage && !profileImage.startsWith('/')) {
+    let formattedPath = profileImage;
+    if (profileImage && !profileImage.startsWith("/")) {
       formattedPath = `/${profileImage}`;
     }
 
@@ -1475,10 +1793,11 @@ exports.getProfileImage = async (req, res) => {
       : null;
 
     res.status(200).json({
-      profile_image: fullImageUrl, // null if no image
+      profile_image: fullImageUrl,
     });
+
   } catch (error) {
     console.error("Fetch profile image error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
-}
+};

@@ -18,6 +18,8 @@ const ContactTab = ({
   const [errors, setErrors] = useState({});
   const [editingIndex, setEditingIndex] = useState(null);
 
+  // console.log("contactData",contactData);
+
   /* ================= HANDLE CHANGE ================= */
 
   const handleChange = (key, value) => {

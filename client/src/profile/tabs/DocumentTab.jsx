@@ -26,24 +26,37 @@ const DocumentTab = ({
   setIsEditing,
   setIsAddingNew,
   isAddingNew,
+  empId,
 }) => {
   const { token } = useContext(AuthContext);
-  const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
+
+  // console.log("isEditing Document",isEditing);
+
+  
 
   const [documents, setDocuments] = useState([]);
   const [draft, setDraft] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
+  const [isNew, setIsNew] = useState(false);
   const fileRef = useRef(null);
 
+
+  useEffect(()=>{
+
+    console.log("isEditing",isEditing)
+    console.log("setIsAddingNew",setIsAddingNew)
+    console.log(" setEditingIndex(null);",  setEditingIndex(null))
+  },[setIsAddingNew,isEditing])
   /* ================= FETCH DOCUMENTS ================= */
 
   useEffect(() => {
     const fetchDocs = async () => {
       try {
-        const res = await api.get(`/employee/profile/bank/doc/${emp_id}`, {
+        const res = await api.get(`/employee/profile/bank/doc/${empId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        console.log("Res Documents", res);
         const BASE_URL = api.defaults.baseURL.split("/api")[0];
 
         const formatted =
@@ -56,14 +69,15 @@ const DocumentTab = ({
             fileName: doc.file_path.split("/").pop(),
           })) || [];
 
+        console.log("formatted", formatted);
         setDocuments(formatted);
       } catch (err) {
         console.error(err);
       }
     };
 
-    if (emp_id) fetchDocs();
-  }, [emp_id, token]);
+    if (empId) fetchDocs();
+  }, [empId, token]);
 
   /* ================= SHOW DRAFT IF EMPTY ================= */
 
@@ -74,30 +88,35 @@ const DocumentTab = ({
     }
   }, [documents]);
 
-useEffect(() => {
-  if (isAddingNew) {
-    setDraft({ ...emptyDocument });
-    setEditingIndex("new-edit"); // directly editable row
-  }
-}, [isAddingNew]);
+  useEffect(() => {
+    if (isAddingNew) {
+      setDraft({ ...emptyDocument });
+      setEditingIndex("new-edit"); // directly editable row
+    }
+  }, [isAddingNew]);
   /* ================= EDIT EXISTING ================= */
 
   const handleEdit = (doc, index) => {
-    if (draft && editingIndex !== null) {
-      toast.error("Please save or cancel current changes first");
-      return;
-    }
 
-    setEditingIndex(index);
-    setDraft({
-      documentType: doc.file_type,
-      documentNumber: doc.document_no || "",
-      file: null,
-      id: doc.id,
-    });
 
-    setIsEditing(true);
-  };
+  if (editingIndex === index) {
+    handleCancel();
+    return;
+  }
+
+  // Switch to new row 
+  setEditingIndex(index);
+
+  setDraft({
+    documentType: doc.document_type,
+    documentNumber: doc.document_number || "",
+    file: null,
+    id: doc.id,
+  });
+
+  
+};
+
 
   /* ================= FILE CHANGE ================= */
 
@@ -122,11 +141,13 @@ useEffect(() => {
       fd.append("documentType", draft.documentType);
       fd.append("documentNumber", draft.documentNumber);
 
+      console.log("draft Document", draft);
       if (draft.file) {
         fd.append("file", draft.file);
       }
 
-      await api.post(`/employee/profile/bank/doc/${emp_id}`, fd, {
+      console.log("formData", fd)
+      await api.post(`/employee/profile/bank/doc/${empId}`, fd, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
@@ -141,7 +162,7 @@ useEffect(() => {
       setIsEditing(false);
 
       // Refresh list
-      const res = await api.get(`/employee/profile/bank/doc/${emp_id}`, {
+      const res = await api.get(`/employee/profile/bank/doc/${empId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -168,8 +189,10 @@ useEffect(() => {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this document?")) return;
 
+    // console.log("Doc id",id)
+
     try {
-      await api.delete(`/employee/profile/bank/doc/${emp_id}/${id}`, {
+      await api.delete(`/employee/profile/bank/doc/${empId}/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -232,13 +255,13 @@ useEffect(() => {
                   />
                 ) : (
                   <tr key={doc.id}>
-                    <td className="px-4 py-2 text-sm text-gray-600">{doc.file_type}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{doc.document_type}</td>
                     <td className="px-4 py-2 text-sm text-gray-600">
-                      {doc.document_no || "-"}
+                      {doc.document_number || "-"}
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-600 underline cursor-pointer">
                       <span onClick={() => window.open(doc.fullUrl, "_blank")}>
-                        {doc.fileName}
+                        {doc.file_name}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-600 text-center">
@@ -272,7 +295,7 @@ useEffect(() => {
                     {draft.documentNumber || "-"}
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-600">
-                    {draft.file ? draft.file.name : "-"}
+                    {draft.file ? draft.file : "-"}
                   </td>
                   <td className="px-4 py-2 text-center text-sm text-gray-600">
                     <button

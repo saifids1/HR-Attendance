@@ -26,6 +26,12 @@ const EmployProvider = ({ children }) => {
   const [adminLoading, setAdminLoading] = useState(false);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [personalAddress,setPersonalAddress] = useState(null);
+
+  // Pagination weekly Attendance
+  const [page, setPage] = useState(1);
+const [limit] = useState(10); // items per page
+const [totalPages, setTotalPages] = useState(1);
 
   /* Weekly Data & Filters */
   const [weeklyData, setWeeklyData] = useState([]);
@@ -53,9 +59,7 @@ const EmployProvider = ({ children }) => {
   });
 
   // Profile Image
-  const [profileImage, setProfileImage] = useState(
-    localStorage.getItem("profileImage") || ProfImg
-  );
+  const [profileImage, setProfileImage] = useState(null);
 
   /* Auth State */
   const [auth, setAuth] = useState(() => {
@@ -138,13 +142,13 @@ const fetchLogs = useCallback(async () => {
 
     const params = new URLSearchParams();
 
-    // ✅ Only append if search exists
-    if (currentSearch) {
-      params.append("search", currentSearch);
-    }
-
+    if (currentSearch) params.append("search", currentSearch);
     if (filters.startDate) params.append("from", filters.startDate);
     if (filters.endDate) params.append("to", filters.endDate);
+
+    // ✅ Pagination params
+    params.append("page", page);
+    params.append("limit", limit);
 
     const queryString = params.toString();
     const url = `admin/attendance/weekly-attendance${
@@ -156,6 +160,7 @@ const fetchLogs = useCallback(async () => {
     const res = await api.get(url, axiosConfig);
 
     setWeeklyData(res.data);
+    setTotalPages(res.data.totalPages || 1); // update total pages from API
   } catch (err) {
     console.error("Fetch error:", err);
     setWeeklyData({ data: [] });
@@ -170,6 +175,8 @@ const fetchLogs = useCallback(async () => {
   filters.endDate,
   auth.token,
   axiosConfig,
+  page, // important dependency
+  limit,
 ]);
  
 const fetchHolidays = (async()=>{
@@ -202,6 +209,7 @@ const fetchHolidays = (async()=>{
     fetchEmployeeDashboard();
     fetchHolidays();
   }, [auth.token, auth.role]);
+  
 
   const formatDate = (value) => {
     if (!value) return "--";
@@ -213,6 +221,7 @@ const fetchHolidays = (async()=>{
     <EmployContext.Provider
       value={{
         employee, employeeAttendance, singleAttendance, adminAttendance,
+        personalAddress,setPersonalAddress,
         setAdminAttendance, orgAddress, setOrgAddress, holidays,
         loading: auth.role === "admin" ? adminLoading : employeeLoading,
         initialized, profileImage, setProfileImage,

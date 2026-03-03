@@ -51,124 +51,6 @@ router.patch('/:emp_id/status', auth, isAdmin, async (req, res) => {
 });
 
 
-
-// router.get("/all-attendance", auth, isAdmin, async (req, res) => {
-
-//   try {
-//     let { month, year, page = 1, limit = 10 } = req.query;
-
-//     page = parseInt(page) || 1;
-//     limit = parseInt(limit) || 10;
-//     const offset = (page - 1) * limit;
-
-//     const today = new Date();
-//     const values = [fromDate, toDate, limit, offset];
-
-//     console.log("values",values)
-//     // 
-
-//     const query = `
-//       Select * from attendance_logs
-//     `
-
-//     // const query = `
-//     //   WITH calendar AS (
-//     //     SELECT generate_series(
-//     //       $1::date,
-//     //       $2::date,
-//     //       '1 day'
-//     //     )::date AS date_only
-//     //   ),
-//     //   employee_list AS (
-//     //     SELECT u.emp_id, u.name, u.role
-//     //     FROM users u
-//     //   ),
-//     //   attendance_data AS (
-//     //     SELECT 
-//     //       al.emp_id,
-//     //       al.punch_time::date AS date_only,
-//     //       MIN(al.punch_time) AS first_in,
-//     //       MAX(al.punch_time) AS last_out,
-//     //       ROUND(
-//     //         (EXTRACT(EPOCH FROM (MAX(al.punch_time) - MIN(al.punch_time))) / 3600)::numeric,
-//     //         2
-//     //       ) AS total_hours
-//     //     FROM activity_log al
-//     //     GROUP BY al.emp_id, al.punch_time::date
-//     //   ),
-//     //   final_data AS (
-//     //     SELECT 
-//     //       el.emp_id,
-//     //       el.name,
-//     //       el.role,
-//     //       cal.date_only,
-//     //       ad.first_in,
-//     //       ad.last_out,
-//     //       COALESCE(ad.total_hours, 0.00) AS total_hours
-//     //     FROM employee_list el
-//     //     CROSS JOIN calendar cal
-//     //     LEFT JOIN attendance_data ad
-//     //       ON ad.emp_id = el.emp_id
-//     //       AND ad.date_only = cal.date_only
-//     //   )
-//     //   SELECT 
-//     //     emp_id,
-//     //     name,
-//     //     role,
-//     //     TO_CHAR(date_only, 'YYYY-MM-DD') AS date,
-//     //     TO_CHAR(first_in, 'HH12:MI AM') AS first_in,
-//     //     TO_CHAR(last_out, 'HH12:MI AM') AS last_out,
-//     //     total_hours,
-//     //     COUNT(*) OVER() AS total_count
-//     //   FROM final_data
-//     //   ORDER BY date_only DESC
-//     //   LIMIT $3
-//     //   OFFSET $4
-//     // `;
-
-
-//     // Validate month (1-12) and year (>1900)             
-
-//     let filterMonth = parseInt(month);
-//     let filterYear = parseInt(year);
-
-//     if (isNaN(filterMonth) || filterMonth < 1 || filterMonth > 12) {
-//       filterMonth = today.getMonth() + 1; // JS months 1-12
-//     }
-
-//     if (isNaN(filterYear) || filterYear < 1900) {
-//       filterYear = today.getFullYear();
-//     }
-
-
-//     const fromDates = new Date(filterYear, filterMonth - 1, 1).toISOString().slice(0, 10);
-//     const toDate = new Date(filterYear, filterMonth, 0).toISOString().slice(0, 10);
-
-
-
-//     const { rows } = await db.query(query, values);
-
-//     const totalRecords = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
-
-//     const cleanAttendance = rows.map(({ total_count, ...rest }) => rest);
-
-//     res.status(200).json({
-//       success: true,
-//       meta: {
-//         total_records: totalRecords,
-//         total_pages: Math.ceil(totalRecords / limit),
-//         current_page: page,
-//       },
-//       attendance: cleanAttendance,
-//     });
-//   } catch (error) {
-//     console.error("Attendance API Error:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Internal Server Error",
-//     });
-//   }
-// });
 router.get("/all-attendance", auth, async (req, res) => {
   try {
     let { month, year } = req.query;
@@ -285,8 +167,15 @@ ORDER BY emp_id;
 
 router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
   try {
-    const { search } = req.query;
+    // const { search } = req.query;
 
+    const {search,page = 1, limit = 10} = req.query;
+
+    const pageInt = parseInt(page);
+    const limitInt = parseInt(limit);
+    const offset = (pageInt - 1 ) * limitInt ;
+
+   
     // if (!search) {
     //   return res.status(400).json({
     //     success: false,
@@ -298,67 +187,54 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
 
 
     const now = new Date();
-    // Offset correction for local timezone
-    const localToday = new Date(
-      now.getTime() - now.getTimezoneOffset() * 60000
-    );
-
+    const localToday = now; // already IST in DB
     const toDate = localToday.toISOString().split("T")[0];
-
     const sevenDaysAgo = new Date(localToday);
     sevenDaysAgo.setDate(localToday.getDate() - 6);
-
     const fromDate = sevenDaysAgo.toISOString().split("T")[0];
 
     // --- 2. SQL Query Definition ---
-    const query = `
-     WITH calendar AS (
-  SELECT generate_series($1::date, $2::date, '1 day')::date AS date_only
-),
-
-employees AS (
-  SELECT emp_id, name, role
-  FROM users
-  WHERE is_active = true
-  AND (
-  $3::text IS NULL
-    OR emp_id::text = $3
-    OR name ILIKE $4
-  )
-),
-
-attendance AS (
-  SELECT 
-    al.emp_id,
-    (al.punch_time AT TIME ZONE 'Asia/Kolkata')::date AS date_only,
-    MIN(al.punch_time AT TIME ZONE 'Asia/Kolkata') AS first_in,
-    MAX(al.punch_time AT TIME ZONE 'Asia/Kolkata') AS last_out,
-    ROUND(
-      EXTRACT(EPOCH FROM 
-        MAX(al.punch_time) - MIN(al.punch_time)
-      ) / 3600,
-      2
-    ) AS total_hours
-  FROM attendance_logs al
-  WHERE (al.punch_time AT TIME ZONE 'Asia/Kolkata')::date 
-        BETWEEN $1 AND $2
-  GROUP BY al.emp_id, date_only
-)
-
-SELECT 
-  e.emp_id,
-  e.name,
-  e.role,
-  TO_CHAR(c.date_only, 'YYYY-MM-DD') AS date,
-  TO_CHAR(a.first_in, 'HH12:MI AM') AS first_in,
-  TO_CHAR(a.last_out, 'HH12:MI AM') AS last_out,
-  COALESCE(a.total_hours, 0) AS total_hours
-FROM employees e
-CROSS JOIN calendar c
-LEFT JOIN attendance a 
-  ON a.emp_id = e.emp_id
-  AND a.date_only = c.date_only
-ORDER BY e.emp_id, c.date_only DESC;
+     const query = `
+      WITH calendar AS (
+        SELECT generate_series($1::date, $2::date, '1 day')::date AS date_only
+      ),
+      employees AS (
+        SELECT emp_id, name, role
+        FROM users
+        WHERE is_active = true
+          AND (
+            $3::text IS NULL
+            OR emp_id::text = $3
+            OR name ILIKE $4
+          )
+        ORDER BY emp_id
+        OFFSET $5 LIMIT $6
+      ),
+      attendance AS (
+        SELECT 
+          al.emp_id,
+          al.punch_time::date AS date_only,
+          MIN(al.punch_time) AS first_in,
+          MAX(al.punch_time) AS last_out,
+          ROUND(EXTRACT(EPOCH FROM MAX(al.punch_time) - MIN(al.punch_time)) / 3600, 2) AS total_hours
+        FROM attendance_logs al
+        WHERE al.punch_time::date BETWEEN $1 AND $2
+        GROUP BY al.emp_id, date_only
+      )
+      SELECT 
+        e.emp_id,
+        e.name,
+        e.role,
+        TO_CHAR(c.date_only, 'YYYY-MM-DD') AS date,
+        TO_CHAR(a.first_in, 'HH12:MI AM') AS first_in,
+        TO_CHAR(a.last_out, 'HH12:MI AM') AS last_out,
+        COALESCE(a.total_hours, 0) AS total_hours
+      FROM employees e
+      CROSS JOIN calendar c
+      LEFT JOIN attendance a
+        ON a.emp_id = e.emp_id
+        AND a.date_only = c.date_only
+      ORDER BY e.emp_id, c.date_only DESC;
     `;
 
     // --- 3. Database Execution ---
@@ -367,6 +243,8 @@ ORDER BY e.emp_id, c.date_only DESC;
   toDate,
   searchTerm,
   searchTerm ? `%${searchTerm}%` : null,
+  offset,
+  limitInt
 ]);
     // Handle case where no employee is found
     if (!rows || rows.length === 0) {
@@ -397,6 +275,27 @@ rows.forEach(row => {
   });
 });
 
+// Total Employee
+
+const countQuery = `
+  SELECT COUNT(*) AS total
+  FROM users
+  WHERE is_active = true
+    AND (
+      $1::text IS NULL
+      OR emp_id::text = $1
+      OR name ILIKE $2
+    )
+`
+
+const {rows:countRows} = await db.query(countQuery,[
+  searchTerm,
+  searchTerm ? `%${searchTerm}%`:null
+]);
+
+const totalItems = parseInt(countRows[0].total);
+const totalPages = Math.ceil(totalItems/limitInt);
+
 res.status(200).json({
   success: true,
   message: "Weekly attendance fetched successfully",
@@ -404,6 +303,9 @@ res.status(200).json({
     from: fromDate,
     to: toDate,
   },
+  page:pageInt,
+  totalPages,
+  totalItems,
   data: Object.values(grouped)
 });
 

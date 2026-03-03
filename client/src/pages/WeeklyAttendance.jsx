@@ -40,8 +40,9 @@ const WeeklyAttendance = () => {
     } = useContext(EmployContext);
 
 
+
     // Safely extract attendance array
-   const employees = weeklyData?.data || [];
+   const employees = weeklyData || [];
     // const attendanceList = employees?.attendance || [];
 
     // console.log("weeklyData",weeklyData)
@@ -63,7 +64,7 @@ const WeeklyAttendance = () => {
 
     return (
         <div className="min-h-max px-3 bg-gray-50">
-            <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-1 shadow-lg flex justify-center items-center px-6">
+            <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-1 shadow-lg flex justify-center items-center px-6 mt-[9px]">
                 <div className="w-10"></div> {/* Spacer to center text */}
                 <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
                     Weekly Attendance
@@ -87,7 +88,7 @@ const WeeklyAttendance = () => {
                     </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
   {employees.length > 0 ? (
-    employees.flatMap((employee, empIndex) =>
+    employees.filter((emp)=> emp.emp_id !== "2020").flatMap((employee, empIndex) =>
       employee.attendance.map((row, i) => {
         const dayStr = getDayName(row.date);
         const holidayMatch = getHolidayMatch(row.date);
@@ -185,13 +186,17 @@ const WeeklyAttendance = () => {
     )
   ) : (
     <tr>
-      <td colSpan={headers.length} className="text-center py-20 text-gray-400">
-        {weeklyLoading ? (
-          <Loader />
-        ) : (
-          "No attendance records found for this period"
-        )}
-      </td>
+     <td colSpan={headers.length} className="py-20">
+  <div className="flex justify-center items-center w-full">
+    {weeklyLoading ? (
+      <Loader />
+    ) : (
+      <span className="text-gray-400">
+        No attendance records found for this period
+      </span>
+    )}
+  </div>
+</td>
     </tr>
   )}
                 </tbody>

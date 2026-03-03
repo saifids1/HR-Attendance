@@ -5,9 +5,16 @@ import { toast } from "react-hot-toast";
 import { getBank, addBank, updateBank } from "../../../api/profile";
 import { emptyBank } from "../../constants/emptyData";
 import { AuthContext } from "../../context/AuthContextProvider";
+import { useParams } from "react-router-dom";
 
-const BankTab = ({ isEditing, setIsEditing }) => {
-  const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
+const BankTab = ({ isEditing, setIsEditing,empId }) => {
+  // const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
+
+  const {emp_id} = useParams();
+
+  const finalEmpId = emp_id || empId;
+
+
   const { token } = useContext(AuthContext);
 
   // Initialize as empty array to avoid ReferenceError
@@ -17,10 +24,10 @@ const BankTab = ({ isEditing, setIsEditing }) => {
 
   // Memoized fetch function to reuse in useEffect and handleSave
   const fetchBank = useCallback(async () => {
-    if (!emp_id) return;
+    if (!finalEmpId) return;
     setLoading(true);
     try {
-      const res = await getBank(emp_id);
+      const res = await getBank(finalEmpId);
       const bankData = res?.data?.bankDetails;
 
       if (bankData?.length > 0) {
@@ -28,6 +35,9 @@ const BankTab = ({ isEditing, setIsEditing }) => {
           ...emptyBank,
           ...b,
         }));
+
+        // console.log("mapped",mapped);
+
         setDraft(mapped);
       } else {
         setDraft([{ ...emptyBank }]);

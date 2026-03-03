@@ -73,6 +73,9 @@ const Table = () => {
   };
 
   const formatDate = (dateString) => {
+
+   
+
     if (!dateString || dateString === "--") return "--";
 
     const date = new Date(dateString);
@@ -141,8 +144,10 @@ const Table = () => {
             )
             .map((row, i) => {
               //  Safe date parsing (prevents timezone shift)
-              const [year, month, day] = row.attendance_date.split("-");
-              const dateObj = new Date(year, month - 1, day);
+
+            
+              const dateObj = new Date(row.attendance_date)
+
 
               const dayIndex = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
               const isSunday = dayIndex === 0;
@@ -179,12 +184,12 @@ const Table = () => {
                 >
                   {isAdmin ? (
                     <>
-                      <td className="border-b px-4 py-2 text-gray-600">
+                      <td className="border-b px-4 py-2  text-gray-600">
                         {i + 1}
                       </td>
 
                       <td className={`border-b px-4 py-2 font-semibold`}>
-                        {dayStr}
+                        {dayStr.toUpperCase()}
                       </td>
 
                       <td className="border-b px-4 py-2 font-medium text-gray-800 whitespace-nowrap">

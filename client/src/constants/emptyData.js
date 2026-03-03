@@ -23,17 +23,17 @@ export const maritalstatusOptions = ["Single", "Married", "Divorced", "Widowed"]
 export const bloodGroupOptions = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export const emptyPersonal = {
-  firstName: "Employee",
-  lastName: "Employee",
-  contactNo: "1234567890",
+  first_name: "First Employee",
+  last_name: "Last Employee",
+  contact: "1234567890",
   email: "email@gmail.com",
-  dateOfBirth: "2021-02-18", // use YYYY-MM-DD for date input
+  dob: "", // use YYYY-MM-DD for date input
   gender: "Male",
   maritalstatus: "Single",
   nationality: "Indian",
-  bloodGroup: "A+",
-  currentAddress: "Flat 402, Shanti Apartments, MG Road, Pune, Maharashtra",
-  permanentAddress:
+  bloodgroup: "A+",
+  current_address: "Flat 402, Shanti Apartments, MG Road, Pune, Maharashtra",
+  permanent_address:
     "Flat 402, Shanti Apartments, MG Road, Pune, Maharashtra",
 };
 
@@ -66,11 +66,11 @@ export const emptyBank = {
   account_type: "Savings",
 };
 
-export const emptyNominee = [{
-  nomineeName: "John Doe",
-  nomineeRelation: "Brother",
-  nomineeContact: "1234567890"
-}];
+export const emptyNominee = {
+  nominee_name:"James",
+  nominee_relation: "Brother",
+  nominee_contact: "1234567890"
+};
 
 export const employeeTypeOptions = ["Permanent", "Contract", "Intern"];
 export const reportingToOptions = [
@@ -81,24 +81,29 @@ export const reportingToOptions = [
   "David Wilson"
 ];
 export const reportingLocationOptions = [
-  "Registered Office",
-  "Branch Office"
+  "Registered_Office",
+  "Branch_Office"
 ];
 
 export const emptyOrganization = {
-  organizationName: "Techno",
-  organizationCode: "TECH",
-  organizationLocation: "Pune",
-  industryType: "IT",
+  organization_name: "Techno",
+  organization_code: "TECH",
+  organization_location: "Pune",
+  industry_type: "IT",
   department: "HR",
   designation: "Intern",
-  employeeType: "Permanent",
+  employee_type: "Permanent",
   status: "Active",
   joining_date: "2022-08-20",
   leaving_date: "2023-08-20",
   reportingTo: "John Doe",
-  reportingLocation: "Registered Office"
+  reportingLocation: "Registered_Office"
 };
+
+
+
+
+
 
 
 const documentTypes = [

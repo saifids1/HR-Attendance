@@ -80,7 +80,7 @@ const AdminActivityLog = () => {
 
     return (
         <div className="min-h-screen py-1 px-4 bg-gray-50">
-          <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-1 shadow-lg flex justify-center items-center px-6">
+          <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-1 shadow-lg flex justify-center items-center px-6 mt-[3px]">
                                  <div className="w-10"></div> {/* Spacer to center text */}
                                  <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
                                 Activity-Log

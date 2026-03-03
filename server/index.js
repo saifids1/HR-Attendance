@@ -107,49 +107,4 @@ app.listen(PORT,()=>{
 
 
 
-// (async () => {
-//   const zk = new ZKLib("192.168.0.10", 4370, 10000, 4000);
-
-//   try {
-//     await zk.createSocket();
-//     console.log("✅ Connected");
-
-//     // 🔑 VERY IMPORTANT
-//     await zk.enableDevice();
-//     console.log("✅ Device Enabled");
-
-//     const serial = await zk.getSerialNumber();
-//     console.log("📟 Serial:", serial);
-
-//     const attendance = await zk.getAttendances();
-
-//     console.log("📄 Attendance Data:");
-//     console.log(attendance);
-
-   
-//     await zk.disconnect();
-//   } catch (err) {
-//     console.error("❌ Error:", err.message);
-//   }
-// })();
-
-// setInterval(async () => {
-//   try {
-//     await zk.enableDevice(); // ALWAYS before fetch
-
-//     const logs = await zk.getAttendances();
-
-//     console.log("📥 Count:", logs?.data?.length || 0);
-
-//     if (!logs?.data?.length) return;
-
-//     for (const log of logs.data) {
-//       console.log("✅ Attendance:", log);
-//     }
-//   } catch (err) {
-//     console.error("❌ Fetch error:", err.message);
-//   }
-// }, 5000);
-
-
   
