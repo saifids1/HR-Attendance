@@ -77,7 +77,8 @@ const Navbar = ({ open, setOpen }) => {
     toast.success("Logout Successfully");
     navigate("/");
   };
-  const BASE_URL = "http://localhost:5000";
+  const BASE_URL =import.meta.env.VITE_DOC;
+ 
 
   return (
     <header className="bg-white  border-b px-4 py-3 flex items-center justify-between h-16">

@@ -42,10 +42,10 @@ const WeeklyAttendance = () => {
 
 
     // Safely extract attendance array
-   const employees = weeklyData || [];
+   const employees = weeklyData?.data || [];
     // const attendanceList = employees?.attendance || [];
 
-    // console.log("weeklyData",weeklyData)
+    console.log("weeklyData",weeklyData)
 
 
 

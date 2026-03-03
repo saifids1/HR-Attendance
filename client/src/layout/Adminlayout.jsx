@@ -3,6 +3,7 @@ import AdminSidebar from "../components/AdminSidebar";
 import Navbar from "../components/Navbar";
 import { useState,useEffect } from "react";
 import axios from "axios";
+import api from "../../api/axiosInstance";
 
 
 function Adminlayout() {
@@ -12,10 +13,10 @@ function Adminlayout() {
       const syncAndLoad = async () => {
         try {
           //  Sync attendance
-          await axios.get("http://localhost:5000/api/admin/attendance/sync");
+          await api.get("admin/attendance/sync");
     
           // Load today's attendance
-          await axios.get("http://localhost:5000/api/admin/attendance/today");
+          await api.get("admin/attendance/today");
         } catch (err) {
           console.error("Admin sync error", err);
         }

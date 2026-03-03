@@ -23,6 +23,7 @@ import avatarImg from "../assets/avatar.webp";
 
 // Context
 import { EmployContext } from "../context/EmployContextProvider";
+import api from "../../api/axiosInstance";
 
 const Overview = () => {
   const location = useLocation();
@@ -42,7 +43,7 @@ const Overview = () => {
     const fetchProfileImage = async () => {
 
       try {
-        const res = await axios.get("http://localhost:5000/api/employee/profile/image", {
+        const res = await api.get("employee/profile/image", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -50,6 +51,7 @@ const Overview = () => {
           // Update global context with the fresh image URL
           setProfileImage(`${res.data.profile_image}?t=${new Date().getTime()}`);
         } else {
+          // eslint-disable-next-line no-undef
           setProfileImage(defaultProfile);
         }
       } catch (error) {
@@ -88,7 +90,7 @@ const Overview = () => {
     { id: 3, name: "Makar Sankranti", date: "14 Jan 2026", month: "January" },
     { id: 4, name: "Republic Day", date: "26 Jan 2026", month: "January" }
   ];
-  const BASE_URL = "http://localhost:5000";
+  const BASE_URL = import.meta.env.VITE_DOC;
   if (loading) return <Loader />;
 
   return (

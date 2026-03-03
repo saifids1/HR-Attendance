@@ -145,7 +145,7 @@ const fetchProfileImage = useCallback(async () => {
     console.log("profileImage",profileImage);
 
   },[profileImage])
-  const BASE_URL = "http://localhost:5000";
+  const BASE_URL = import.meta.env.VITE_DOC;
 
   // --- Handlers ---
 const handleProfileUpload = async (e) => {
