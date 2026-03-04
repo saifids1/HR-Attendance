@@ -164,11 +164,11 @@ const handleProfileUpload = async (e) => {
       }
     );
 
-    // ✅ Get new image path from backend
+    // Get new image path from backend
     const newImagePath = res.data?.profile_image;
 
     if (newImagePath) {
-      // 1️⃣ Update localStorage user
+      //  Update localStorage user
       const user = JSON.parse(localStorage.getItem("user") || "{}");
 
       const updatedUser = {
@@ -178,7 +178,7 @@ const handleProfileUpload = async (e) => {
 
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
-      // 2️⃣ If using context, update there also
+      // If using context, update there also
       setProfileImage(newImagePath);
     }
 

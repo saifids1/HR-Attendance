@@ -43,6 +43,7 @@ router.get("/organization/employee", auth, async (req, res) => {
 });
 router.post("/organization/:emp_id", auth, addOrganizationInfo);
 
+// Specific employee by admin edit
 router.get("/organization/:emp_id", auth, getOrganizationInfo)
 
 //  Only Admin Can Update Organization

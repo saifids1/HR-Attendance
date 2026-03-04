@@ -1,3 +1,4 @@
+
 module.exports = (req, res, next) => {
     const loggedInUser = req.user; // set by auth middleware
     const targetEmpId = req.params.emp_id;

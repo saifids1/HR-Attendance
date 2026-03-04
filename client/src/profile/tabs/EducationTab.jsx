@@ -18,7 +18,7 @@ const EducationTab = ({
   isAddingNew,
   setIsAddingNew,
 }) => {
-  const [draft, setDraft] = useState(educationData);
+  const [draft, setDraft] = useState([educationData]);
   const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -30,21 +30,32 @@ const EducationTab = ({
 
   },[])
   
-  useEffect(()=>{
+useEffect(() => {
+  if (!empId) return;
 
-    const getEducationInfo = async()=>{
-      try {
-          const resp = await getEducation(empId);
+  const fetchEducation = async () => {
+    try {
+      const resp = await getEducation(empId);
+      const education = resp?.data?.education;
 
-          console.log("resp education",resp.data.education);
+      console.log("education data",education);
 
-      } catch (error) {
-        console.log(error);
-
+      if (Array.isArray(education) && education.length > 0) {
+        setDraft(education);
+      } else {
+        setDraft([emptyEducation]);
       }
+
+    } catch (error) {
+      console.error("Error fetching education:", error);
+      setDraft([emptyEducation]);
     }
-    getEducationInfo()
-  },[])
+  };
+
+  fetchEducation();
+}, [empId]);
+
+console.log("draft",draft);
 
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));

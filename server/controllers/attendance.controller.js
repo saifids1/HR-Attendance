@@ -568,40 +568,52 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
 
-    const query = `
-        WITH attendance_summary AS (
-            SELECT
-                da.emp_id,
-                da.attendance_date,
-                da.punch_in,
-                da.punch_out,
-                da.total_hours
-            FROM public.daily_attendance da
-            WHERE da.attendance_date = $1
-        )
+   const query = `
+    WITH attendance_summary AS (
         SELECT
-            u.emp_id,
-            u.name,
-            u.email,
-            u.is_active,
-            p.department,
-            p.joining_date,
-            COALESCE(a.attendance_date, $1::DATE) AS attendance_date,
-            a.punch_in,
-            a.punch_out,
-            CASE
-                WHEN a.emp_id IS NULL THEN 'Absent'
-                WHEN a.punch_in IS NOT NULL AND a.punch_out IS NULL THEN 'Working'
-                WHEN a.punch_in IS NOT NULL AND a.punch_out IS NOT NULL THEN 'Present'
-                ELSE 'Absent'
-            END AS status,
-            a.total_hours
-        FROM users u
-        LEFT JOIN personal p ON u.emp_id = p.emp_id
-        LEFT JOIN attendance_summary a ON u.emp_id = a.emp_id
-        WHERE u.role IN ('employee', 'admin')
-        ORDER BY u.is_active DESC, u.name ASC;
-        `;
+            da.emp_id,
+            da.attendance_date,
+            COUNT(*) AS punch_count,
+            MIN(da.punch_in) AS first_punch,
+            MAX(da.punch_out) AS last_punch,
+            CASE 
+                WHEN COUNT(*) > 1 
+                THEN MAX(da.punch_out) - MIN(da.punch_in)
+                ELSE INTERVAL '0 hours'
+            END AS total_hours
+        FROM public.daily_attendance da
+        WHERE da.attendance_date = $1
+        GROUP BY da.emp_id, da.attendance_date
+    )
+
+    SELECT
+        u.emp_id,
+        u.name,
+        u.email,
+        u.is_active,
+        p.department,
+        p.joining_date,
+        COALESCE(a.attendance_date, $1::DATE) AS attendance_date,
+
+        a.first_punch AS punch_in,
+        a.last_punch AS punch_out,
+
+  
+        CASE
+            WHEN a.punch_count IS NULL THEN 'Absent'
+            WHEN a.punch_count = 1 THEN 'Working'
+            WHEN a.punch_count > 1 THEN 'Present'
+        END AS status,
+
+        COALESCE(a.punch_count, 0) AS punch_count,
+        a.total_hours
+
+    FROM users u
+    LEFT JOIN personal p ON u.emp_id = p.emp_id
+    LEFT JOIN attendance_summary a ON u.emp_id = a.emp_id
+    WHERE u.role IN ('employee', 'admin')
+    ORDER BY u.is_active DESC, u.name ASC;
+`;
 
     const { rows } = await db.query(query, [todayIST]);
 
@@ -625,7 +637,7 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
 
       // console.log("rows",rows)
       const tableRowsHtml = rows
-        .filter(emp => emp.is_active && emp.emp_id)
+        .filter(emp => emp.is_active && emp.emp_id && emp.emp_id !== "2020")
         .map(emp => {
 
           // console.log("emp",emp)
@@ -742,13 +754,13 @@ cron.schedule('0 11,16,21 * * 1-6', async () => {
   timezone: "Asia/Kolkata"
 });
 
-cron.schedule('15 15 * * 1-7', async () => {
-  console.log(`[${new Date().toISOString()}] Starting 18:55 attendance report...`);
-  exports.runAttendanceTask();
-}, {
-  scheduled: true,
-  timezone: "Asia/Kolkata"
-});
+// cron.schedule('42 12 * * 1-6', async () => {
+//   console.log(`[${new Date().toISOString()}] Starting  attendance report...`);
+//   exports.runAttendanceTask();
+// }, {
+//   scheduled: true,
+//   timezone: "Asia/Kolkata"
+// });
 
 
 // cron.schedule('4 12 * * *', async () => {

@@ -146,7 +146,7 @@ const fetchLogs = useCallback(async () => {
     if (filters.startDate) params.append("from", filters.startDate);
     if (filters.endDate) params.append("to", filters.endDate);
 
-    // ✅ Pagination params
+    //  Pagination params
     params.append("page", page);
     params.append("limit", limit);
 

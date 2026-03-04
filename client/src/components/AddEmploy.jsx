@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { toast } from "react-hot-toast";
 import MainProfile from "../profile/MainProfile";
 import { addEmploy } from "../../services/authServices";
-import defaultProfile from "../assets/avatar.webp";
+// import defaultProfile from "../assets/avatar.webp";
 import { Typography, Divider } from "@mui/material";
 import { MdOutlineEmail } from "react-icons/md";
 import { IoHomeSharp } from "react-icons/io5";
@@ -130,11 +130,19 @@ const AddEmployee = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto mt-0 sm:mt-10 mb-10 sm:mb-20 px-0 sm:px-4 font-sans text-gray-800">
-    <div className="bg-white rounded-none sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+    <div className="max-w-screen mx-auto mt-0 sm:mt-10 mb-10 sm:mb-20 px-0 sm:px-4 font-sans text-gray-800">
+      <div
+              className={`sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] -mt-[32px]`}
+            >
+              {/* */}
+              <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
+                Add Employee
+              </Typography>
+            </div>
+    {/* <div className="bg-white rounded-none sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
       
       {/* ERP Header */}
-      <div className="px-6 py-5 bg-gray-50 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* <div className="px-6 py-5 bg-gray-50 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 tracking-tight">Onboard New Employee</h2>
           <p className="text-sm text-gray-500">Fill in all details to generate employee profile</p>
@@ -150,18 +158,18 @@ const AddEmployee = () => {
           />
           <span className="text-sm font-medium text-gray-700">Active Account</span>
         </div>
-      </div>
+      </div> */}
 
-      <form onSubmit={handleAddEmp} className="p-6 sm:p-8 space-y-10">
+      {/* <form onSubmit={handleAddEmp} className="p-6 sm:p-8 space-y-10">
         
         {/* Section 1: Authentication */}
-        <section>
+        {/* <section>
           <h3 className="text-xs sm:text-sm font-bold text-blue-600 uppercase tracking-widest mb-6 flex items-center gap-2">
             <span className="w-8 h-px bg-blue-200"></span> Basic Credentials
           </h3>
 
           {/* Responsive Grid: 1 col on mobile, 2 on tablet, 3 on desktop */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             <Input label="Full Name *" name="name" value={formData.name} onChange={handleChange} error={errors.name} placeholder="John Doe" />
             <Input label="Email Address *" name="email" type="email" value={formData.email} onChange={handleChange} error={errors.email} placeholder="john@company.com" />
             <Input label="System Password *" name="password" type="password" value={formData.password} onChange={handleChange} error={errors.password} placeholder="••••••••" />
@@ -184,17 +192,17 @@ const AddEmployee = () => {
               </select>
               {errors.role && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.role}</p>}
             </div>
-          </div>
-        </section>
+          </div> */}
+        {/* </section> */}
 
         {/* Section 2: Personal Information */}
-        <section>
+        {/* <section>
           <h3 className="text-xs sm:text-sm font-bold text-blue-600 uppercase tracking-widest mb-6 flex items-center gap-2">
             <span className="w-8 h-px bg-blue-200"></span> Personal Information
           </h3>
           {/* Responsive Grid: 1 col on mobile, 2 on tablet, 4 on desktop */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-            <Input label="Date of Birth" name="dob" type="date" value={formData.dob} onChange={handleChange} />
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+            <I>nput label="Date of Birth" name="dob" type="date" value={formData.dob} onChange={handleChange} />
             <Select label="Gender" name="gender" value={formData.gender} onChange={handleChange} options={[{v:"Male", l:"Male"}, {v:"Female", l:"Female"}, {v:"Other", l:"Other"}]} />
             <Select label="Marital Status" name="maritalstatus" value={formData.maritalstatus} onChange={handleChange} options={[{v:"Single", l:"Single"}, {v:"Married", l:"Married"}]} />
             <Input label="Blood Group" name="bloodgroup" value={formData.bloodgroup} onChange={handleChange} placeholder="A+" />
@@ -203,21 +211,42 @@ const AddEmployee = () => {
             <div className="sm:col-span-2">
               <Input label="Address" name="address" value={formData.address} onChange={handleChange} placeholder="Full residential address" />
             </div>
-          </div>
-        </section>
+          </div> */}
+        {/* </section> */} 
 
         {/* Action Buttons */}
-        <div className="pt-8 border-t flex flex-col sm:flex-row justify-end gap-4">
-          <button
+        {/* <div className="pt-8 border-t flex flex-col sm:flex-row justify-end gap-4"> */}
+          {/* <button
             type="submit"
             disabled={loading}
             className="w-full sm:w-auto px-10 py-4 sm:py-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-nowrap" 
           >
           Register
           </button>
+        </div> */}
+      {/* </form> */} 
+    {/* </div> */} 
+
+      <div className="mx-auto mt-2">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <MainProfile
+            // organizationData={organizationData}
+            // personalData={personalData}
+            // educationData={educationData}
+            // experienceData={experienceData}
+            // contactData={contactsData}
+            // nomineeData={nomineeData}
+            // bankData={bankData}
+            // userRole={user?.role}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+            // onSave={handleDataRefresh} // Passing refresh function
+            // empId={empId}
+            // isAddingNew={isAddingNew}
+            // setIsAddingNew={setIsAddingNew}
+          />
         </div>
-      </form>
-    </div>
+      </div>
   </div>
   );
 };
