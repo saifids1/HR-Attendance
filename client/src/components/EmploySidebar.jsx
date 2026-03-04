@@ -67,24 +67,24 @@ const location = useLocation();
     
     <NavLink to="/employee" end className={navClass}>
       <House size={20} className="shrink-0" />
-      <span className="text-md">{isAdminInEmployeeView ? "Company Dashboard":"My Dashboard"}</span>
+      <span className="text-md">{"My Dashboard"}</span>
     </NavLink>
 
     <NavLink to="/employee/attendance" className={navClass}>
       <LockKeyhole size={20} className="shrink-0" />
-      {isAdminInEmployeeView ?   <span>Company Attendance</span>:<span>My Dashboard</span>}  
+      <span>My Attendance</span>
     
     </NavLink>
 
     <NavLink to="/employee/profile" className={navClass}>
       <CgProfile size={20} className="shrink-0" />
-       {isAdminInEmployeeView ?   <span>Company Profile</span>:<span>My Profile</span>}  
+       <span>My Profile</span>
       
     </NavLink>
 
     <NavLink to="/employee/holidays" className={navClass}>
       <MdOutlineHolidayVillage size={20} className="shrink-0" />
-        {isAdminInEmployeeView ?   <span>Company Holidays</span>:<span>My Holidays</span>}  
+        <span>My Holidays</span>
     
     </NavLink>
 
@@ -100,7 +100,7 @@ const location = useLocation();
           <SlCalender size={20} />
         </span>
       </Tooltip>
-       {isAdminInEmployeeView ?   <span>Company Leaves</span>:<span>My Leaves</span>} 
+     <span>My Leaves</span>
     
     </NavLink>
 

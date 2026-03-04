@@ -3,10 +3,13 @@ import api from "./axiosInstance"; // Import the custom instance we created
 
 
 // -------- ORGANIZATION --------
-export const getOrganization = () => api.get("/employee/profile/organization");
+export const getOrganization = (emp_id) => api.get(`/employee/profile/organization/${emp_id}`);
 
-export const updateOrganization = (data) => 
-  api.put("/employee/profile/organization", data);
+export const getUserForReporting = ()=> api.get("/employee/profile/organization/employee");
+
+export const addOrganizationInfo = (empId,data)=> api.post(`/employee/profile/organization/${empId}`,data);
+export const updateOrganization = (empId,data) => 
+  api.put(`/employee/profile/organization/${empId}`, data);
 
 // -------- PERSONAL --------
 export const getPersonal = (emp_id) => 
@@ -24,8 +27,11 @@ export const updatePersonal = (emp_id, data) =>{
 }
 
 // -------- EDUCATION --------
-export const getEducation = (emp_id) => 
-  api.get(`/employee/profile/education/${emp_id}`);
+export const getEducation = (emp_id) => {
+
+  console.log("getEducation Id ",emp_id);
+  return api.get(`/employee/profile/education/${emp_id}`);
+}
 
 export const addEducations = (emp_id, formData) =>
   api.post(`/employee/profile/education/${emp_id}`, formData,{headers: { "Content-Type": "multipart/form-data" },});
@@ -70,6 +76,18 @@ export const addContact = (emp_id,data)=>{
 // Add this to your api service file
 export const deleteContact = (emp_id, contact_id) =>
   api.delete(`/employee/profile/contact/${emp_id}/${contact_id}`);
+
+// ----- NOMINIEE-----------
+
+export const getNominee = (emp_id)=>
+  api.get(`employee/profile/nominee/${emp_id}`)
+
+
+export const addNominee = (emp_id,data)=>
+  api.post(`employee/profile/nominee/${emp_id}`,data);
+
+export const updateNominee = (emp_id,id,data)=>
+  api.put(`employee/profile/nominee/${emp_id}/${id}`,data)
 
 // -------- BANK --------
 export const getBank = (emp_id) => 

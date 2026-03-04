@@ -2,6 +2,7 @@
 import Loader from "../components/Loader";
 import { EmployContext } from "../context/EmployContextProvider";
 import Filters from "../components/Filters";
+import api from "../../api/axiosInstance";
 
 
 const StatusBadge = ({ status }) => {
@@ -85,11 +86,11 @@ const AdminAttendance = () => {
       try {
         setLoading(true);
 
-        const res = await fetch("http://localhost:5000/api/admin/attendance/history", {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`, // send token in header
-          },
+        const res = await api.get("admin/attendance/history", {
+          // headers: {
+          //   "Content-Type": "application/json",
+          //   Authorization: `Bearer ${token}`, // send token in header
+          // },
         });
 
         if (res.status === 401) {

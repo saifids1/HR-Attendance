@@ -15,12 +15,7 @@ const Employelist = () => {
     { label: "Action", key: "action" }
   ];
 
-  // useEffect(()=>{
-
-  //   console.log("adminAttendance",adminAttendance)
-  // },[adminAttendance])
-
-  // Function to handle the toggle update
+  
 
 
   const filteredEmployees = adminAttendance.filter(

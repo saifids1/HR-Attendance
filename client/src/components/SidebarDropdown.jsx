@@ -12,7 +12,7 @@ const SidebarDropdown = ({ icon: Icon, label, items, openSidebar }) => {
         type="button"
         onClick={() => setOpen(!open)}  // toggle dropdown
         className={`w-full flex items-center justify-between px-4 py-2 rounded-md transition
-          ${open ? "bg-[#222F7D] text-[#fff]" : "text-gray-700 hover:bg-[#222F7D] hover:text-white"}`}
+          ${open ? "bg-[#222F7D] text-[#fff]" : "text-gray-700 hover:bg-[#222F7D] hover:text-white"} text-[15px]`}
       >
         <div className="flex items-center gap-3">
           {Icon && <Icon size={18} />}

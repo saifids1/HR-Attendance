@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import { ChevronDown, LockKeyhole, Menu as MenuIcon } from "lucide-react";
 import {
   Avatar,
@@ -12,18 +12,26 @@ import avatarImg from "../assets/avatar.webp"; // Default fallback
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { EmployContext } from "../context/EmployContextProvider";
+import api from "../../api/axiosInstance";
 
 const Navbar = ({ open, setOpen }) => {
   const [date, setDate] = useState("");
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
-  
+  const empId = localStorage.getItem("user").emp_id;
+  const token = localStorage.getItem("token");
+
+
+
   // Destructure BOTH profileImage and setProfileImage
   const { profileImage, setProfileImage } = useContext(EmployContext);
-  
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const openMenu = Boolean(anchorEl);
 
+  useEffect(() => {
+    console.log("profileImage", profileImage);
+  }, [profileImage])
   // 1. Time logic
   useEffect(() => {
     const now = new Date();
@@ -32,22 +40,45 @@ const Navbar = ({ open, setOpen }) => {
     const ampm = hours24 >= 12 ? "PM" : "AM";
     const formattedDate = `${now.getDate().toString().padStart(2, "0")}-${(now.getMonth() + 1)
       .toString().padStart(2, "0")}-${now.getFullYear()} ${hours24
-      .toString().padStart(2, "0")}:${minutes} ${ampm}`;
+        .toString().padStart(2, "0")}:${minutes} ${ampm}`;
     setDate(formattedDate);
   }, []);
+  const fetchProfileImage = useCallback(async () => {
+    try {
+      if (!token || !empId) return;
+
+      const res = await api.get(
+        `employee/profile/image/${empId}`
+      );
+
+      if (res.data?.profile_image) {
+        const newUrl = `${res.data.profile_image}?t=${Date.now()}`;
+        setProfileImage(newUrl);
+      }
+      // "/uploads/profile-images/profile_202000005_1772259268473.jpeg
+    } catch (error) {
+      console.error("Error fetching image:", error);
+    }
+  }, [token, empId, setProfileImage]);
+
+  useEffect(() => {
+    fetchProfileImage();
+  }, [fetchProfileImage])
 
   // 2. FIXED: Improved handleLogout
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    
+
     // CRITICAL: Reset the profile image in context so the 
     // next user doesn't see the previous one's image.
-    setProfileImage(null); 
-    
+    setProfileImage(null);
+
     toast.success("Logout Successfully");
     navigate("/");
   };
+  const BASE_URL =import.meta.env.VITE_DOC;
+ 
 
   return (
     <header className="bg-white  border-b px-4 py-3 flex items-center justify-between h-16">
@@ -75,12 +106,16 @@ const Navbar = ({ open, setOpen }) => {
           className="flex items-center gap-2 cursor-pointer select-none"
           onClick={(e) => setAnchorEl(e.currentTarget)}
         >
-         
-          <Avatar 
-            src={profileImage || avatarImg} 
-            alt="Avatar" 
-            className="w-8 h-8" 
-            key={profileImage} 
+
+          <Avatar
+            src={
+              user.profile_image
+                ? `${BASE_URL}${user.profile_image}`
+                : user?.profile_image
+                  ? `${BASE_URL}${user.profile_image}`
+                  : avatarImg
+            }
+            alt="Profile"
           />
 
           <p className="hidden md:block font-semibold text-nowrap">
@@ -89,9 +124,8 @@ const Navbar = ({ open, setOpen }) => {
 
           <ChevronDown
             size={18}
-            className={`transition-transform duration-200 ${
-              openMenu ? "rotate-180" : ""
-            }`}
+            className={`transition-transform duration-200 ${openMenu ? "rotate-180" : ""
+              }`}
           />
         </div>
 

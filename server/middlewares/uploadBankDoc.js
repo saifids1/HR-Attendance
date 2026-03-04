@@ -33,12 +33,20 @@ const uploadBankDoc = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter,
-}).fields([
-  { name: "aadhaar", maxCount: 1 },
-  { name: "pan", maxCount: 1 },
-  { name: "passbook", maxCount: 1 },
-  { name: "address_proof", maxCount: 1 },
-]);
+}).single("file")
+
+// const uploadBankDoc = multer({
+//   storage,
+//   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+//   fileFilter,
+// }).fields([
+//   { name: "Aadhar Card", maxCount: 1 },
+//   { name: "PAN Card", maxCount: 1 },
+//   { name: "Bank PassBook", maxCount: 1 },
+//   { name: "Passport", maxCount: 1 },
+//    { name: "Updated CV", maxCount: 1 },
+//   { name: "UAN Card", maxCount: 1 },
+// ]);
 
 
 module.exports = uploadBankDoc;

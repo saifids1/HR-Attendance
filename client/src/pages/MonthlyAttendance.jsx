@@ -10,6 +10,7 @@ import { BiSolidFilePdf } from "react-icons/bi";
 import { EmployContext } from "../context/EmployContextProvider";
 import api from "../../api/axiosInstance";
 import { exportMonthlyMatrixAttendance } from "../utils/monthlyToExcel";
+import axios from "axios";
 
 export default function MonthlyAttendance() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -37,7 +38,7 @@ export default function MonthlyAttendance() {
 
   // Navigation handlers
   const next = () => {
-    if (selectedMonth === 11) { 
+    if (selectedMonth === 11) {
       setSelectedMonth(0);
       setSelectedYear(selectedYear + 1);
     } else {
@@ -83,15 +84,34 @@ export default function MonthlyAttendance() {
   //   console.log("employees", employees);
   // }, [employees])
 
- const  exportMonthlyAttendance = (data)=>{
-   const targetMonthStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
-exportMonthlyMatrixAttendance(data, targetMonthStr)
- }
+  const exportMonthlyAttendance = (data) => {
+    const targetMonthStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
+    exportMonthlyMatrixAttendance(data, targetMonthStr)
+  }
 
+  const formatTime = (dateString)=>{
+
+
+    // console.log("dateString",dateString);
+
+    return new Date(dateString).toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  }
   // Attendance status icons
-  const getStatusIcon = (status) => {
-    switch ((status || "")) {
-      case "Present": return <FaRegCheckCircle className="text-green-500 inline text-lg" title="Present" />;
+  const getStatusIcon = (dayData) => {
+
+    // console.log("emp",emp);
+    const punchIn = dayData?.first_in || "--";
+    const punchout = dayData?.last_out || "--";
+
+    // console.log("punchIn",punchIn);
+    // console.log("punchout",punchout);
+    switch ((dayData?.status || "")) {
+      case "Present": return <FaRegCheckCircle className="text-green-500 inline text-lg" title={`punch in (${formatTime(punchIn)}) - punch out (${formatTime(punchout)})`} />; // punch in and punch out show 
       case "Absent": return <ImCancelCircle className="text-red-500 inline text-lg" title="Absent" />;
       case "late": return <MdOutlineAccessTime size={22} className="text-orange-500 inline" title="Late" />;
       case "Holiday": return <CiStar size={22} className="text-yellow-500 inline" title="Holiday" />;
@@ -243,7 +263,7 @@ exportMonthlyMatrixAttendance(data, targetMonthStr)
                     <BiSolidFilePdf size={18} className="text-red-500" />
                     <span className="text-xs font-medium text-gray-700 hidden sm:inline">PDF</span>
                   </button>
-                  <button className="group relative flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 border border-green-200 hover:border-green-300 transition-all" onClick={()=>exportMonthlyAttendance(filteredEmployees)}>
+                  <button className="group relative flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 border border-green-200 hover:border-green-300 transition-all" onClick={() => exportMonthlyAttendance(filteredEmployees)}>
                     <FaFileExcel size={18} className="text-green-600" />
                     <span className="text-xs font-medium text-gray-700 hidden sm:inline">Excel</span>
                   </button>
@@ -274,38 +294,92 @@ exportMonthlyMatrixAttendance(data, targetMonthStr)
 
                 </tr>
               </thead>
-              <tbody>
-                {filteredEmployees.map((emp) => (
-                  <tr key={emp.emp_id} className="hover:bg-gray-50 transition">
-                    <td className="border border-gray-200 px-2 sm:px-4 py-2 sm:py-3 font-semibold sticky left-0 bg-white z-10 min-w-[200px] sm:min-w-[240px]">
-                      <div className="flex items-center gap-2">
-                        {/* <img src={emp.img} alt="img" className="h-7 w-7 sm:h-8 sm:w-8 rounded-full object-cover" /> */}
-                        <div className="leading-tight">
-                          <span className="block text-xs sm:text-sm truncate max-w-[120px]">{emp.name}</span>
-                          <div className="text-[10px] text-gray-400 truncate max-w-[120px]">{emp.department}</div>
-                        </div>
-                      </div>
-                    </td>
 
-                    {monthDays.map((day) => {
-                      const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                      const isHoliday = holidayDates.includes(dateStr);
-                      const dayData = emp.attendance?.find(a => a.date === dateStr);
-                      const weekDayIndex = new Date(selectedYear, selectedMonth, day).getDay();
-                      const isSunday = weekDayIndex === 0;
-                      return (
-                        <td key={`${emp.emp_id}-${day}`} className={`border border-gray-200 px-2 sm:px-4 py-2 text-center ${isSunday ? "bg-orange-50" : ""}`}>
-                          {isHoliday ? (
-                            <span title="Public Holiday">🎉</span> 
-                          ) : (
-                            getStatusIcon(dayData?.status)
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
+            <tbody>
+  {filteredEmployees
+    .filter((emp) => emp.is_active === true)
+    .map(
+      (emp) =>
+        emp.emp_id !== "2020" && (
+          <tr key={emp.emp_id} className="hover:bg-gray-50 transition">
+            
+            <td className="border border-gray-200 px-2 sm:px-4 py-2 sm:py-3 font-semibold sticky left-0 bg-white z-10 min-w-[200px] sm:min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <div className="leading-tight">
+                  <span className="block text-xs sm:text-sm truncate max-w-[120px]">
+                    {emp.name}
+                  </span>
+                  <div className="text-[10px] text-gray-400 truncate max-w-[120px]">
+                    {emp.department}
+                  </div>
+                </div>
+              </div>
+            </td>
+
+            {monthDays.map((day) => {
+              const dateStr = `${selectedYear}-${String(
+                selectedMonth + 1
+              ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              
+              const today = new Date();
+              // year-month-date
+              const currentDate = new Date(
+                today.getFullYear(),
+                today.getMonth(),
+                today.getDate()
+              )
+
+              // current Date of cell
+              const cellDate = new Date(selectedYear,selectedMonth,day);
+
+              // console.log("cellDate",cellDate)
+
+              // finding the Future Date
+
+              const isFutureDate = currentDate < cellDate;
+
+              const isHoliday = holidayDates.includes(dateStr);
+              
+              const dayData = emp.attendance?.find(
+                (a) => a.date === dateStr
+              );
+
+
+              // console.log("dayData",dayData);
+
+              const weekDayIndex = new Date(
+                selectedYear,
+                selectedMonth,
+                day
+              ).getDay();
+
+              const isSunday = weekDayIndex === 0;
+
+              return (
+                <td
+                  key={`${emp.emp_id}-${day}`}
+                  className={`border border-gray-200 px-2 sm:px-4 py-2 text-center
+                    ${
+                      isSunday
+                        ? "bg-orange-50 text-orange-600 font-semibold"
+                        : ""
+                    }`}
+                >
+                  {
+                    isFutureDate ? ("--"): isHoliday ? (
+                    <span title="Public Holiday">🎉</span>
+                  ) : isSunday ? (
+                    "--"
+                  ) : (
+                    getStatusIcon(dayData)
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        )
+    )}
+</tbody>
             </table>
           </div>
         </div>

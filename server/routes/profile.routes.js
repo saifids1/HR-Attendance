@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const auth = require("../middlewares/authMiddleware");
 const { db } = require("../db/connectDB");
-const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPersonInfo, addEducationInfo, getEducationInfo, getPersonalInfo, updatePersonalInfo, updateEducationInfo, deleteEducationInfo, addExperienceInfo, updateExperienceInfo, deleteExperienceInfo, getExperienceInfo, getContactInfo, updateContactInfo, addBankInfo, getBankInfo, updateBankInfo, addBankDocInfo, getAllBankDoc, addProfileImage, getProfileImage,deleteContactInfo,addContactInfo } = require("../controllers/profile.controller");
+const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPersonInfo, addEducationInfo, getEducationInfo, getPersonalInfo, updatePersonalInfo, updateEducationInfo, deleteEducationInfo, addExperienceInfo, updateExperienceInfo, deleteExperienceInfo, getExperienceInfo, getContactInfo, updateContactInfo, addBankInfo, getBankInfo, updateBankInfo, addBankDocInfo, getAllBankDoc, addProfileImage, getProfileImage,deleteContactInfo,addContactInfo, getNomineeInfo, addNomineeInfo, updateNomineeInfo, deleteDocument } = require("../controllers/profile.controller");
 const { isAdmin } = require("../middlewares/roleMiddleware");
 const uploadBankDoc = require("../middlewares/uploadBankDoc");
 const uploadProfileImage = require("../middlewares/uploadProfileImage");
@@ -15,14 +15,41 @@ const upload = require("../middlewares/uploadEducationDoc");
 const router = express.Router();
 
 // Organization
-router.post("/organization", auth, addOrganizationInfo);
 
+router.get("/organization/employee", auth, async (req, res) => {
 
-router.get("/organization", auth, getOrganizationInfo)
+  try {
+    console.log("Reporting Route Called");
+
+    const query = `
+      SELECT name, emp_id 
+      FROM users
+    `;
+
+    const { rows } = await db.query(query);
+
+    res.status(200).json({
+      success: true,
+      employees: rows
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+});
+router.post("/organization/:emp_id", auth, addOrganizationInfo);
+
+// Specific employee by admin edit
+router.get("/organization/:emp_id", auth, getOrganizationInfo)
 
 //  Only Admin Can Update Organization
 
-router.put("/organization", auth, isAdmin, updateOrganizationInfo)
+router.put("/organization/:empId", auth, isAdmin, updateOrganizationInfo)
+
 
 
 
@@ -78,6 +105,13 @@ router.put("/contact/:emp_id", auth, selfOrAdminMiddleware, updateContactInfo);
 
 router.delete("/contact/:emp_id/:id",auth,deleteContactInfo)
 
+// Nominee API
+
+router.get("/nominee/:emp_id",auth,getNomineeInfo)
+router.post("/nominee/:emp_id",auth,addNomineeInfo);
+router.put("/nominee/:emp_id/:id",auth,updateNomineeInfo);
+
+
 
 // BANK API
 
@@ -90,6 +124,24 @@ router.put("/bank/:emp_id", auth, selfOrAdminMiddleware, updateBankInfo);
 
 // Document Upload Api 
 
+// router.post(
+//   "/bank/doc/:emp_id",
+//   auth,
+//   selfOrAdminMiddleware,
+//   (req, res, next) => {
+//     uploadBankDoc(req, res, (err) => {
+//       if (err) {
+//         if (err instanceof multer.MulterError) {
+//           return res.status(400).json({ message: err.message });
+//         }
+//         return res.status(500).json({ message: err.message });
+//       }
+//       next();
+//     });
+//   },
+//   addBankDocInfo
+// );
+
 router.post(
   "/bank/doc/:emp_id",
   auth,
@@ -100,13 +152,15 @@ router.post(
         if (err instanceof multer.MulterError) {
           return res.status(400).json({ message: err.message });
         }
-        return res.status(500).json({ message: err.message });
+        return res.status(400).json({ message: err.message });
       }
       next();
     });
   },
   addBankDocInfo
 );
+
+router.delete("/bank/doc/:emp_id/:id", auth,deleteDocument);
 
 
 // GET all bank documents for an employee
@@ -127,7 +181,7 @@ router.post(
 
 
 // GET /api/employee/profile/image
-router.get("/image", auth, getProfileImage);
+router.get("/image/:emp_id", auth, getProfileImage);
 
 
 module.exports = router;

@@ -26,7 +26,7 @@ const loginController = async (req, res) => {
 
   
     const result = await db.query(
-      `SELECT id, name, email, password, role, emp_id 
+      `SELECT id, name, email, password, role, emp_id,profile_image 
        FROM users 
        WHERE email = $1 OR emp_id = $2`,
       [identifier,identifier]
@@ -71,7 +71,8 @@ const loginController = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        emp_id: user.emp_id
+        emp_id: user.emp_id,
+        profile_image:user.profile_image
       }
     });
     

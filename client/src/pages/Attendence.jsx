@@ -31,7 +31,7 @@ const Attendance = () => {
     employeeAttendance = [],
     loading,
     pagination,
-    refreshEmployeeDashboard 
+    refreshEmployeeDashboard
   } = useContext(EmployContext);
 
   // Reset logic is now handled by calling the fetcher with page 1
@@ -50,24 +50,26 @@ const Attendance = () => {
     // value is the new page number
     console.log("Changing to page:", value);
     refreshEmployeeDashboard(value);
-    
+
     // Smooth scroll to top of table on page change
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
 
 
-  {!isDaily && pagination && pagination.totalPages > 1 && (
-    <Box className="mt-6 flex justify-center pb-4">
-      <Pagination
-        totalPages={pagination.totalPages}
-        page={pagination.currentPage}
-        totalRecords={pagination.totalItems}
-        limit={pagination.limit}
-        onChange={handlePageChange} // This ensures the function is called correctly
-      />
-    </Box>
-  )}
+  {
+    !isDaily && pagination && pagination.totalPages > 1 && (
+      <Box className="mt-6 flex justify-center pb-4">
+        <Pagination
+          totalPages={pagination.totalPages}
+          page={pagination.currentPage}
+          totalRecords={pagination.totalItems}
+          limit={pagination.limit}
+          onChange={handlePageChange} // This ensures the function is called correctly
+        />
+      </Box>
+    )
+  }
 
   /* Headers */
   const adminTableHeader = ["Sr.No", "Emp ID", "Employee Name", "Date", "Punch In", "Punch Out", "Status", "Expected Hours", "Actual Working Hours"];
@@ -115,24 +117,27 @@ const Attendance = () => {
 
   return (
     <div className="min-h-max bg-gradient-to-br blur-0 bg-white px-3 pb-6">
-          
-      {isAdmin && (
-        //  <div className="sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] mt-4">
-        //         <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
-        //        {isDaily ? "Daily Attendance":"Attendance"}
-        //         </Typography>
-        //       </div>
 
-         <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-1 shadow-lg flex justify-center items-center px-6">
-                        <div className="w-10"></div> {/* Spacer to center text */}
-                        <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
-                         {isDaily ? "Daily Attendance":"Attendance"}
-                        </Typography>
-        
-                      
-                    </div>
-      )}
-    
+      {/* {isAdmin && ( */}
+
+
+        <div
+          className={`sticky z-20 top-0 bg-[#222F7D] rounded-xl py-2 mb-1 shadow-lg flex justify-center items-center px-6 ${location.pathname === "/admin/attendance"
+              ? "mt-[9px]"
+              : "mt-[17px]"
+            }`}
+        >
+
+
+          <div className="w-10"></div> {/* Spacer to center text */}
+          <Typography className="text-white font-bold" sx={{ fontSize: '1rem' }}>
+            {isDaily ? "Daily Attendance" : "Attendance"}
+          </Typography>
+
+
+        </div>
+      {/* )} */}
+
       {loading ? (
         <div className="flex items-center justify-center h-[70vh]">
           <Loader />
@@ -146,7 +151,7 @@ const Attendance = () => {
             data={tableData}
           />
 
-          
+
           {!isDaily && pagination && pagination.totalPages > 1 && (
             <Box className="mt-6 flex justify-center pb-4">
               <Pagination

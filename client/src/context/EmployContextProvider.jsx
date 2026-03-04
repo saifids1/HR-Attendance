@@ -26,6 +26,12 @@ const EmployProvider = ({ children }) => {
   const [adminLoading, setAdminLoading] = useState(false);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [personalAddress,setPersonalAddress] = useState(null);
+
+  // Pagination weekly Attendance
+  const [page, setPage] = useState(1);
+const [limit] = useState(10); // items per page
+const [totalPages, setTotalPages] = useState(1);
 
   /* Weekly Data & Filters */
   const [weeklyData, setWeeklyData] = useState([]);
@@ -53,9 +59,7 @@ const EmployProvider = ({ children }) => {
   });
 
   // Profile Image
-  const [profileImage, setProfileImage] = useState(
-    localStorage.getItem("profileImage") || ProfImg
-  );
+  const [profileImage, setProfileImage] = useState(null);
 
   /* Auth State */
   const [auth, setAuth] = useState(() => {
@@ -121,36 +125,59 @@ const EmployProvider = ({ children }) => {
   };
 
   // 3. UPDATED: Weekly logs logic
- const fetchLogs = useCallback(async () => {
-    const currentSearch = (filters.activitySearch || filters.search || filters.weekSearch || "").toString().trim();
-    
-    // Fallback logic: if no search, use logged in user's ID
-    const searchTerm = currentSearch || auth.emp_id;
+const fetchLogs = useCallback(async () => {
+  const currentSearch = (
+    filters.activitySearch ||
+    filters.search ||
+    filters.weekSearch ||
+    ""
+  )
+    .toString()
+    .trim();
 
-    if (!auth.token || !searchTerm) return;
+  if (!auth.token) return;
 
-    try {
-        setWeeklyLoading(true);
-        
-        const params = new URLSearchParams();
-        params.append("search", searchTerm);
-        if (filters.startDate) params.append("from", filters.startDate);
-        if (filters.endDate) params.append("to", filters.endDate);
+  try {
+    setWeeklyLoading(true);
 
-        const url = `admin/attendance/weekly-attendance?${params.toString()}`;
-        console.log("Fetching URL:", url);
+    const params = new URLSearchParams();
 
-        const res = await api.get(url, axiosConfig);
-        
-        // Ensure we set data correctly based on your API response structure
-        setWeeklyData(res.data); 
-    } catch (err) {
-        console.error("Fetch error:", err);
-        setWeeklyData({ attendance: [] }); 
-    } finally {
-        setWeeklyLoading(false);
-    }
-}, [filters.search, filters.activitySearch, filters.weekSearch, filters.startDate, filters.endDate, auth.token, auth.emp_id, axiosConfig]);
+    if (currentSearch) params.append("search", currentSearch);
+    if (filters.startDate) params.append("from", filters.startDate);
+    if (filters.endDate) params.append("to", filters.endDate);
+
+    //  Pagination params
+    params.append("page", page);
+    params.append("limit", limit);
+
+    const queryString = params.toString();
+    const url = `admin/attendance/weekly-attendance${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    console.log("Fetching URL:", url);
+
+    const res = await api.get(url, axiosConfig);
+
+    setWeeklyData(res.data);
+    setTotalPages(res.data.totalPages || 1); // update total pages from API
+  } catch (err) {
+    console.error("Fetch error:", err);
+    setWeeklyData({ data: [] });
+  } finally {
+    setWeeklyLoading(false);
+  }
+}, [
+  filters.search,
+  filters.activitySearch,
+  filters.weekSearch,
+  filters.startDate,
+  filters.endDate,
+  auth.token,
+  axiosConfig,
+  page, // important dependency
+  limit,
+]);
  
 const fetchHolidays = (async()=>{
    
@@ -182,6 +209,7 @@ const fetchHolidays = (async()=>{
     fetchEmployeeDashboard();
     fetchHolidays();
   }, [auth.token, auth.role]);
+  
 
   const formatDate = (value) => {
     if (!value) return "--";
@@ -193,6 +221,7 @@ const fetchHolidays = (async()=>{
     <EmployContext.Provider
       value={{
         employee, employeeAttendance, singleAttendance, adminAttendance,
+        personalAddress,setPersonalAddress,
         setAdminAttendance, orgAddress, setOrgAddress, holidays,
         loading: auth.role === "admin" ? adminLoading : employeeLoading,
         initialized, profileImage, setProfileImage,

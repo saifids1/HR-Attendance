@@ -44,3 +44,11 @@ body{
 .read-the-docs {
   color: #888;
 } */
+
+label {
+   text-transform: capitalize !important;
+}
+
+main{
+  overflow: hidden !important;
+}

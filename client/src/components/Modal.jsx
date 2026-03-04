@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BsSendFill } from "react-icons/bs";
 import axios from "axios";
+import api from "../../api/axiosInstance";
 
 const Modal = ({ isOpen, setisOpen, onSave }) => {
     const [formData, setFormData] = useState({
@@ -55,7 +56,7 @@ const Modal = ({ isOpen, setisOpen, onSave }) => {
                 reason: formData.reason,
             };
 
-            await axios.post("http://localhost:5000/api/leaves/types/apply", payload);
+            await api.post("/leaves/types/apply", payload);
             
             alert("Leave application submitted successfully!");
             setisOpen(false);

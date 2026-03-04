@@ -11,7 +11,8 @@ const DOCUMENTS = [
   { file_type: "address_proof", label: "Address Proof" },
 ];
 
-const SERVER_URL = "http://localhost:5000";
+
+const SERVER_URL = import.meta.env.VITE_DOC;
 
 const DocumentTab = ({ isEditing, setIsEditing, empId }) => {
   const [files, setFiles] = useState({});

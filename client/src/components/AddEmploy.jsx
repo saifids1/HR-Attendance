@@ -1,9 +1,28 @@
 import React, { useState } from "react";
-import { addEmploy } from "../../services/authServices";
 import { toast } from "react-hot-toast";
+import MainProfile from "../profile/MainProfile";
+import { addEmploy } from "../../services/authServices";
+// import defaultProfile from "../assets/avatar.webp";
+import { Typography, Divider } from "@mui/material";
+import { MdOutlineEmail } from "react-icons/md";
+import { IoHomeSharp } from "react-icons/io5";
+import ReportingCard from "../components/ReportingCard";
 
-const AddEmploy = () => {
-  const initialFormState = {
+const AddEmployee = () => {
+  const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+
+  const emp_id = "";
+  // const isAdmin = user.role === "admin";
+
+  // ===== Header Data States =====
+  const [profileImage, setProfileImage] = useState("");
+  const [reporting, setReporting] = useState([]);
+  const [employeeBasic, setEmployeeBasic] = useState({});
+
+  // Empty structures (same shape as EmployeeDetails expects)
+  const emptyPersonal = {
     name: "",
     email: "",
     password: "",
@@ -24,12 +43,14 @@ const AddEmploy = () => {
     profile_image: null,
   };
 
-  const [formData, setFormData] = useState(initialFormState);
+  const [formData, setFormData] = useState(emptyPersonal);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked, files } = e.target;
+    
+    // Clear error for specific field
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
 
     if (type === "file") {
@@ -50,11 +71,13 @@ const AddEmploy = () => {
     if (!formData.emp_id.trim()) newErrors.emp_id = "Employee ID is required";
     if (!formData.department.trim()) newErrors.department = "Department is required";
     if (!formData.role) newErrors.role = "Role is required";
+    
     if (!formData.email) {
       newErrors.email = "Email is required";
     } else if (!emailRegex.test(formData.email)) {
       newErrors.email = "Invalid email address";
     }
+
     if (!formData.password) {
       newErrors.password = "Password is required";
     } else if (formData.password.length < 6) {
@@ -67,6 +90,7 @@ const AddEmploy = () => {
 
   const handleAddEmp = async (e) => {
     e.preventDefault();
+
     if (!validate()) {
       toast.error("Please fill in all required fields.");
       return;
@@ -74,18 +98,31 @@ const AddEmploy = () => {
 
     try {
       setLoading(true);
+      
       const data = new FormData();
+      
+      // Correctly appending data
       Object.keys(formData).forEach((key) => {
-        if (formData[key] !== null && formData[key] !== "") {
+        if (formData[key] !== null && formData[key] !== undefined) {
           data.append(key, formData[key]);
         }
       });
 
+      console.log("Formdata",data)
+      // Verification log (FormData looks empty in standard console.log)
+      console.log("--- Sending Payload ---");
+      for (let [key, value] of data.entries()) {
+        console.log(`${key}:`, value);
+      }
+
       await addEmploy(data);
       toast.success("New Employee Record Created Successfully!");
+      
       setFormData(initialFormState);
       setErrors({});
+      
     } catch (error) {
+      console.error("Submission Error:", error);
       toast.error(error.response?.data?.message || "Failed to sync employee data");
     } finally {
       setLoading(false);
@@ -93,97 +130,128 @@ const AddEmploy = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto mt-0 sm:mt-10 mb-10 px-0 sm:px-4 font-sans text-gray-800">
-      <div className="bg-white rounded-none sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        
-        <form onSubmit={handleAddEmp} className="p-6 sm:p-8 space-y-10">
-          <section>
-            <h3 className="text-xs sm:text-sm font-bold text-blue-600 uppercase tracking-widest mb-6 flex items-center gap-2">
-              <span className="w-8 h-px bg-blue-200"></span> Employee Registration
-            </h3>
-
-            {/* Standardized 3-Column Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-              
-              <Input label="Full Name *" name="name" value={formData.name} onChange={handleChange} error={errors.name} placeholder="John Doe" />
-              
-              <Input label="Email Address *" name="email" type="email" value={formData.email} onChange={handleChange} error={errors.email} placeholder="john@company.com" />
-              
-              <Input label="Department *" name="department" value={formData.department} onChange={handleChange} error={errors.department} placeholder="IT / Engineering" />
-
-              <div className="flex flex-col">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-tight">Role *</label>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleChange}
-                  className={`w-full rounded-lg border px-3 py-2.5 text-sm bg-white focus:ring-4 outline-none transition-all ${
-                    errors.role ? "border-red-500 focus:ring-red-100" : "border-gray-200 focus:ring-blue-100 focus:border-blue-400"
-                  }`}
-                >
-                  <option value="employee">Employee</option>
-                  <option value="admin">Admin</option>
-                </select>
-                {errors.role && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.role}</p>}
-              </div>
-
-              {/* Account Status Toggle (Aligned to grid) */}
-              <div className="flex flex-col justify-center">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-tight">Account Status</label>
-                <div className="flex items-center gap-3 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50/50 h-[42px]">
-                   <input
-                    type="checkbox"
-                    name="is_active"
-                    checked={formData.is_active}
-                    onChange={handleChange}
-                    className="w-4 h-4 accent-green-600 cursor-pointer"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Active Account</span>
-                </div>
-              </div>
-
-              <Input label="Date of Birth" name="dob" type="date" value={formData.dob} onChange={handleChange} />
-              
-              <Input label="Joining Date" name="joining_date" type="date" value={formData.joining_date} onChange={handleChange} />
-
-              <Select label="Gender" name="gender" value={formData.gender} onChange={handleChange} options={[{ v: "Male", l: "Male" }, { v: "Female", l: "Female" }, { v: "Other", l: "Other" }]} />
-              
-              <Select label="Marital Status" name="maritalstatus" value={formData.maritalstatus} onChange={handleChange} options={[{ v: "Single", l: "Single" }, { v: "Married", l: "Married" }]} />
-
-              <Input label="Nationality" name="nationality" value={formData.nationality} onChange={handleChange} placeholder="Indian" />
-
-              <Input label="Blood Group" name="bloodgroup" value={formData.bloodgroup} onChange={handleChange} placeholder="A+" />
-
-              <Input label="Aadhar/National ID" name="aadharnumber" value={formData.aadharnumber} onChange={handleChange} placeholder="0000 0000 0000" />
-
-              <Input label="Employee ID *" name="emp_id" value={formData.emp_id} onChange={handleChange} error={errors.emp_id} placeholder="202500028" />
-
-              <Input label="System Password *" name="password" type="password" value={formData.password} onChange={handleChange} error={errors.password} placeholder="••••••••" />
-
-              {/* Address spanning 3 columns for better UX */}
-                <Input label="Address" name="address" value={formData.address} onChange={handleChange} placeholder="Full residential address" />
-              {/* <div className="sm:col-span-2 lg:col-span-3">
-              </div> */}
-
-            </div>
-          </section>
-
-          <div className="pt-8 border-t flex flex-col sm:flex-row justify-end gap-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full sm:w-auto px-12 py-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50 text-nowrap"
+    <div className="max-w-screen mx-auto mt-0 sm:mt-10 mb-10 sm:mb-20 px-0 sm:px-4 font-sans text-gray-800">
+      <div
+              className={`sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] -mt-[32px]`}
             >
-              {loading ? "" : "Create Employee"}
-            </button>
-          </div>
-        </form>
+              {/* */}
+              <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
+                Add Employee
+              </Typography>
+            </div>
+    {/* <div className="bg-white rounded-none sm:rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+      
+      {/* ERP Header */}
+      {/* <div className="px-6 py-5 bg-gray-50 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800 tracking-tight">Onboard New Employee</h2>
+          <p className="text-sm text-gray-500">Fill in all details to generate employee profile</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border sm:border-none">
+          <span className="text-xs font-semibold text-gray-400 uppercase">Status:</span>
+          <input
+            type="checkbox"
+            name="is_active"
+            checked={formData.is_active}
+            onChange={handleChange}
+            className="w-5 h-5 accent-green-600 cursor-pointer"
+          />
+          <span className="text-sm font-medium text-gray-700">Active Account</span>
+        </div>
+      </div> */}
+
+      {/* <form onSubmit={handleAddEmp} className="p-6 sm:p-8 space-y-10">
+        
+        {/* Section 1: Authentication */}
+        {/* <section>
+          <h3 className="text-xs sm:text-sm font-bold text-blue-600 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <span className="w-8 h-px bg-blue-200"></span> Basic Credentials
+          </h3>
+
+          {/* Responsive Grid: 1 col on mobile, 2 on tablet, 3 on desktop */}
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+            <Input label="Full Name *" name="name" value={formData.name} onChange={handleChange} error={errors.name} placeholder="John Doe" />
+            <Input label="Email Address *" name="email" type="email" value={formData.email} onChange={handleChange} error={errors.email} placeholder="john@company.com" />
+            <Input label="System Password *" name="password" type="password" value={formData.password} onChange={handleChange} error={errors.password} placeholder="••••••••" />
+            <Input label="Employee ID *" name="emp_id" value={formData.emp_id} onChange={handleChange} error={errors.emp_id} placeholder="202500028" />
+            <Input label="Department *" name="department" value={formData.department} onChange={handleChange} error={errors.department} placeholder="IT / Engineering" />
+            <Input label="Nationality" name="nationality" value={formData.nationality} onChange={handleChange} placeholder="Indian" />
+
+            <div className="flex flex-col">
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-tight">Role *</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className={`w-full rounded-lg border px-3 py-2.5 text-base sm:text-sm bg-white focus:ring-4 outline-none transition-all ${
+                  errors.role ? "border-red-500 focus:ring-red-100" : "border-gray-200 focus:ring-blue-100 focus:border-blue-400"
+                }`}
+              >
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+              </select>
+              {errors.role && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.role}</p>}
+            </div>
+          </div> */}
+        {/* </section> */}
+
+        {/* Section 2: Personal Information */}
+        {/* <section>
+          <h3 className="text-xs sm:text-sm font-bold text-blue-600 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <span className="w-8 h-px bg-blue-200"></span> Personal Information
+          </h3>
+          {/* Responsive Grid: 1 col on mobile, 2 on tablet, 4 on desktop */}
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+            <I>nput label="Date of Birth" name="dob" type="date" value={formData.dob} onChange={handleChange} />
+            <Select label="Gender" name="gender" value={formData.gender} onChange={handleChange} options={[{v:"Male", l:"Male"}, {v:"Female", l:"Female"}, {v:"Other", l:"Other"}]} />
+            <Select label="Marital Status" name="maritalstatus" value={formData.maritalstatus} onChange={handleChange} options={[{v:"Single", l:"Single"}, {v:"Married", l:"Married"}]} />
+            <Input label="Blood Group" name="bloodgroup" value={formData.bloodgroup} onChange={handleChange} placeholder="A+" />
+            <Input label="Aadhar/National ID" name="aadharnumber" value={formData.aadharnumber} onChange={handleChange} placeholder="0000 0000 0000" />
+            <Input label="Joining Date" name="joining_date" type="date" value={formData.joining_date} onChange={handleChange} />
+            <div className="sm:col-span-2">
+              <Input label="Address" name="address" value={formData.address} onChange={handleChange} placeholder="Full residential address" />
+            </div>
+          </div> */}
+        {/* </section> */} 
+
+        {/* Action Buttons */}
+        {/* <div className="pt-8 border-t flex flex-col sm:flex-row justify-end gap-4"> */}
+          {/* <button
+            type="submit"
+            disabled={loading}
+            className="w-full sm:w-auto px-10 py-4 sm:py-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-nowrap" 
+          >
+          Register
+          </button>
+        </div> */}
+      {/* </form> */} 
+    {/* </div> */} 
+
+      <div className="mx-auto mt-2">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <MainProfile
+            // organizationData={organizationData}
+            // personalData={personalData}
+            // educationData={educationData}
+            // experienceData={experienceData}
+            // contactData={contactsData}
+            // nomineeData={nomineeData}
+            // bankData={bankData}
+            // userRole={user?.role}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+            // onSave={handleDataRefresh} // Passing refresh function
+            // empId={empId}
+            // isAddingNew={isAddingNew}
+            // setIsAddingNew={setIsAddingNew}
+          />
+        </div>
       </div>
-    </div>
+  </div>
   );
 };
 
-
+/* Components maintained exactly as requested */
 const Input = ({ label, name, type = "text", value, onChange, placeholder, error }) => (
   <div className="flex flex-col">
     <label className="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-tight">{label}</label>
@@ -218,4 +286,4 @@ const Select = ({ label, name, value, onChange, options }) => (
   </div>
 );
 
-export default AddEmploy;
+export default AddEmployee;

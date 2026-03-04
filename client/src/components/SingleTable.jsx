@@ -7,6 +7,7 @@ import React, {
 import { EmployContext } from "../context/EmployContextProvider";
 import axios from "axios";
 import  Pagination  from "../components/Pagination";
+import api from "../../api/axiosInstance";
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -86,8 +87,8 @@ const SingleTable = ({ empId }) => {
         params.emp_id = empId;
       }
   
-      const resp = await axios.get(
-        "http://localhost:5000/api/admin/attendance/all-attendance",
+      const resp = await api.get(
+        "admin/attendance/all-attendance",
         {
           params,
           headers: {

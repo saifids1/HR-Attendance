@@ -1,119 +1,135 @@
-import React, { useContext, useEffect, useState, useCallback } from "react";
-import FormCard from "../../components/FormCard";
-import Input from "../../components/Input";
-import Loader from "../../components/Loader";
+import React, { useEffect, useState } from "react";
 import {
-  getExperience,
-  addExperienceses,
+  addExperienceses, //  FIXED NAME
   updateExperience,
   deleteExperience,
 } from "../../../api/profile";
 import { emptyExperience } from "../../constants/emptyData";
-import { FaPencilAlt } from "react-icons/fa";
+import { FaPencilAlt, FaCheck, FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
 import { toast } from "react-hot-toast";
-import { AuthContext } from "../../context/AuthContextProvider";
+import Loader from "../../components/Loader";
 
-const ExperienceTab = ({ experienceData, isEditing, setIsEditing, empId }) => {
-  const user = JSON.parse(localStorage.getItem("user"));
-  const emp_id = user?.emp_id;
-  const { token } = useContext(AuthContext);
-
-  const [draft, setDraft] = useState({ ...emptyExperience });
-  const [savedExperience, setSavedExperience] = useState(experienceData || []);
-  const [errors, setErrors] = useState({});
+const ExperienceTab = ({
+  experienceData, // prevents crash
+  isAddingNew,
+  setIsAddingNew,
+  empId,
+  onSave,
+}) => {
+  const [draft, setDraft] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Helper: Convert any date format to YYYY-MM-DD for HTML5 Input compatibility
+
+  // console.log("experienceData",experienceData);
+  /* ================= DATE HELPERS ================= */
+
+  const formatDate = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    if (isNaN(d)) return date;
+    return d.toLocaleDateString("en-GB");
+  };
+
   const toInputDate = (date) => {
     if (!date) return "";
     const d = new Date(date);
-    return !isNaN(d.getTime()) ? d.toISOString().split("T")[0] : "";
+    return !isNaN(d) ? d.toISOString().split("T")[0] : "";
   };
 
-  const fetchExperience = useCallback(async () => {
-    if (!emp_id) return;
-    setLoading(true);
-    try {
-      const res = await getExperience(emp_id);
-      const rawData = res?.data?.experience || [];
-      const formattedData = rawData.map((e) => ({
-        ...e,
-        companyName: e.company_name, // Map DB to UI keys
-        companyLocation: e.location,
-        start_date: toInputDate(e.start_date),
-        end_date: toInputDate(e.end_date),
-      }));
-      setSavedExperience(formattedData);
-    } catch (err) {
-      toast.error("Failed to load experience");
-    } finally {
-      setLoading(false);
-    }
-  }, [emp_id]);
+  /* ================= HANDLE ADD NEW ================= */
 
   useEffect(() => {
-    if (token && emp_id) fetchExperience();
-  }, [emp_id, fetchExperience, token]);
+    if (isAddingNew && !draft) {
+      setEditingIndex("new");
+      setDraft({ ...emptyExperience });
+    }
+  }, [isAddingNew]);
+
+  /* ================= HANDLE CHANGE ================= */
 
   const handleChange = (key, value) => {
     setDraft((prev) => {
-      const newDraft = { ...prev, [key]: value };
+      const updated = { ...prev, [key]: value };
 
-      // Live calculation of years
-      if ((key === "start_date" || key === "end_date") && newDraft.start_date && newDraft.end_date) {
-        const start = new Date(newDraft.start_date);
-        const end = new Date(newDraft.end_date);
+      if (
+        (key === "start_date" || key === "end_date") &&
+        updated.start_date &&
+        updated.end_date
+      ) {
+        const start = new Date(updated.start_date);
+        const end = new Date(updated.end_date);
+
         if (end >= start) {
           const diff = (end - start) / (1000 * 60 * 60 * 24 * 365.25);
-          newDraft.total_years = diff.toFixed(1);
+          updated.total_years = diff.toFixed(1);
         } else {
-          newDraft.total_years = "0";
+          updated.total_years = "";
         }
       }
-      return newDraft;
-    });
 
-    // Clear specific error when user types
-    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: null }));
-    // If date is fixed, clear both date errors
-    if (key === "start_date" || key === "end_date") {
-        setErrors((prev) => ({ ...prev, start_date: null, end_date: null }));
-    }
+      return updated;
+    });
   };
 
- const handleSave = async () => {
-    const newErrors = {};
+  /* ================= EDIT ================= */
 
-    // 1. Validate All Fields (Checks if empty or just whitespace)
-    Object.keys(emptyExperience).forEach((key) => {
-      if (key !== "id") {
-        const val = draft[key];
-        if (!val || val.toString().trim() === "") {
-          // Creating a user-friendly label for the error message
-          const fieldLabel = key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").toUpperCase();
-          newErrors[key] = `${fieldLabel} IS REQUIRED`;
-        }
-      }
+  const handleEdit = (exp, index) => {
+    if (draft) {
+      toast.error("Please save or cancel current changes first");
+      return;
+    }
+
+    setEditingIndex(index);
+    setDraft({
+      id: exp.id,
+      companyName: exp.company_name,
+      companyLocation: exp.location,
+      designation: exp.designation,
+      start_date: toInputDate(exp.start_date),
+      end_date: toInputDate(exp.end_date),
+      total_years: exp.total_years,
     });
+  };
 
-    // 2. Specific Date Logic Validation
-    if (draft.start_date && draft.end_date) {
-      const start = new Date(draft.start_date);
-      const end = new Date(draft.end_date);
-      if (end < start) {
-        newErrors.end_date = "END DATE CANNOT BE BEFORE START DATE";
-      }
+  /* ================= CANCEL ================= */
+
+  const handleCancel = () => {
+    setDraft(null);
+    setEditingIndex(null);
+    setIsAddingNew(false);
+  };
+
+  /* ================= VALIDATION ================= */
+
+  const validateDraft = () => {
+    if (!draft.companyName) return "Company name required";
+    if (!draft.designation) return "Designation required";
+    if (!draft.start_date) return "Start date required";
+    return null;
+  };
+
+  /* ================= SAVE ================= */
+
+  const handleSave = async () => {
+    if (!draft) return;
+
+    const error = validateDraft();
+    if (error) {
+      toast.error(error);
+      return;
     }
 
-    // 3. If there are errors, stop execution and show toast
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return toast.error("Please fix the errors before saving");
+    if (!empId) {
+      toast.error("Employee ID missing");
+      return;
     }
+
+    const toastId = toast.loading("Saving experience...");
+    setLoading(true);
 
     try {
-      setLoading(true);
       const payload = {
         company_name: draft.companyName,
         location: draft.companyLocation,
@@ -125,140 +141,197 @@ const ExperienceTab = ({ experienceData, isEditing, setIsEditing, empId }) => {
 
       if (draft.id) {
         await updateExperience(empId, draft.id, payload);
-        toast.success("Experience updated successfully");
+        toast.success("Experience updated", { id: toastId });
       } else {
         await addExperienceses(empId, payload);
-        toast.success("New experience added successfully");
+        toast.success("Experience added", { id: toastId });
       }
 
-      setIsEditing(false);
-      setDraft({ ...emptyExperience });
-      fetchExperience();
+      setDraft(null);
+      setEditingIndex(null);
+      setIsAddingNew(false);
+
+      if (onSave) await onSave();
     } catch (err) {
-      toast.error("Save failed. Please check your connection or server logs.");
+      console.error(err);
+      toast.error("Save failed", { id: toastId });
     } finally {
       setLoading(false);
     }
   };
 
+  /* ================= DELETE ================= */
+
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this experience record?")) return;
+    if (!empId) return;
+    if (!window.confirm("Delete this record?")) return;
+
+    const toastId = toast.loading("Deleting...");
+    setLoading(true);
+
     try {
       await deleteExperience(empId, id);
-      toast.success("Deleted");
-      fetchExperience();
-    } catch (error) {
-      toast.error("Delete failed");
+      toast.success("Deleted", { id: toastId });
+
+      if (onSave) await onSave();
+    } catch (err) {
+      console.error(err);
+      toast.error("Delete failed", { id: toastId });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEdit = (exp) => {
-    // Ensure dates are formatted for the <input type="date" />
-    const formattedExp = {
-      ...exp,
-      start_date: toInputDate(exp.start_date),
-      end_date: toInputDate(exp.end_date),
-    };
-    setDraft(formattedExp);
-    setErrors({});
-    setIsEditing(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleCancel = () => {
-    setDraft({ ...emptyExperience });
-    setErrors({});
-    setIsEditing(false);
-  };
+  /* ================= UI ================= */
 
   return (
-    <div className="w-full space-y-6">
-      <FormCard title={draft.id ? "Edit Experience" : "Add Experience"}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-          {Object.keys(emptyExperience).map((key) => {
-            if (key === "id") return null;
-            const isCalculated = key === "total_years";
-
-            return (
-              <div key={key} className="flex flex-col w-full">
-                <Input
-                  label={key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").toUpperCase()}
-                  type={key.includes("date") ? "date" : "text"}
-                  value={draft[key] || ""}
-                  disabled={!isEditing || isCalculated}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  className="w-full"
-                />
-                {isEditing && errors[key] && (
-                  <p className="text-red-500 text-[10px] mt-1 font-bold italic uppercase">
-                    * {errors[key]}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </FormCard>
-
-      {isEditing && (
-        <div className="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <button className="px-5 py-2 text-gray-600 hover:bg-gray-200 rounded-md transition-all" onClick={handleCancel}>
-            Cancel
-          </button>
-          <button className="px-5 py-2 bg-[#222F7D] text-white rounded-md hover:bg-blue-900 shadow-md font-medium" onClick={handleSave}>
-            {draft.id ? "Update Record" : "Save Record"}
-          </button>
-        </div>
-      )}
-
-      {/* Table Section */}
-      <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-300">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">COMPANY NAME</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">COMPANY LOCATION</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">DESIGNATION</th>
-              <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Years</th>
-              <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {loading ? (
+    <div className="container-fluid">
+      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="min-w-full divide-y divide-gray-300">
+            <thead className="bg-gray-200">
               <tr>
-                <td colSpan="5" className="text-center py-10">
-                  <div className="flex justify-center"><Loader /></div>
-                </td>
+                {[
+                  "Company",
+                  "Location",
+                  "Designation",
+                  "Start Date",
+                  "End Date",
+                  "Years",
+                  "Actions",
+                ].map((head) => (
+                  <th
+                    key={head}
+                    className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium"
+                  >
+                    {head}
+                  </th>
+                ))}
               </tr>
-            ) : savedExperience.length > 0 ? (
-              savedExperience.map((exp) => (
-                <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{exp.companyName}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{exp.companyLocation}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{exp.designation}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{exp.total_years} yrs</td>
-                  <td className="px-4 py-3 text-sm text-center">
-                    <div className="flex justify-center gap-4">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit Record">
-                        <FaPencilAlt />
-                      </button>
-                      <button onClick={() => handleDelete(exp.id)} className="text-red-500 hover:text-red-700 transition-colors" title="Delete Record">
-                        <MdDelete size={20} />
-                      </button>
-                    </div>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
+                <tr>
+                  <td colSpan="7" className="text-center py-10 text-sm text-gray-600">
+                    <Loader />
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="text-center py-10 text-gray-400 italic">No experience records found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              ) : experienceData.length === 0 && editingIndex !== "new" ? (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="text-center py-8 text-sm text-gray-600 italic bg-gray-50"
+                  >
+                    No experience records found
+                  </td>
+                </tr>
+              ) : (
+                experienceData.map((exp, index) =>
+                  editingIndex === index ? (
+                    <EditableRow
+                      key={exp.id || index}
+                      draft={draft}
+                      onChange={handleChange}
+                      onSave={handleSave}
+                      onCancel={handleCancel}
+                    />
+                  ) : (
+                    <tr key={exp.id || index} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.company_name}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.location}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.designation}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">
+                        {formatDate(exp.start_date)}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{formatDate(exp.end_date)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.total_years} yrs</td>
+                      <td className="px-4 py-2 text-sm text-gray-600 text-center">
+                        <div className="flex justify-center gap-4">
+                          <button
+                            onClick={() => handleEdit(exp, index)}
+                            className="text-blue-600"
+                          >
+                            <FaPencilAlt />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(exp.id)}
+                            className="text-red-500"
+                          >
+                            <MdDelete size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                )
+              )}
+
+              {/* NEW ROW */}
+              {editingIndex === "new" && draft && (
+                <EditableRow
+                  draft={draft}
+                  onChange={handleChange}
+                  onSave={handleSave}
+                  onCancel={handleCancel}
+                />
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 };
+
+const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
+  <tr className="bg-blue-50">
+    {[["companyName"], ["companyLocation"], ["designation"]].map(([field]) => (
+      <td key={field} className="p-2 text-sm text-gray-600">
+        <input
+          value={draft[field] || ""}
+          onChange={(e) => onChange(field, e.target.value)}
+          className="w-full border px-2 py-1 text-sm rounded"
+        />
+      </td>
+    ))}
+
+    <td className="p-2 text-sm text-gray-600">
+      <input
+        type="date"
+        value={draft.start_date || ""}
+        onChange={(e) => onChange("start_date", e.target.value)}
+        className="w-full border px-2 py-1 text-sm rounded"
+      />
+    </td>
+
+    <td className="p-2 text-sm text-gray-600">
+      <input
+        type="date"
+        value={draft.end_date || ""}
+        onChange={(e) => onChange("end_date", e.target.value)}
+        className="w-full border px-2 py-1 text-sm rounded"
+      />
+    </td>
+
+    <td className="p-2 text-sm text-gray-600">
+      <input
+        value={draft.total_years || ""}
+        readOnly
+        className="w-full border px-2 py-1 text-sm rounded bg-gray-100"
+      />
+    </td>
+
+    <td className="p-2 text-center text-sm text-gray-600">
+      <div className="flex justify-center gap-4">
+        <button onClick={onSave} className="text-green-600">
+          <FaCheck />
+        </button>
+        <button onClick={onCancel} className="text-orange-500">
+          <FaTimes />
+        </button>
+      </div>
+    </td>
+  </tr>
+);
 
 export default ExperienceTab;

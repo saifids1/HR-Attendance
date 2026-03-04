@@ -2,7 +2,7 @@ import React from 'react';
 
 const Input = ({ label, disabled, error, ...props }) => (
   <div className="flex flex-col gap-1 w-full">
-    <label className="text-sm text-gray-600 font-medium">
+    <label className="text-sm text-gray-600 font-medium capitalize">
       {label?.replace(/_/g, " ")}
     </label>
 
