@@ -108,7 +108,7 @@ const formatDOB = (dateStr) => {
 
   return (
     <>
-      <div className="bg-white shadow p-1 rounded-lg">
+      <div className="bg-white shadow rounded-lg">
         <form onSubmit={handleSave}>
           <div className="border rounded p-4 mb-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">

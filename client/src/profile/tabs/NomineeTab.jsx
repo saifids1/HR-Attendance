@@ -3,47 +3,37 @@ import React, { useEffect, useState } from "react";
 import { emptyNominee } from "../../constants/emptyData";
 import { addNominee, getNominee, updateNominee } from "../../../api/profile";
 import { useParams } from "react-router-dom";
-import {toast} from "react-hot-toast";
+import { toast } from "react-hot-toast";
 
-
-export const NomineeTab = ({nomineData, isEditing, empId,setIsEditing }) => {
-const [nomineeData, setNomineeData] = useState(emptyNominee);
-  const {emp_id} =useParams()
+export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
+  const [nomineeData, setNomineeData] = useState(emptyNominee);
+  const { emp_id } = useParams();
 
   const finalEmpId = emp_id || empId;
 
+  useEffect(() => {
+    if (nomineData) {
+      setNomineeData(nomineData);
+    }
 
-
-useEffect(() => {
-  if (nomineData) {
-    setNomineeData(nomineData);
-  }
-
-  console.log("nomineeDate",nomineeData);
-
-}, [nomineData]);
+    console.log("nomineeDate", nomineeData);
+  }, [nomineData]);
 
   // useEffect(()=>{
   //   console.log("url id ", emp_id)
   // },[emp_id])
 
-   useEffect(() => {
+  useEffect(() => {
+    if (!finalEmpId) return;
+
     const fetchNominee = async () => {
       try {
-        if (!finalEmpId) return;
-
         const resp = await getNominee(finalEmpId);
 
-        console.log("getNominee resp",resp.data.nominee);
-
-        if (resp?.data) {
-          setNomineeData(resp.data.nominee);
-        } else {
-          setNomineeData(emptyNominee);
-        }
-
+        setNomineeData(resp?.data?.nominee || emptyNominee);
       } catch (error) {
-        console.error("Error fetching nominee:", error);
+        console.log(error);
+        setNomineeData(emptyNominee);
       }
     };
 
@@ -52,14 +42,12 @@ useEffect(() => {
 
   // console.log("nomineeData",nomineeData)
 
-
-
-const handleChange = (field, value) => {
-  setNomineeData(prev => ({
-    ...prev,
-    [field]: value
-  }));
-};
+  const handleChange = (field, value) => {
+    setNomineeData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
 
   // const handleAddRow = async() => {
 
@@ -77,92 +65,91 @@ const handleChange = (field, value) => {
     setNomineeData(emptyNominee);
   };
 
-const handleSave = async () => {
-  try {
-    if (!finalEmpId) return;
+  const handleSave = async () => {
+    try {
+      if (!finalEmpId) return;
 
-    const resp = nomineeData.id
-      ? await updateNominee(finalEmpId, nomineeData.id, nomineeData)
-      : await addNominee(finalEmpId, nomineeData);
+      const resp = nomineeData.id
+        ? await updateNominee(finalEmpId, nomineeData.id, nomineeData)
+        : await addNominee(finalEmpId, nomineeData);
 
-      console.log("reps save",resp.data.data);
-   setNomineeData(prev => ({
-  ...prev,
-  ...resp.data.data
-}));
+      console.log("reps save", resp.data.data);
+      setNomineeData((prev) => ({
+        ...prev,
+        ...resp.data.data,
+      }));
 
-setIsEditing(false);
+      setIsEditing(false);
 
-toast.success("Nominee Updated Sucessfully")
+      toast.success("Nominee Updated Sucessfully");
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  // useEffect(()=>{
 
-
-  } catch (error) {
-    console.error(error);
-  }
-};
-// useEffect(()=>{
-
-//   console.log("nomineeData",nomineData);
-// },[nomineData])
+  //   console.log("nomineeData",nomineData);
+  // },[nomineData])
 
   return (
-    <div className="bg-white shadow p-4 rounded-lg">
+    <div className="bg-white shadow">
       <form>
         <div className="border rounded p-4 mb-4">
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-    {/* {nomineData?.map((nominee,index)=>( */}
-      <>
-      <div className="flex flex-col">
-      <label className="text-sm text-gray-600 mb-1 font-medium">
-        Nominee Name
-      </label>
-      <input
-        type="text"
-        value={nomineeData?.nominee_name || ""}
-        onChange={(e) =>
-          handleChange("nqominee_name", e.target.value)
-        }
-        disabled={!isEditing}
-        className="border rounded px-3 py-2 text-sm"
-      />
-    </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+            {/* {nomineData?.map((nominee,index)=>( */}
+            <>
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Nominee Name
+                </label>
+                <input
+                  type="text"
+                  value={nomineeData?.nominee_name || ""}
+                  onChange={(e) => handleChange("nominee_name", e.target.value)}
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
+                    isEditing ? "" : "cursor-not-allowed"
+                  }`}
+                />
+              </div>
 
-    <div className="flex flex-col">
-      <label className="text-sm text-gray-600 mb-1 font-medium">
-        Nominee Relation
-      </label>
-      <input
-        type="text"
-        value={nomineeData?.nominee_relation ||"" }
-        onChange={(e) =>
-          handleChange("nominee_relation", e.target.value)
-        }
-        disabled={!isEditing}
-        className="border rounded px-3 py-2 text-sm"
-      />
-    </div>
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Nominee Relation
+                </label>
+                <input
+                  type="text"
+                  value={nomineeData?.nominee_relation || ""}
+                  onChange={(e) =>
+                    handleChange("nominee_relation", e.target.value)
+                  }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
+                    isEditing ? "" : "cursor-not-allowed"
+                  }`}
+                />
+              </div>
 
-    <div className="flex flex-col">
-      <label className="text-sm text-gray-600 mb-1 font-medium">
-        Nominee Contact
-      </label>
-      <input
-        type="text"
-        value={nomineeData?.nominee_contact || ""}
-        onChange={(e) =>
-          handleChange("nominee_contact", e.target.value)
-        }
-        disabled={!isEditing}
-        className="border rounded px-3 py-2 text-sm"
-      />
-    </div>
-      </>
-    {/* ))} */}
-    
-
-  </div>
-</div>
-       
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Nominee Contact
+                </label>
+                <input
+                  type="text"
+                  value={nomineeData?.nominee_contact || ""}
+                  onChange={(e) =>
+                    handleChange("nominee_contact", e.target.value)
+                  }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
+                    isEditing ? "" : "cursor-not-allowed"
+                  }`}
+                />
+              </div>
+            </>
+            {/* ))} */}
+          </div>
+        </div>
 
         {isEditing && (
           <>

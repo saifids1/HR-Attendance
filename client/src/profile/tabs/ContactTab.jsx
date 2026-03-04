@@ -112,8 +112,8 @@ const ContactTab = ({
 
   return (
     <div className="container-fluid">
-      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+      <div className="bg-white p-4 rounded shadow-sm border border-gray-200">
+        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>

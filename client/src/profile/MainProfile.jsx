@@ -94,7 +94,7 @@ const MainProfile = ({
           ))}
       </div>
 
-      <div className="mt-4">
+      <div className="mt-3">
           {activeTab === "Organization" && (
           <OrganizationTab
             organizationData={organizationData}

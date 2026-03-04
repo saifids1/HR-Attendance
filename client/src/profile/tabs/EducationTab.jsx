@@ -20,31 +20,27 @@ const EducationTab = ({
 }) => {
   const [draft, setDraft] = useState(educationData);
   const [errors, setErrors] = useState({});
-    const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
   /* ================= CHANGE ================= */
 
-  useEffect(()=>{
-    console.log("Education Data",educationData);
+  useEffect(() => {
+    console.log("Education Data", educationData);
+  }, []);
 
-  },[])
-  
-  useEffect(()=>{
-
-    const getEducationInfo = async()=>{
+  useEffect(() => {
+    const getEducationInfo = async () => {
       try {
-          const resp = await getEducation(empId);
+        const resp = await getEducation(empId);
 
-          console.log("resp education",resp.data.education);
-
+        console.log("resp education", resp.data.education);
       } catch (error) {
         console.log(error);
-
       }
-    }
-    getEducationInfo()
-  },[])
+    };
+    getEducationInfo();
+  }, []);
 
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -52,23 +48,22 @@ const EducationTab = ({
 
   /* ================= EDIT ================= */
 
-const handleEdit = (education, index) => {
+  const handleEdit = (education, index) => {
+    if (editingIndex === index) {
+      // Clicking same row → cancel edit
+      setEditingIndex(null);
+      setDraft(emptyEducation);
+      return;
+    }
 
-  if (editingIndex === index) {
-    // Clicking same row → cancel edit
-    setEditingIndex(null);
-    setDraft(emptyEducation);
-    return;
-  }
+    if (editingIndex !== null) {
+      toast.error("Please save or cancel current changes first");
+      return;
+    }
 
-  if (editingIndex !== null) {
-    toast.error("Please save or cancel current changes first");
-    return;
-  }
-
-  setEditingIndex(index);
-  setDraft({ ...emptyEducation, ...education });
-};
+    setEditingIndex(index);
+    setDraft({ ...emptyEducation, ...education });
+  };
 
   /* ================= CANCEL ================= */
 
@@ -99,7 +94,7 @@ const handleEdit = (education, index) => {
       } else {
         await addEducations(empId, formData);
         toast.success("New education added", { id: toastId });
-    }
+      }
 
       setDraft(null);
       setEditingIndex(null);
@@ -141,17 +136,29 @@ const handleEdit = (education, index) => {
 
   return (
     <div className="container-fluid">
-      <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+      <div className="bg-white p-4 rounded shadow-sm border border-gray-200">
+        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium" >Degree</th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">Field of Study</th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">Institution</th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium" >Year</th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">University</th>
-                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">Actions</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                  Degree
+                </th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                  Field of Study
+                </th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                  Institution
+                </th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                  Year
+                </th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                  University
+                </th>
+                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
+                  Actions
+                </th>
               </tr>
             </thead>
 
@@ -167,11 +174,21 @@ const handleEdit = (education, index) => {
                   />
                 ) : (
                   <tr key={edu.id || index} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-600">{edu.degree}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{edu.field_of_study}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{edu.institution_name}</td>
-                    <td className="p-3 text-sm text-gray-600">{edu.passing_year}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{edu.university}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">
+                      {edu.degree}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-600">
+                      {edu.field_of_study}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-600">
+                      {edu.institution_name}
+                    </td>
+                    <td className="p-3 text-sm text-gray-600">
+                      {edu.passing_year}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-600">
+                      {edu.university}
+                    </td>
                     <td className="px-4 py-2 text-sm text-gray-600 text-center">
                       <div className="flex gap-4 justify-center">
                         <button
@@ -190,7 +207,7 @@ const handleEdit = (education, index) => {
                       </div>
                     </td>
                   </tr>
-                )
+                ),
               )}
 
               {editingIndex === "new" && draft && (
@@ -205,7 +222,10 @@ const handleEdit = (education, index) => {
               {(!educationData || educationData.length === 0) &&
                 !isAddingNew && (
                   <tr>
-                    <td colSpan="6" className="text-center py-8 text-sm text-gray-600 italic bg-gray-50">
+                    <td
+                      colSpan="6"
+                      className="text-center py-8 text-sm text-gray-600 italic bg-gray-50"
+                    >
                       No Education records found
                     </td>
                   </tr>
@@ -222,7 +242,7 @@ const handleEdit = (education, index) => {
 
 const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
   <tr className="bg-blue-50/30">
-    <td className="p-2 text-sm text-gray-600" style={{width:"200px"}}>
+    <td className="p-2 text-sm text-gray-600" style={{ width: "200px" }}>
       <select
         className="w-full border px-2 py-1 text-sm rounded"
         value={draft.degree || ""}
@@ -236,7 +256,7 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       </select>
     </td>
 
-    <td className="p-2 text-sm text-gray-600" style={{width:"150px"}}>
+    <td className="p-2 text-sm text-gray-600" style={{ width: "150px" }}>
       <input
         className="w-full px-2 py-1.5 text-sm border rounded border-gray-300"
         value={draft.field_of_study || ""}
@@ -252,10 +272,9 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
       />
     </td>
 
-    <td className="p-2 text-sm text-gray-600" style={{width:"70px"}}>
+    <td className="p-2 text-sm text-gray-600" style={{ width: "70px" }}>
       <input
         className="px-2 w-full py-1.5 text-sm border rounded border-gray-300"
-        
         value={draft.passing_year || ""}
         onChange={(e) => onChange("passing_year", e.target.value)}
       />

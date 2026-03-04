@@ -7,13 +7,12 @@ import { emptyBank } from "../../constants/emptyData";
 import { AuthContext } from "../../context/AuthContextProvider";
 import { useParams } from "react-router-dom";
 
-const BankTab = ({ isEditing, setIsEditing,empId }) => {
+const BankTab = ({ isEditing, setIsEditing, empId }) => {
   // const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
 
-  const {emp_id} = useParams();
+  const { emp_id } = useParams();
 
   const finalEmpId = emp_id || empId;
-
 
   const { token } = useContext(AuthContext);
 
@@ -103,51 +102,57 @@ const BankTab = ({ isEditing, setIsEditing,empId }) => {
   };
 
   if (loading && draft.length === 0) {
-    return <div className="p-10 text-center text-gray-500">Loading bank details...</div>;
+    return (
+      <div className="p-10 text-center text-gray-500">
+        Loading bank details...
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6 w-full">
       {draft.map((bank, index) => (
-        <FormCard key={bank.id || index}>
+        <>
           {/* Strict 3-column Grid Wrapper */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-            {Object.keys(emptyBank).map((key) => {
-              // Hide non-user fields
-              if (key === "id" || key === "is_active") return null;
-
-              return (
-                <div key={key} className="flex flex-col w-full">
-                  <Input
-                    label={key.replace(/_/g, " ")}
-                    value={bank[key] || ""}
-                    disabled={!isEditing}
-                    className="w-full capitalized"
-                    onChange={(e) => {
-                      const copy = [...draft];
-                      // Update the specific field in the specific bank object
-                      copy[index] = { ...copy[index], [key]: e.target.value };
-                      setDraft(copy);
-
-                      // Clear error for this field
-                      if (errors[index]?.[key]) {
-                        const errorCopy = [...errors];
-                        errorCopy[index] = { ...errorCopy[index] };
-                        delete errorCopy[index][key];
-                        setErrors(errorCopy);
-                      }
-                    }}
-                  />
-                  {isEditing && errors[index]?.[key] && (
-                    <p className="text-red-500 text-[10px] font-bold mt-1 italic uppercase">
-                      * {errors[index][key]}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+          <div className="bg-white shadow">
+            <div className="border rounded p-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                {Object.keys(emptyBank).map((key) => {
+                  // Hide non-user fields
+                  if (key === "id" || key === "is_active") return null;
+                  return (
+                    <div key={key} className="flex flex-col w-full">
+                      <Input
+                        label={key.replace(/_/g, " ")}
+                        value={bank[key] || ""}
+                        disabled={!isEditing}
+                        className="w-full capitalized"
+                        onChange={(e) => {
+                          const copy = [...draft];
+                          // Update the specific field in the specific bank object
+                          copy[index] = { ...copy[index], [key]: e.target.value };
+                          setDraft(copy);
+                          // Clear error for this field
+                          if (errors[index]?.[key]) {
+                            const errorCopy = [...errors];
+                            errorCopy[index] = { ...errorCopy[index] };
+                            delete errorCopy[index][key];
+                            setErrors(errorCopy);
+                          }
+                        }}
+                      />
+                      {isEditing && errors[index]?.[key] && (
+                        <p className="text-red-500 text-[10px] font-bold mt-1 italic uppercase">
+                          * {errors[index][key]}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </FormCard>
+        </>
       ))}
 
       {isEditing && (

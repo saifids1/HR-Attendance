@@ -86,7 +86,7 @@ export const reportingLocationOptions = [
 ];
 
 export const emptyOrganization = {
-  organization_name: "Techno",
+  organization_name: "Techn",
   organization_code: "TECH",
   organization_location: "Pune",
   industry_type: "IT",

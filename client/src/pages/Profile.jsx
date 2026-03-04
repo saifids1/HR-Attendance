@@ -25,10 +25,9 @@ import { useParams } from "react-router-dom";
 const Profile = () => {
   const user = JSON.parse(localStorage.getItem("user"));
   const token = localStorage.getItem("token");
-   const {emp_id} =useParams()
+  const { emp_id } = useParams();
   const empId = user?.emp_id;
-   const finalEmpId = emp_id ? emp_id : empId;
-
+  const finalEmpId = emp_id ? emp_id : empId;
 
   const { profileImage, setProfileImage, orgAddress } =
     useContext(EmployContext);
@@ -47,83 +46,75 @@ const Profile = () => {
   const [experienceData, setExperienceData] = useState([]);
   const [contactsData, setContactsData] = useState([]);
   const [bankData, setBankData] = useState({});
-  const [nomineeData,setNomineeData] = useState([]);
-  
+  const [nomineeData, setNomineeData] = useState([]);
 
-//  const isOwnProfile = finalEmpId === empId;
-// const canEditImage = user?.role === "admin" || isOwnProfile;
+  //  const isOwnProfile = finalEmpId === empId;
+  // const canEditImage = user?.role === "admin" || isOwnProfile;
 
-// console.log("canEditImage",canEditImage);
-// console.log("finalEmpId",finalEmpId);
+  // console.log("canEditImage",canEditImage);
+  // console.log("finalEmpId",finalEmpId);
 
   // console.log("finalEmpId",finalEmpId);
 
- const fetchProfileData = useCallback(async () => {
-  if (!finalEmpId) return;
+  const fetchProfileData = useCallback(async () => {
+    if (!finalEmpId) return;
 
-  try {
-    const results = await Promise.allSettled([
-      getOrganization(),
-      getPersonal(finalEmpId),
-      getEducation(finalEmpId),
-      getExperience(finalEmpId),
-      getContact(finalEmpId),
-      getNominee(finalEmpId),
-      getBank(finalEmpId),
-    ]);
+    try {
+      const results = await Promise.allSettled([
+        getOrganization(),
+        getPersonal(finalEmpId),
+        getEducation(finalEmpId),
+        getExperience(finalEmpId),
+        getContact(finalEmpId),
+        getNominee(finalEmpId),
+        getBank(finalEmpId),
+      ]);
 
-    if (results[0].status === "fulfilled"){
-      
-      console.log("results organization",results[0].value.data);
-      
-      setOrganizationData(results[0].value.data.personalDetails || {});
+      if (results[0].status === "fulfilled") {
+        console.log("results organization", results[0].value.data);
+
+        setOrganizationData(results[0].value.data.personalDetails || {});
+      }
+
+      if (results[1].status === "fulfilled")
+        setPersonalData(results[1].value.data.personalDetails || {});
+
+      if (results[2].status === "fulfilled")
+        setEducationData(results[2].value.data.education || []);
+
+      if (results[3].status === "fulfilled")
+        setExperienceData(results[3].value.data.experience || []);
+
+      if (results[4].status === "fulfilled")
+        setContactsData(results[4].value.data.contacts || []);
+
+      if (results[5].status === "fulfilled")
+        setNomineeData(results[5].value.data.nominee || []);
+
+      if (results[6].status === "fulfilled")
+        setBankData(results[6].value.data.bankInfo || {});
+    } catch (err) {
+      console.error("Error fetching profile:", err);
     }
-
-    if (results[1].status === "fulfilled")
-      setPersonalData(results[1].value.data.personalDetails || {});
-
-    if (results[2].status === "fulfilled")
-      setEducationData(results[2].value.data.education || []);
-
-    if (results[3].status === "fulfilled")
-      setExperienceData(results[3].value.data.experience || []);
-
-    if (results[4].status === "fulfilled")
-      setContactsData(results[4].value.data.contacts || []);
-
-    if (results[5].status === "fulfilled")
-      setNomineeData(results[5].value.data.nominee || []);
-
-    if (results[6].status === "fulfilled")
-      setBankData(results[6].value.data.bankInfo || {});
-  } catch (err) {
-    console.error("Error fetching profile:", err);
-  }
-}, [finalEmpId]);
-
+  }, [finalEmpId]);
 
   // console.log("Profile Education",educationData);
 
-
   // --- 2. Fetch Profile Image ---
-const fetchProfileImage = useCallback(async () => {
-  try {
-    if (!token || !finalEmpId) return;
+  const fetchProfileImage = useCallback(async () => {
+    try {
+      if (!token || !finalEmpId) return;
 
-    const res = await api.get(
-      `employee/profile/image/${finalEmpId}`
-    );
+      const res = await api.get(`employee/profile/image/${finalEmpId}`);
 
-    if (res.data?.profile_image) {
-      const newUrl = `${res.data.profile_image}?t=${Date.now()}`;
-      setProfileImage(newUrl);
+      if (res.data?.profile_image) {
+        const newUrl = `${res.data.profile_image}?t=${Date.now()}`;
+        setProfileImage(newUrl);
+      }
+    } catch (error) {
+      console.error("Error fetching image:", error);
     }
-
-  } catch (error) {
-    console.error("Error fetching image:", error);
-  }
-}, [token, finalEmpId, setProfileImage]);
-
+  }, [token, finalEmpId, setProfileImage]);
 
   // --- 3. Fetch Reporting Manager ---
   const fetchReporting = useCallback(async () => {
@@ -139,55 +130,61 @@ const fetchProfileImage = useCallback(async () => {
     fetchProfileData();
     fetchProfileImage();
     fetchReporting();
-  }, [fetchProfileData, fetchProfileImage, fetchReporting, refreshTrigger,finalEmpId,token]);
-  
-  useEffect(()=>{
-    console.log("profileImage",profileImage);
+  }, [
+    fetchProfileData,
+    fetchProfileImage,
+    fetchReporting,
+    refreshTrigger,
+    finalEmpId,
+    token,
+  ]);
 
-  },[profileImage])
+  useEffect(() => {
+    console.log("profileImage", profileImage);
+  }, [profileImage]);
   const BASE_URL = import.meta.env.VITE_DOC;
 
   // --- Handlers ---
-const handleProfileUpload = async (e) => {
-  const file = e.target.files[0];
-  if (!file || !finalEmpId) return;
+  const handleProfileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !finalEmpId) return;
 
-  const formData = new FormData();
-  formData.append("profile", file);
+    const formData = new FormData();
+    formData.append("profile", file);
 
-  try {
-    const res = await api.post(
-      `employee/profile/image/${finalEmpId}`,
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
+    try {
+      const res = await api.post(
+        `employee/profile/image/${finalEmpId}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+
+      // ✅ Get new image path from backend
+      const newImagePath = res.data?.profile_image;
+
+      if (newImagePath) {
+        // 1️⃣ Update localStorage user
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+        const updatedUser = {
+          ...user,
+          profile_image: newImagePath,
+        };
+
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+
+        // 2️⃣ If using context, update there also
+        setProfileImage(newImagePath);
       }
-    );
 
-    // ✅ Get new image path from backend
-    const newImagePath = res.data?.profile_image;
-
-    if (newImagePath) {
-      // 1️⃣ Update localStorage user
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-
-      const updatedUser = {
-        ...user,
-        profile_image: newImagePath,
-      };
-
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-
-      // 2️⃣ If using context, update there also
-      setProfileImage(newImagePath);
+      toast.success("Profile Image Updated");
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to upload image");
     }
-
-    toast.success("Profile Image Updated");
-  } catch (error) {
-    console.log(error);
-    toast.error("Failed to upload image");
-  }
-};
+  };
 
   // This function is passed to child tabs. When they save, they call this.
   const handleDataRefresh = () => {
@@ -209,31 +206,29 @@ const handleProfileUpload = async (e) => {
         {/* LEFT: Profile Card */}
         <div className="bg-white rounded-xl shadow p-4 sm:p-6 h-25">
           <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
-           <div className="relative w-32 h-32 group">
- 
-    <label className="cursor-pointer block w-full h-full">
-      <img
-         src={
-                             user.profile_image
-                               ? `${BASE_URL}${user.profile_image}`
-                               : user?.profile_image
-                                 ? `${BASE_URL}${user.profile_image}`
-                                 : avatarImg
-                           }
-        alt="Profile"
-        className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
-      />
-      <input
-        type="file"
-        className="hidden"
-        onChange={handleProfileUpload}
-      />
-      <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
-        ✎
-      </div>
-    </label>
-
-</div>
+            <div className="relative w-32 h-32 group">
+              <label className="cursor-pointer block w-full h-full">
+                <img
+                  src={
+                    user.profile_image
+                      ? `${BASE_URL}${user.profile_image}`
+                      : user?.profile_image
+                        ? `${BASE_URL}${user.profile_image}`
+                        : avatarImg
+                  }
+                  alt="Profile"
+                  className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
+                />
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleProfileUpload}
+                />
+                <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
+                  ✎
+                </div>
+              </label>
+            </div>
 
             <div className="w-full text-center md:text-left">
               <h2 className="text-xl font-bold text-gray-800">{user?.name}</h2>
@@ -249,7 +244,7 @@ const handleProfileUpload = async (e) => {
                 </span>
                 <span className="flex items-center gap-2">
                   <MdOutlineEmail className="text-[#222F7D] text-lg" />{" "}
-                  {user?.email} 
+                  {user?.email}
                 </span>
               </div>
             </div>
