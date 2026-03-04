@@ -33,6 +33,7 @@ const DocumentTab = ({
   const [documents, setDocuments] = useState([]);
   const [draft, setDraft] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
+  const [rowIndex, setRowIndex] = useState(1);
   const fileRef = useRef(null);
 
   /* ================= FETCH DOCUMENTS ================= */

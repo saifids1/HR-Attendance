@@ -1,11 +1,64 @@
-export const degreeOptions = ["B.Tech", "M.Tech", "B.Sc", "M.Sc", "MBA", "MCA"];
+export const degreeOptions = [
+  // School Level
+  "High School",
+  "Secondary School (10th)",
+  "Higher Secondary (12th)",
+
+  // Diploma
+  "Diploma",
+  "Advanced Diploma",
+  "Post Graduate Diploma (PGDM)",
+
+  // Associate
+  "Associate of Arts (AA)",
+  "Associate of Science (AS)",
+  "Associate of Commerce (AC)",
+
+  // Bachelor's Degrees
+  "Bachelor of Arts (BA)",
+  "Bachelor of Science (BSc)",
+  "Bachelor of Commerce (BCom)",
+  "Bachelor of Engineering (BE)",
+  "Bachelor of Technology (BTech)",
+  "Bachelor of Computer Applications (BCA)",
+  "Bachelor of Business Administration (BBA)",
+  "Bachelor of Architecture (BArch)",
+  "Bachelor of Pharmacy (BPharm)",
+  "Bachelor of Education (BEd)",
+  "Bachelor of Law (LLB)",
+  "Bachelor of Medicine, Bachelor of Surgery (MBBS)",
+
+  // Master's Degrees
+  "Master of Arts (MA)",
+  "Master of Science (MSc)",
+  "Master of Commerce (MCom)",
+  "Master of Engineering (ME)",
+  "Master of Technology (MTech)",
+  "Master of Computer Applications (MCA)",
+  "Master of Business Administration (MBA)",
+  "Master of Architecture (MArch)",
+  "Master of Pharmacy (MPharm)",
+  "Master of Education (MEd)",
+  "Master of Law (LLM)",
+
+  // Doctoral
+  "Doctor of Philosophy (PhD)",
+  "Doctor of Medicine (MD)",
+  "Doctor of Surgery (MS)",
+  "Doctor of Business Administration (DBA)",
+
+  // Other
+  "Certification Course",
+  "Vocational Training",
+  "ITI",
+  "Other"];
 
 export const emptyEducation = {
   degree: "MCA",
-  field_of_study: "CS",
+  field_of_study: "Computer Science",
   institution_name: "Techno Institute",
   passing_year: "2012",
-  university: "John University",
+  university: "Bamu University",
   percentage_or_grade: "72%"
 };
 
@@ -23,8 +76,8 @@ export const maritalstatusOptions = ["Single", "Married", "Divorced", "Widowed"]
 export const bloodGroupOptions = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 export const emptyPersonal = {
-  firstName: "Employee",
-  lastName: "Employee",
+  firstName: "John",
+  lastName: "Doe",
   contactNo: "1234567890",
   email: "email@gmail.com",
   dateOfBirth: "2021-02-18", // use YYYY-MM-DD for date input
@@ -47,7 +100,7 @@ export const emptyPersonal = {
 // nominee,
 
 
-const contactTypeOptions = ["Personal", "Emergency", "Work"];
+export const contactTypeOptions = ["Personal", "Emergency", "Work"];
 export const emptyContact = {
   contact_type: "Personal",
   phone: "1234567890",
@@ -86,9 +139,9 @@ export const reportingLocationOptions = [
 ];
 
 export const emptyOrganization = {
-  organizationName: "Techno",
+  organizationName: "I-Diligence",
   organizationCode: "TECH",
-  organizationLocation: "Pune",
+  organizationLocation: "Chatrapati Sambhaji Nagar (Aurangabad), Maharashtra",
   industryType: "IT",
   department: "HR",
   designation: "Intern",
@@ -101,7 +154,7 @@ export const emptyOrganization = {
 };
 
 
-const documentTypes = [
+export const documentTypes = [
   "Passport Size Photo",
   "Aadhar Card",
   "PAN Card",

@@ -93,69 +93,143 @@ const BankTab = ({ isEditing, setIsEditing }) => {
   };
 
   if (loading && draft.length === 0) {
-    return <div className="p-10 text-center text-gray-500">Loading bank details...</div>;
+    return (
+      <div className="p-10 text-center text-gray-500">
+        Loading bank details...
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full">
-      {draft.map((bank, index) => (
-        <FormCard key={bank.id || index}>
-          {/* Strict 3-column Grid Wrapper */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-            {Object.keys(emptyBank).map((key) => {
-              // Hide non-user fields
-              if (key === "id" || key === "is_active") return null;
+    <div className="bg-white shadow p-1 rounded-lg">
+      <form>
+        {draft.map((bank, index) => (
+          <div key={index} className="border rounded p-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Account Holder Name
+                </label>
+                <input
+                  type="text"
+                  value={bank.account_holder_name}
+                  // onChange={(e) =>
+                  //   handleChange(index, "account_holder_name", e.target.value)
+                  // }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
+                />
+              </div>
 
-              return (
-                <div key={key} className="flex flex-col w-full">
-                  <Input
-                    label={key.replace(/_/g, " ")}
-                    value={bank[key] || ""}
-                    disabled={!isEditing}
-                    className="w-full capitalized"
-                    onChange={(e) => {
-                      const copy = [...draft];
-                      // Update the specific field in the specific bank object
-                      copy[index] = { ...copy[index], [key]: e.target.value };
-                      setDraft(copy);
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  value={bank.bank_name}
+                  // onChange={(e) =>
+                  //   handleChange(index, "bank_name", e.target.value)
+                  // }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
+                />
+              </div>
 
-                      // Clear error for this field
-                      if (errors[index]?.[key]) {
-                        const errorCopy = [...errors];
-                        errorCopy[index] = { ...errorCopy[index] };
-                        delete errorCopy[index][key];
-                        setErrors(errorCopy);
-                      }
-                    }}
-                  />
-                  {isEditing && errors[index]?.[key] && (
-                    <p className="text-red-500 text-[10px] font-bold mt-1 italic uppercase">
-                      * {errors[index][key]}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Account Number
+                </label>
+                <input
+                  type="text"
+                  value={bank.account_number}
+                  // onChange={(e) =>
+                  //   handleChange(index, "account_number", e.target.value)
+                  // }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  IFSC Code
+                </label>
+                <input
+                  type="text"
+                  value={bank.ifsc_code}
+                  // onChange={(e) =>
+                  //   handleChange(index, "ifsc_code", e.target.value)
+                  // }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Branch Name
+                </label>
+                <input
+                  type="text"
+                  value={bank.branch_name}
+                  // onChange={(e) =>
+                  //   handleChange(index, "branch_name", e.target.value)
+                  // }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-600 mb-1 font-medium">
+                  Account Type
+                </label>
+                <input
+                  type="text"
+                  value={bank.account_type}
+                  // onChange={(e) =>
+                  //   handleChange(index, "account_type", e.target.value)
+                  // }
+                  disabled={!isEditing}
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
+                />
+              </div>
+            </div>
           </div>
-        </FormCard>
-      ))}
+        ))}
 
-      {isEditing && (
-        <div className="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <button
-            className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all"
-            onClick={handleCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-6 py-2 bg-[#222F7D] text-white rounded-lg hover:bg-blue-900 shadow-md transition-all font-medium"
-            onClick={handleSave}
-          >
-            Save Bank Details
-          </button>
-        </div>
-      )}
+        {isEditing && (
+          <>
+            {/* <div className="flex justify-start mb-4">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm"
+              >
+                + Add Nominee
+              </button>
+            </div> */}
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-6 py-2 bg-gray-200 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-6 py-2 bg-[#222F7D] text-white rounded-lg text-sm"
+              >
+                Save Changes
+              </button>
+            </div>
+          </>
+        )}
+      </form>
     </div>
   );
 };

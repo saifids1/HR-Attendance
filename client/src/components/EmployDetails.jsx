@@ -182,7 +182,7 @@ const EmployeeDetails = () => {
     fetchAllData();
     toast.success("Data Refreshed");
   };
-
+const handleProfileUpload = async () => {}
   return (
     <div className=" min-h-screen p-6">
       <div className="max-w-6xl bg-transparent mx-auto  rounded-xl">
@@ -248,7 +248,7 @@ const EmployeeDetails = () => {
                 <input
                   type="file"
                   className="hidden"
-                  // onChange={handleProfileUpload}
+                  onChange={handleProfileUpload}
                 />
                 <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
                   ✎

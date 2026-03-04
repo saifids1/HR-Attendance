@@ -15,8 +15,9 @@ const ContactTab = ({
   setIsAddingNew,
 }) => {
   const [draft, setDraft] = useState(null);
-  const [errors, setErrors] = useState({});
   const [editingIndex, setEditingIndex] = useState(null);
+
+  const hasData = contactData && contactData.length > 0;
 
   /* ================= HANDLE CHANGE ================= */
 
@@ -31,7 +32,6 @@ const ContactTab = ({
       toast.error("Please save or cancel current changes first");
       return;
     }
-
     setEditingIndex(index);
     setDraft({ ...contact });
   };
@@ -43,6 +43,7 @@ const ContactTab = ({
     setEditingIndex(null);
     setIsAddingNew(false);
   };
+
   /* ================= SAVE ================= */
 
   const handleSave = async () => {
@@ -58,12 +59,14 @@ const ContactTab = ({
 
     try {
       if (draft.id) {
+        // UPDATE: existing contact
         const updatedList = contactData.map((c) =>
           c.id === draft.id ? { ...c, ...payload } : c,
         );
         await updateContact(empId, updatedList);
         toast.success("Contact updated");
       } else {
+        // ADD: new contact (covers both isAddingNew and empty-state editable row)
         await addContact(empId, [payload]);
         toast.success("New contact added");
       }
@@ -82,11 +85,9 @@ const ContactTab = ({
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this record?")) return;
-
     try {
       await deleteContact(empId, id);
       toast.success("Deleted");
-
       if (onSave) await onSave();
     } catch (error) {
       toast.error("Delete failed");
@@ -97,14 +98,14 @@ const ContactTab = ({
 
   useEffect(() => {
     if (isAddingNew) {
+      if (draft) {
+        toast.error("Please save or cancel current changes first");
+        setIsAddingNew(false);
+        return;
+      }
       setDraft({ ...emptyContact });
     }
   }, [isAddingNew]);
-
-  /* ================= DATA SOURCE ================= */
-
-  const rows =
-    contactData && contactData.length > 0 ? contactData : [emptyContact];
 
   /* ================= UI ================= */
 
@@ -115,74 +116,93 @@ const ContactTab = ({
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
-                  Type
-                </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
-                  Phone
-                </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
-                  Email
-                </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
-                  Relation
-                </th>
-                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
-                  Primary
-                </th>
-                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
-                  Actions
-                </th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 font-medium">Type</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 font-medium">Phone</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 font-medium">Email</th>
+                <th className="px-4 py-2 text-left text-sm text-gray-600 font-medium">Relation</th>
+                <th className="px-4 py-2 text-center text-sm text-gray-600 font-medium">Primary</th>
+                <th className="px-4 py-2 text-center text-sm text-gray-600 font-medium">Actions</th>
               </tr>
             </thead>
 
             <tbody className="bg-white divide-y divide-gray-200">
-              {rows.map((contact, index) =>
-                editingIndex === index ? (
+
+              {/* ── CASE 1 & 2 : contactData exists → show real rows ── */}
+              {hasData &&
+                contactData.map((contact, index) =>
+                  editingIndex === index ? (
+                    // Editing an existing row
+                    <EditableRow
+                      key={contact.id}
+                      draft={draft}
+                      onChange={handleChange}
+                      onSave={handleSave}
+                      onCancel={handleCancel}
+                    />
+                  ) : (
+                    <tr key={contact.id}>
+                      <td className="px-4 py-2 text-sm text-gray-600">{contact.contact_type}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{contact.phone}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{contact.email}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{contact.relation}</td>
+                      <td className="px-4 py-2 text-center text-sm text-gray-600">
+                        {contact.is_primary ? "Yes" : "No"}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-center text-gray-600">
+                        <div className="flex gap-4 justify-center">
+                          <button
+                            onClick={() => handleEdit(contact, index)}
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            <FaPencilAlt />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(contact.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <MdDelete size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                )}
+
+              {/* ── CASE 3 : no contactData → show one editable empty row ── */}
+              {!hasData && !isAddingNew && (
+                editingIndex === 0 ? (
                   <EditableRow
-                    key={contact.id || "new"}
                     draft={draft}
                     onChange={handleChange}
                     onSave={handleSave}
                     onCancel={handleCancel}
                   />
                 ) : (
-                  <tr key={contact.id || index}>
-                    <td className="px-4 py-2 text-sm text-gray-600">
-                      {contact.contact_type}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{contact.phone}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{contact.email}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{contact.relation}</td>
-                    <td className="px-4 py-2 text-center text-sm text-gray-600">
-                      {contact.is_primary ? "Yes" : "No"}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-center text-gray-600">
+                  <tr>
+                    <td className="px-4 py-2 text-sm text-gray-400">{emptyContact.contact_type}</td>
+                    <td className="px-4 py-2 text-sm text-gray-400">{emptyContact.phone}</td>
+                    <td className="px-4 py-2 text-sm text-gray-400">{emptyContact.email}</td>
+                    <td className="px-4 py-2 text-sm text-gray-400">{emptyContact.relation}</td>
+                    <td className="px-4 py-2 text-center text-sm text-gray-400">{emptyContact.is_primary ? "Yes" : "No"}</td>
+                    <td className="px-4 py-2 text-center text-sm text-gray-400">
                       <div className="flex gap-4 justify-center">
                         <button
-                          onClick={() => handleEdit(contact, index)}
+                          onClick={() => {
+                            setDraft({ ...emptyContact });
+                            setEditingIndex(0);
+                          }}
                           className="text-blue-500 hover:text-blue-700"
                         >
-                          {draft && draft.id === contact.id ? (
-                            <FaCheck />
-                          ) : (
-                            <FaPencilAlt />
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(contact.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <MdDelete size={18} />
+                          <FaPencilAlt />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ),
+                )
               )}
 
-              {isAddingNew && draft && !draft.id && (
+              {/* ── CASE 4 : isAddingNew → append a fresh editable row ── */}
+              {isAddingNew && !draft?.id && (
                 <EditableRow
                   draft={draft}
                   onChange={handleChange}
@@ -190,6 +210,7 @@ const ContactTab = ({
                   onCancel={handleCancel}
                 />
               )}
+
             </tbody>
           </table>
         </div>
@@ -211,38 +232,36 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
           value={draft.contact_type || ""}
           onChange={(e) => onChange("contact_type", e.target.value)}
         >
+          <option value="" disabled>Select type</option>
           {contactTypeOptions.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
+            <option key={type} value={type}>{type}</option>
           ))}
         </select>
       </td>
-
       <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.phone || ""}
           onChange={(e) => onChange("phone", e.target.value)}
+          placeholder="Phone"
         />
       </td>
-
       <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.email || ""}
           onChange={(e) => onChange("email", e.target.value)}
+          placeholder="Email"
         />
       </td>
-
       <td className="p-2 text-sm text-gray-600">
         <input
           className="w-full border px-2 py-1 text-sm rounded"
           value={draft.relation || ""}
           onChange={(e) => onChange("relation", e.target.value)}
+          placeholder="Relation"
         />
       </td>
-
       <td className="p-2 text-center text-sm text-gray-600">
         <input
           type="checkbox"
@@ -250,19 +269,12 @@ const EditableRow = ({ draft, onChange, onSave, onCancel }) => {
           onChange={(e) => onChange("is_primary", e.target.checked)}
         />
       </td>
-
       <td className="p-2 text-sm text-gray-600">
         <div className="flex gap-4 items-center justify-center">
-          <button
-            onClick={onSave}
-            className="text-green-600 hover:text-green-800"
-          >
+          <button onClick={onSave} className="text-green-600 hover:text-green-800">
             <FaCheck size={16} />
           </button>
-          <button
-            onClick={onCancel}
-            className="text-orange-500 hover:text-orange-700"
-          >
+          <button onClick={onCancel} className="text-orange-500 hover:text-orange-700">
             <FaTimes size={16} />
           </button>
         </div>

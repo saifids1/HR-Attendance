@@ -186,8 +186,8 @@ const ExperienceTab = ({
     <div className="container-fluid">
       <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
         <div className="overflow-x-auto rounded-lg border">
-          <table className="min-w-full divide-y divide-gray-300">
-            <thead className="bg-gray-200">
+          <table className="min-w-full min-h-full divide-y  divide-gray-300">
+            <thead className="bg-gray-200 min-h-20">
               <tr>
                 {[
                   "Company",

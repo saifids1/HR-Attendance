@@ -49,7 +49,7 @@ export const NomineeTab = ({ isEditing, empId }) => {
   };
 
   return (
-    <div className="bg-white shadow p-4 rounded-lg">
+    <div className="bg-white shadow p-1 rounded-lg">
       <form>
         {nomineeData.map((nominee, index) => (
           <div key={index} className="border rounded p-4 mb-4">
