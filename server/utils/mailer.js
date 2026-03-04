@@ -22,6 +22,8 @@ const sendEmail = async (to, subject, templateName, templateData) => {
 
   console.log("to",to);
   console.log("subject",subject)
+
+  console.log("templateData",templateData)
   try {
     const templatePath = path.join(__dirname, "../email_templates", `${templateName}.html`);
     let html = fs.readFileSync(templatePath, "utf8");
@@ -44,3 +46,5 @@ const sendEmail = async (to, subject, templateName, templateData) => {
 
 
 module.exports = sendEmail;
+
+    

@@ -3,11 +3,13 @@ import {
   addEducations,
   updateEducation,
   deleteEducation,
+  getEducation,
 } from "../../../api/profile";
 import { emptyEducation, degreeOptions } from "../../constants/emptyData";
 import { FaPencilAlt, FaCheck, FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
 import { toast } from "react-hot-toast";
+import api from "../../../api/axiosInstance";
 
 const EducationTab = ({
   educationData,
@@ -16,12 +18,33 @@ const EducationTab = ({
   isAddingNew,
   setIsAddingNew,
 }) => {
-  const [draft, setDraft] = useState(null);
+  const [draft, setDraft] = useState(educationData);
   const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
   /* ================= CHANGE ================= */
+
+  useEffect(()=>{
+    console.log("Education Data",educationData);
+
+  },[])
+  
+  useEffect(()=>{
+
+    const getEducationInfo = async()=>{
+      try {
+          const resp = await getEducation(empId);
+
+          console.log("resp education",resp.data.education);
+
+      } catch (error) {
+        console.log(error);
+
+      }
+    }
+    getEducationInfo()
+  },[])
 
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -29,15 +52,23 @@ const EducationTab = ({
 
   /* ================= EDIT ================= */
 
-  const handleEdit = (education, index) => {
-    if (draft) {
-      toast.error("Please save or cancel current changes first");
-      return;
-    }
+const handleEdit = (education, index) => {
 
-    setEditingIndex(index);
-    setDraft({ ...emptyEducation, ...education });
-  };
+  if (editingIndex === index) {
+    // Clicking same row → cancel edit
+    setEditingIndex(null);
+    setDraft(emptyEducation);
+    return;
+  }
+
+  if (editingIndex !== null) {
+    toast.error("Please save or cancel current changes first");
+    return;
+  }
+
+  setEditingIndex(index);
+  setDraft({ ...emptyEducation, ...education });
+};
 
   /* ================= CANCEL ================= */
 
@@ -68,7 +99,7 @@ const EducationTab = ({
       } else {
         await addEducations(empId, formData);
         toast.success("New education added", { id: toastId });
-      }
+    }
 
       setDraft(null);
       setEditingIndex(null);

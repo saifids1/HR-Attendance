@@ -34,18 +34,23 @@ const EmployeeDetails = () => {
   const emp_id = urlEmpId || user.emp_id;
   const isAdmin = user.role === "admin";
 
-  const { setAdminAttendance } = useContext(EmployContext);
+  const { setAdminAttendance, personalAddress } = useContext(EmployContext);
 
+  useEffect(() => {
+    console.log("personalAddress", personalAddress);
+  }, [personalAddress]);
   // --- State Management ---
   const [isEditing, setIsEditing] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const [personal, setPersonal] = useState({});
   const [contact, setContact] = useState([]);
   const [education, setEducation] = useState([]);
   const [experience, setExperience] = useState([]);
+  const [nominee, setNominee] = useState([]);
   const [bank, setBank] = useState([]);
   const [documents, setDocuments] = useState({});
 
@@ -86,14 +91,16 @@ const EmployeeDetails = () => {
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [pRes, cRes, eRes, exRes, bRes, dRes] = await Promise.allSettled([
-        api.get(`employee/profile/personal/${emp_id}`, { headers }),
-        api.get(`employee/profile/contact/${emp_id}`, { headers }),
-        api.get(`employee/profile/education/${emp_id}`, { headers }),
-        api.get(`employee/profile/experience/${emp_id}`, { headers }),
-        api.get(`employee/profile/bank/${emp_id}`, { headers }),
-        api.get(`employee/profile/bank/doc/${emp_id}`, { headers }),
-      ]);
+      const [pRes, cRes, eRes, exRes, bRes, dRes, nRes] =
+        await Promise.allSettled([
+          api.get(`employee/profile/personal/${emp_id}`, { headers }),
+          api.get(`employee/profile/contact/${emp_id}`, { headers }),
+          api.get(`employee/profile/education/${emp_id}`, { headers }),
+          api.get(`employee/profile/experience/${emp_id}`, { headers }),
+          api.get(`employee/profile/bank/${emp_id}`, { headers }),
+          api.get(`employee/profile/bank/doc/${emp_id}`, { headers }),
+          api.get(`employee/profile/nominee/${emp_id}`, { headers }),
+        ]);
 
       if (pRes.status === "fulfilled") setPersonal(pRes.value.data || {});
       if (cRes.status === "fulfilled")
@@ -102,10 +109,17 @@ const EmployeeDetails = () => {
         setEducation(eRes.value.data?.education || []);
       if (exRes.status === "fulfilled")
         setExperience(exRes.value.data?.experience || []);
+
+      if (nRes.status === "fulfilled")
+        setNominee(nRes.value.data?.nominee || []);
+
+      console.log("bRes", bRes);
       if (bRes.status === "fulfilled")
         setBank(bRes.value.data?.bankDetails || []);
 
-      if (dRes.status === "fulfilled") {
+      console.log("dRes", dRes);
+
+      if (dRes?.status === "fulfilled") {
         const docObj = {};
         (dRes.value.data?.documents || []).forEach((d) => {
           docObj[d.file_type] = d.file_path;
@@ -113,11 +127,16 @@ const EmployeeDetails = () => {
         setDocuments(docObj);
       }
     } catch (err) {
+      console.log("error employData", err);
       toast.error("Error fetching employee data");
     } finally {
       setLoading(false);
     }
   }, [emp_id, token]);
+
+  useEffect(() => {
+    console.log("setNominee", nominee);
+  }, []);
 
   useEffect(() => {
     if (personal) {
@@ -134,35 +153,74 @@ const EmployeeDetails = () => {
     fetchAllData();
     fetchProfileImage();
     fetchReporting();
-  }, [fetchAllData, fetchProfileImage, fetchReporting]);
+  }, [fetchAllData, fetchProfileImage, fetchReporting, refreshTrigger]);
 
   // --- Handlers ---
-  const handleToggleActive = async () => {
-    if (!isAdmin || isToggling) return;
+  // const handleToggleActive = async () => {
+  //   if (!isAdmin || isToggling) return;
+  //   try {
+  //     setIsToggling(true);
+  //     const newStatus = !isActive;
+  //     await api.patch(
+  //       `/admin/attendance/${emp_id}/status`,
+  //       { is_active: newStatus },
+  //       {
+  //         headers: { Authorization: `Bearer ${token}` },
+  //       },
+  //     );
+
+  //     setPersonal((prev) => ({ ...prev, is_active: newStatus }));
+  //     setAdminAttendance((prev) =>
+  //       prev.map((e) =>
+  //         String(e.emp_id) === String(emp_id)
+  //           ? { ...e, is_active: newStatus }
+  //           : e,
+  //       ),
+  //     );
+  //     toast.success(`Employee ${newStatus ? "Activated" : "Deactivated"}`);
+  //   } catch {
+  //     toast.error("Status update failed");
+  //   } finally {
+  //     setIsToggling(false);
+  //   }
+  // };
+
+  // const handleSavePersonal = async (updatedData) => {
+  //   try {
+  //     // Logic for saving personal info specifically
+  //     await updatePersonal(emp_id, updatedData);
+  //     setPersonal((prev) => ({ ...prev, ...updatedData }));
+  //     toast.success("Profile updated successfully");
+  //     setIsEditing(false);
+  //   } catch (err) {
+  //     toast.error(err.response?.data?.message || "Update failed");
+  //   }
+  // };
+
+  const handleProfileUpload = async (e) => {
+    // console.log("click Profile")
+    const file = e.target.files[0];
+    if (!file || !urlEmpId) return;
+
+    const formData = new FormData();
+    formData.append("profile", file);
+
     try {
-      setIsToggling(true);
-      const newStatus = !isActive;
-      await api.patch(
-        `/admin/attendance/${emp_id}/status`,
-        { is_active: newStatus },
+      const res = await api.post(
+        `employee/profile/image/${urlEmpId}`,
+        formData,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "multipart/form-data" },
         },
       );
 
-      setPersonal((prev) => ({ ...prev, is_active: newStatus }));
-      setAdminAttendance((prev) =>
-        prev.map((e) =>
-          String(e.emp_id) === String(emp_id)
-            ? { ...e, is_active: newStatus }
-            : e,
-        ),
-      );
-      toast.success(`Employee ${newStatus ? "Activated" : "Deactivated"}`);
-    } catch {
-      toast.error("Status update failed");
-    } finally {
-      setIsToggling(false);
+      console.log("profile Res", res);
+
+      setRefreshTrigger((prev) => prev + 1);
+      toast.success("Profile Image Updated");
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to upload image");
     }
   };
 
@@ -182,7 +240,12 @@ const EmployeeDetails = () => {
     fetchAllData();
     toast.success("Data Refreshed");
   };
-const handleProfileUpload = async () => {}
+  // const handleProfileUpload = async () => {}
+  // const refreshPage = () => {
+  //   fetchAllData();
+  //   toast.success("Data Refreshed");
+  // };
+
   return (
     <div className=" min-h-screen p-6">
       <div className="max-w-6xl bg-transparent mx-auto  rounded-xl">
@@ -194,45 +257,6 @@ const handleProfileUpload = async () => {}
             Employee Profile
           </Typography>
         </div>
-        {/* <div className="flex justify-between items-center ">
-          <div className="flex items-center gap-5 mt-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                {personal.name || "Employee Profile"}
-              </h1>
-              <p className="text-blue-600 text-sm font-mono font-semibold">
-                EMP-ID: {emp_id}
-              </p>
-            </div>
-            <button
-              onClick={refreshPage}
-              className="text-gray-400 hover:text-blue-600 transition-colors"
-              title="Refresh Data"
-            >
-              <IoMdRefreshCircle size={30} />
-            </button>
-          </div>
-
-          {isAdmin && (
-            <div className="flex items-center gap-4 bg-gray-50 p-2 px-4 rounded-lg border">
-              <span
-                className={`text-xs font-bold ${isActive ? "text-green-600" : "text-red-400"}`}
-              >
-                {isActive ? "ACTIVE" : "INACTIVE"}
-              </span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={isActive}
-                  disabled={isToggling}
-                  onChange={handleToggleActive}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-              </label>
-            </div>
-          )}
-        </div> */}
 
         {/* PROFILE HEADER SECTION */}
         <div className="mx-auto grid grid-cols-1 lg:grid-cols-[4fr_1.5fr] gap-6">
@@ -240,19 +264,27 @@ const handleProfileUpload = async () => {}
           <div className="bg-white rounded-xl shadow p-4 sm:p-6 h-25">
             <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
               <div className="relative w-32 h-32">
-                <img
-                  src={profileImage || defaultProfile}
-                  alt="Profile"
-                  className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
-                />
+                <label
+                  htmlFor="profileUpload"
+                  className="cursor-pointer block w-full h-full"
+                >
+                  <img
+                    src={profileImage || defaultProfile}
+                    alt="Profile"
+                    className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
+                  />
+
+                  <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
+                    ✎
+                  </div>
+                </label>
+
                 <input
+                  id="profileUpload"
                   type="file"
                   className="hidden"
                   onChange={handleProfileUpload}
                 />
-                <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
-                  ✎
-                </div>
               </div>
 
               <div className="w-full text-center md:text-left">
@@ -269,7 +301,7 @@ const handleProfileUpload = async () => {}
                 <div className="flex flex-col sm:flex-row gap-4 mt-4 text-gray-600 text-sm justify-center md:justify-start">
                   <span className="flex items-center gap-2">
                     <IoHomeSharp className="text-[#222F7D]" />
-                    {employeeBasic?.address || "Office Address"}
+                    {personalAddress?.current_address || "Office Address"}
                   </span>
 
                   <span className="flex items-center gap-2">
@@ -299,6 +331,7 @@ const handleProfileUpload = async () => {}
             personalData={personal}
             educationData={education}
             experienceData={experience}
+            nomineeData={nominee}
             contactData={contact}
             bankData={bank}
             userRole={user.role}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   emptyPersonal,
   genderOptions as gender,
@@ -6,16 +6,55 @@ import {
   bloodGroupOptions as bloodGroup,
 } from "../../constants/emptyData";
 import { toast } from "react-hot-toast";
+import { addPersonal, getPersonal, updatePersonal } from "../../../api/profile";
+import { EmployContext } from "../../context/EmployContextProvider";
 
-const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
+const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave,empId }) => {
   const [draft, setDraft] = useState({ ...emptyPersonal });
   const [errors, setErrors] = useState({});
 
+ const {setPersonalAddress} =  useContext(EmployContext)
   useEffect(() => {
     if (personalData && Object.keys(personalData).length > 0) {
       setDraft({ ...emptyPersonal, ...personalData });
     }
   }, [personalData]);
+  
+const formatDOB = (dateStr) => {
+  if (!dateStr) return "";
+
+  // Convert DD-MM-YYYY to YYYY-MM-DD
+  const [day, month, year] = dateStr.split("-");
+  return `${year}-${month}-${day}`;
+};
+  // console.log("personalData",personalData)
+
+ useEffect(() => {
+  const getPersonalData = async () => {
+    try {
+      const resp = await getPersonal(empId);
+
+      console.log("resp", resp.data);
+
+      const formattedDob = formatDOB(resp.data.dob);
+
+      setDraft((prevData) => ({
+        ...prevData,
+        ...resp.data,
+        dob: formattedDob,   // 👈 FIX HERE
+      }));
+
+      setPersonalAddress(resp.data);
+
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  getPersonalData();
+}, []);
+
+  // console.log(draft.dob);
 
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -29,7 +68,7 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async(e) => {
     e.preventDefault();
     console.log("Personal Form Data:", draft);
 
@@ -41,12 +80,21 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
     });
 
     if (Object.keys(newErrors).length > 0) {
+
+      console.log("newErrros Personal",newErrors);
       setErrors(newErrors);
       toast.error("Please fix the errors below");
       return;
     }
 
-    toast.success("Personal data logged in console ✅");
+    if(draft.emp_id){
+      await updatePersonal(empId,draft);
+      toast.success("Personal updated successfully");
+    }else{
+      await addPersonal(empId,draft);
+      toast.success("Personal added successfully");
+    }
+    // toast.success("Personal data logged in console");
 
     if (onSave) onSave(draft);
     else setIsEditing(false);
@@ -71,14 +119,14 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.firstName}
-                  onChange={(e) => handleChange("firstName", e.target.value)}
+                 value={draft.first_name ?? emptyPersonal.first_name}
+                  onChange={(e) => handleChange("first_name", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.firstName && (
+                {isEditing && errors.first_name && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.firstName}
                   </p>
@@ -92,16 +140,16 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.lastName}
-                  onChange={(e) => handleChange("lastName", e.target.value)}
+                  value={draft.last_name ?? emptyPersonal.last_name}
+                  onChange={(e) => handleChange("last_name", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.lastName && (
+                {isEditing && errors.last_name && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.lastName}
+                    * {errors.last_name}
                   </p>
                 )}
               </div>
@@ -112,16 +160,16 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.contactNo}
-                  onChange={(e) => handleChange("contactNo", e.target.value)}
+                  value={draft.contact ?? emptyPersonal.contact}
+                  onChange={(e) => handleChange("contact", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.contactNo && (
+                {isEditing && errors.contact && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.contactNo}
+                    * {errors.contact}
                   </p>
                 )}
               </div>
@@ -152,16 +200,17 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                 </label>
                 <input
                   type="date"
-                  value={draft.dateOfBirth}
-                  onChange={(e) => handleChange("dateOfBirth", e.target.value)}
+                  // placeholder={draft.dob}
+                  value={draft?.dob}
+                  onChange={(e) => handleChange("dob", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.dateOfBirth && (
+                {isEditing && errors.dob && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.dateOfBirth}
+                    * {errors.dob}
                   </p>
                 )}
               </div>
@@ -193,7 +242,7 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                   Gender
                 </label>
                 <select
-                  value={draft.gender}
+                  value={draft.gender ?? emptyPersonal.gender}
                   onChange={(e) => handleChange("gender", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -239,8 +288,8 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                   Blood Group
                 </label>
                 <select
-                  value={draft.bloodGroup}
-                  onChange={(e) => handleChange("bloodGroup", e.target.value)}
+                  value={draft.bloodgroup ?? emptyPersonal.bloodgroup}
+                  onChange={(e) => handleChange("bloodgroup", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
@@ -263,16 +312,16 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.currentAddress}
-                  onChange={(e) => handleChange("currentAddress", e.target.value)}
+                  value={draft.current_address}
+                  onChange={(e) => handleChange("current_address", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.currentAddress && (
+                {isEditing && errors.current_address && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.currentAddress}
+                    * {errors.current_address}
                   </p>
                 )}
               </div>
@@ -283,16 +332,16 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave }) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.permanentAddress}
-                  onChange={(e) => handleChange("permanentAddress", e.target.value)}
+                  value={draft.permanent_address}
+                  onChange={(e) => handleChange("permanent_address", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.permanentAddress && (
+                {isEditing && errors.permanent_address && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.permanentAddress}
+                    * {errors.permanent_address}
                   </p>
                 )}
               </div>

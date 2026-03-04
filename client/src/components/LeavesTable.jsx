@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import api from "../../api/axiosInstance";
 
 const SortIcon = () => (
   <svg
@@ -21,7 +22,7 @@ const LeavesTable = ({ leavesHeader, leavesBody, adminLeavesHeader, adminLeavesB
   const handleAction = async (approvalId, status) => {
     const remarks = prompt(`Enter remarks for ${status}:`);
     try {
-      await axios.put(`http://localhost:5000/api/leaves/types/approve/${approvalId}`, {
+      await api.put(`/leaves/types/approve/${approvalId}`, {
         status,
         remarks
       });

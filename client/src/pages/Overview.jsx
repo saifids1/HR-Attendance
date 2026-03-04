@@ -19,30 +19,31 @@ import Cards from "../components/Cards";
 import AttendanceDoughnutChart from "../charts/Doughnut";
 import Loader from "../components/Loader";
 import GotoAdmin from "../components/GotoAdmin";
-import defaultProfile from "../assets/avatar.webp";
+import avatarImg from "../assets/avatar.webp";
 
 // Context
 import { EmployContext } from "../context/EmployContextProvider";
+import api from "../../api/axiosInstance";
 
 const Overview = () => {
   const location = useLocation();
-  
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user?.role?.toLowerCase()?.trim();
   const isAdminRoute = location.pathname.startsWith("/admin");
 
-  const { 
-    profileImage, 
-    setProfileImage, 
-    token, 
-    loading 
+  const {
+    profileImage,
+    setProfileImage,
+    token,
+    loading
   } = useContext(EmployContext);
 
   useEffect(() => {
     const fetchProfileImage = async () => {
-      // Logic: Only fetch if we don't already have an image or if the token is fresh
+
       try {
-        const res = await axios.get("http://localhost:5000/api/employee/profile/image", {
+        const res = await api.get("employee/profile/image", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -50,6 +51,7 @@ const Overview = () => {
           // Update global context with the fresh image URL
           setProfileImage(`${res.data.profile_image}?t=${new Date().getTime()}`);
         } else {
+          // eslint-disable-next-line no-undef
           setProfileImage(defaultProfile);
         }
       } catch (error) {
@@ -62,7 +64,7 @@ const Overview = () => {
     if (token) {
       fetchProfileImage();
     }
-    
+
     // REMOVED: return () => setProfileImage(null); 
     // This was the cause of the image disappearing on tab change!
   }, [token, setProfileImage]);
@@ -88,20 +90,22 @@ const Overview = () => {
     { id: 3, name: "Makar Sankranti", date: "14 Jan 2026", month: "January" },
     { id: 4, name: "Republic Day", date: "26 Jan 2026", month: "January" }
   ];
-
+  const BASE_URL = import.meta.env.VITE_DOC;
   if (loading) return <Loader />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-2">
-      <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6">
-        <Typography className="text-white text-2xl sm:text-3xl text-center font-bold tracking-wide">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-2 sm:px-3">
+      <div
+        className={`sticky z-20 top-2 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] ${location.pathname === "/employee" ? "mt-2" : "mt-0"
+          }`}
+      >
+        {/* */}
+        <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
           Dashboard
         </Typography>
       </div>
 
-      <div className="mb-5">
-        <GotoAdmin role={role} />
-      </div>
+
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         <div className="xl:col-span-3 space-y-6">
@@ -118,7 +122,13 @@ const Overview = () => {
             <div className="h-24 bg-[#222F7D]" />
             <div className="-mt-14 flex justify-center">
               <img
-                src={profileImage || defaultProfile}
+                src={
+                  user.profile_image
+                    ? `${BASE_URL}${user.profile_image}`
+                    : user?.profile_image
+                      ? `${BASE_URL}${user.profile_image}`
+                      : avatarImg
+                }
                 alt="profile"
                 className="w-28 h-28 rounded-full border-4 border-white shadow-lg object-cover bg-gray-200"
               />

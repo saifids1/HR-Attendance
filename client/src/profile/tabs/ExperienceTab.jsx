@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  addExperienceses, // ✅ FIXED NAME
+  addExperienceses, //  FIXED NAME
   updateExperience,
   deleteExperience,
 } from "../../../api/profile";
@@ -11,7 +11,7 @@ import { toast } from "react-hot-toast";
 import Loader from "../../components/Loader";
 
 const ExperienceTab = ({
-  experienceData, // ✅ prevents crash
+  experienceData, // prevents crash
   isAddingNew,
   setIsAddingNew,
   empId,
@@ -21,6 +21,8 @@ const ExperienceTab = ({
   const [editingIndex, setEditingIndex] = useState(null);
   const [loading, setLoading] = useState(false);
 
+
+  // console.log("experienceData",experienceData);
   /* ================= DATE HELPERS ================= */
 
   const formatDate = (date) => {

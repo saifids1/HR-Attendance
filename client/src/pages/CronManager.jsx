@@ -63,6 +63,10 @@ const CronManager = () => {
         <button onClick={fetchSchedules} className="cursor-pointer text-[12px] bg-[#212e7d] text-white p-2 rounded-md">Refresh</button>
       </div>
 
+      <div>
+        <label htmlFor="">Email To Add</label>
+        <input type="text" /></div>
+
       {/* Message Box */}
       {status.msg && (
         <div style={{ 

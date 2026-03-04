@@ -3,28 +3,7 @@ const { db } = require("../db/connectDB");
 const cron = require("node-cron");
 const sendEmail = require("../utils/mailer");
 
-// Normalize device punch time
-// function normalizePunchTime(recordTime) {
-//   if (!recordTime) return null;
-//   const parts = recordTime.split(" ");
-//   if (parts.length < 5) return null;
 
-//   const day = parts[2];
-//   const monthStr = parts[1];
-//   const year = parts[3];
-//   const time = parts[4];
-
-//   const monthMap = {
-//     Jan: "01", Feb: "02", Mar: "03", Apr: "04",
-//     May: "05", Jun: "06", Jul: "07", Aug: "08",
-//     Sep: "09", Oct: "10", Nov: "11", Dec: "12"
-//   };
-
-//   const month = monthMap[monthStr];
-//   if (!month) return null;
-
-//   return `${year}-${month}-${day} ${time}`;
-// }
 
 function normalizePunchTime(recordTime) {
   if (!recordTime) return null;
@@ -47,13 +26,15 @@ function normalizePunchTime(recordTime) {
 
   // Append +05:30 so the system knows this is India Time (IST)
   // Format: YYYY-MM-DD HH:mm:ss+05:30
-  return `${year}-${month}-${day} ${time}+05:30`;
+//   return `${year}-${month}-${day} ${time}+05:30`;
+  return `${year}-${month}-${day} ${time}`
 }
 
 // Fetch and sync punches
 // async function getDeviceAttendance() {
 //   const deviceSN = "EUF7251400009";
-//   const zk = new ZKLib("192.168.0.10", 4370, 10000, 4000);
+//     const deviceIP = "60.254.61.177";
+//   const zk = new ZKLib(deviceIP, 4370, 10000, 4000);
 
 //   try {
 //     console.log("[SYNC] Connecting to device...");
@@ -125,12 +106,13 @@ function normalizePunchTime(recordTime) {
 //           const time = punchDate.toLocaleTimeString("en-IN", { hour12: false });
 //           const action = log.type || "in"; // if your device provides type
 
-//           // await sendEmail(
-//           //   employee.email,
-//           //   `Punch ${action}`,
-//           //   "punch_in_out",
-//           //   { name: employee.name, action, time }
-//           // );
+//           await sendEmail(
+//             // employee.email,
+//             "s.imran@i-diligence.com",
+//             `Punch ${action}`,
+//             "punch_in_out",
+//             { name: employee.name, action, time }
+//           );
 
 //           console.log(` Punch ${action} email sent to ${employee.email}`);
 //         }
@@ -171,139 +153,421 @@ function normalizePunchTime(recordTime) {
 //   }
 // }
 
-async function getDeviceAttendance() {
-  const deviceSN = "EUF7251400009";
-  const deviceIP = "60.254.61.177"; 
-  const zk = new ZKLib(deviceIP, 4370, 10000, 4000);
 
-  try {
-      console.log("[SYNC] Connecting to device...");
-      await zk.createSocket();
-      await zk.enableDevice();
 
-      console.log("[SYNC] Fetching attendance logs from machine...");
-      const logs = await zk.getAttendances();
+// async function getDeviceAttendance() {
+//   const deviceSN = "EUF7251400009";
+//   const deviceIP = "60.254.61.177";
+//   const zk = new ZKLib(deviceIP, 4370, 10000, 4000);
 
-      if (!logs?.data?.length) {
-          console.log("[SYNC] No logs found on machine");
-          return [];
-      }
+//   try {
+//       console.log("[SYNC] Connecting to device...");
+//       await zk.createSocket();
+//       await zk.enableDevice();
 
-      /* ---------- GET LAST SYNC TRACKER ---------- */
-      const { rows: trackerRows } = await db.query(
-          `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
-          [deviceSN]
-      );
+//       console.log("[SYNC] Fetching attendance logs...");
+//       const logs = await zk.getAttendances();
 
-      let lastSync = trackerRows[0]?.last_sync || "1970-01-01 00:00:00";
-      let lastSyncDate = new Date(lastSync);
-      lastSyncDate.setSeconds(lastSyncDate.getSeconds() - 2); 
+//       if (!logs?.data?.length) {
+//           console.log("[SYNC] No logs found");
+//           return [];
+//       }
 
-      /* ---------- FILTER NEW LOGS ---------- */
-      const newLogs = logs.data.filter(log => {
-          const punchTime = new Date(normalizePunchTime(log.recordTime));
-          return punchTime > lastSyncDate;
-      });
+//       const { rows: trackerRows } = await db.query(
+//           `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
+//           [deviceSN]
+//       );
 
-      console.log(`[SYNC] Processing ${newLogs.length} new machine logs...`);
-      let latestPunch = lastSyncDate;
+//       let lastSync = trackerRows[0]?.last_sync || "1970-01-01 00:00:00";
+//       let lastSyncDate = new Date(lastSync);
+//       lastSyncDate.setSeconds(lastSyncDate.getSeconds() - 2);
 
-      /* ---------- PROCESS LOGS ---------- */
-      for (const log of newLogs) {
-          const punchTimeStr = normalizePunchTime(log.recordTime);
-          if (!punchTimeStr) continue;
+//       const newLogs = logs.data.filter(log => {
+//           const punchTime = new Date(normalizePunchTime(log.recordTime));
+//           return punchTime > lastSyncDate;
+//       });
 
-          const punchDate = new Date(punchTimeStr);
+//       console.log(`[SYNC] New punches found: ${newLogs.length}`);
+//       let latestPunch = lastSyncDate;
 
-          // Find User
-          const { rows: userRows } = await db.query(
-              `SELECT emp_id, name, email FROM users WHERE emp_id = $1`,
-              [String(log.deviceUserId)]
-          );
+//       for (const log of newLogs) {
+//           const punchTimeStr = normalizePunchTime(log.recordTime);
+//           if (!punchTimeStr) continue;
 
-          if (!userRows.length) continue; 
-          const employee = userRows[0];
+//           const punchDate = new Date(punchTimeStr);
 
-          /* MASTER ATTENDANCE LOG INSERTION 
-             Ensures every raw machine log is archived 
-          */
-             const cleanTimestamp = new Date(log.recordTime).toISOString(); 
+//           const { rows: userRows } = await db.query(
+//               `SELECT emp_id, name, email FROM users WHERE emp_id = $1`,
+//               [String(log.deviceUserId)]
+//           );
 
-             await db.query(
-                 `INSERT INTO attendance_logs (emp_id, punch_time, device_sn, device_ip,raw_log,created_at)
-                  VALUES ($1, $2, $3, $4, $5,$6)
-                  ON CONFLICT DO NOTHING`, 
-                  [
-                     employee.emp_id,    // $1 (Matches emp_id)
-                     cleanTimestamp,     // $2 (Matches punch_time - MUST BE A VALID DATE STRING)
-                     deviceSN,           // $3 (Matches device_sn)
-                     deviceIP,           // $4 (Matches device_ip)
-                     JSON.stringify(log), // $5 (Matches raw_log - THE JSON GOES HERE)
-                     new Date()
-                  ]
-             );
+//           if (!userRows.length) continue;
+//           const employee = userRows[0];
 
-          /* ACTIVITY LOG INSERTION 
-             Used for notifications and real-time UI tracking
-          */
-          const insertRes = await db.query(
-              `INSERT INTO activity_log (emp_id, punch_time, device_ip, device_sn)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT (emp_id, punch_time) DO NOTHING`,
-              [employee.emp_id, punchTimeStr, deviceIP, deviceSN]
-          );
+          
+//           await db.query(
+//               `INSERT INTO attendance_logs 
+//                (emp_id, punch_time, device_ip, device_sn, raw_log)
+//                VALUES ($1, $2, $3, $4, $5)
+//                ON CONFLICT (emp_id, punch_time) DO NOTHING`,
+//               [
+//                   employee.emp_id,
+//                   punchTimeStr,
+//                   deviceIP,
+//                   deviceSN,
+//                   JSON.stringify(log)
+//               ]
+//           );
 
-          if (punchDate > latestPunch) latestPunch = punchDate;
+        
+//           const insertRes = await db.query(
+//               `INSERT INTO activity_log (emp_id, punch_time, device_ip, device_sn)
+//                VALUES ($1, $2, $3, $4)
+//                ON CONFLICT (emp_id, punch_time) DO NOTHING`,
+//               [employee.emp_id, punchTimeStr, deviceIP, deviceSN]
+//           );
 
-          // Notification Logic (Only if it's a new entry in activity_log)
-          if (insertRes.rowCount > 0) {
-              try {
-                  const timeStr = punchDate.toLocaleTimeString("en-IN", { 
-                      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' 
-                  });
+//           if (punchDate > latestPunch) latestPunch = punchDate;
 
-                  const { rows: firstPunchRow } = await db.query(
-                      `SELECT MIN(punch_time) as first_punch 
-                       FROM activity_log 
-                       WHERE emp_id = $1 AND punch_time::DATE = $2::DATE`,
-                      [employee.emp_id, punchTimeStr]
-                  );
-            
-                  // ... (Existing duration/email logic remains unchanged)
-            
-              } catch (dbErr) {
-                  console.error("Internal processing error:", dbErr);
-              }
-          }
-      }
+       
+//           if (insertRes.rowCount > 0) {
 
-      /* ---------- UPDATE TRACKER ---------- */
-      if (newLogs.length) {
-          const finalLastSync = latestPunch.toISOString().slice(0, 19).replace("T", " ");
-          await db.query(
-              `INSERT INTO attendance_tracker (device_sn, last_sync)
-               VALUES ($1, $2)
-               ON CONFLICT (device_sn)
-               DO UPDATE SET last_sync = EXCLUDED.last_sync`,
-              [deviceSN, finalLastSync]
-          );
-      }
+//               const timeStr = punchDate.toLocaleTimeString("en-IN", {
+//                   hour: '2-digit',
+//                   minute: '2-digit',
+//                   hour12: true,
+//                   timeZone: 'Asia/Kolkata'
+//               });
 
-      console.log("[SYNC] Machine logs archived and synced successfully");
-      return newLogs;
+//               const dd = String(punchDate.getDate()).padStart(2, '0');
+//               const mm = String(punchDate.getMonth() + 1).padStart(2, '0');
+//               const yyyy = punchDate.getFullYear();
+//               const formattedDate = `${dd}-${mm}-${yyyy}`;
 
-  } catch (err) {
-      console.error("[SYNC] Fatal Error:", err);
-      throw err;
-  } finally {
-      try {
-          await zk.disconnect();
-      } catch {
-          console.warn("[SYNC] Disconnect cleanup failed");
-      }
-  }
+//               const dayName = punchDate.toLocaleDateString('en-IN', {
+//                   weekday: 'long',
+//                   timeZone: 'Asia/Kolkata'
+//               });
+
+//               const action = log.type || "Punch";
+
+//               try {
+
+//                   const { rows: firstPunchRow } = await db.query(
+//                       `SELECT MIN(punch_time) as first_punch 
+//                        FROM activity_log 
+//                        WHERE emp_id = $1 
+//                        AND punch_time::DATE = $2::DATE`,
+//                       [employee.emp_id, punchTimeStr]
+//                   );
+
+//                   let punchInTime = timeStr;
+//                   let totalDuration = "Initial Punch"; 
+//                   let showSummary = false;
+
+//                   if (firstPunchRow[0]?.first_punch) {
+
+//                       const firstPunchDate = new Date(firstPunchRow[0].first_punch);
+
+//                       punchInTime = firstPunchDate.toLocaleTimeString("en-IN", {
+//                           hour: '2-digit',
+//                           minute: '2-digit',
+//                           hour12: true,
+//                           timeZone: 'Asia/Kolkata'
+//                       });
+
+//                       const diffMs = punchDate - firstPunchDate;
+
+//                       if (diffMs > 60000) {
+//                           const totalMinutes = Math.floor(diffMs / 60000);
+//                           const hours = Math.floor(totalMinutes / 60);
+//                           const minutes = totalMinutes % 60;
+
+//                           totalDuration = `${hours}h ${minutes}m`;
+//                           showSummary = true;
+//                       }
+//                   }
+
+
+//                   // await sendEmail(
+//                   //     employee.email,
+//                   //     // "s.imran@i-diligence.com",
+//                   //     `Attendance Notification: ${action}`,
+//                   //     "punch_in_out",
+//                   //     {
+//                   //         name: employee.name,
+//                   //         emp_id: employee.emp_id,
+//                   //         action,
+//                   //         date: formattedDate,
+//                   //         day: dayName,
+//                   //         time: timeStr,
+//                   //         punch_in: punchInTime,
+//                   //         punch_out: showSummary ? timeStr : "---",
+//                   //         duration: totalDuration,
+//                   //         is_out: showSummary
+//                   //     }
+//                   // );
+
+//                   console.log("Email sent to:", employee.email);
+
+//               } catch (emailErr) {
+//                   console.error("Email error:", emailErr);
+//               }
+//           }
+//       }
+
+//       if (newLogs.length) {
+//           const finalLastSync = latestPunch.toISOString().slice(0, 19).replace("T", " ");
+//           await db.query(
+//               `INSERT INTO attendance_tracker (device_sn, last_sync)
+//                VALUES ($1, $2)
+//                ON CONFLICT (device_sn)
+//                DO UPDATE SET last_sync = EXCLUDED.last_sync`,
+//               [deviceSN, finalLastSync]
+//           );
+//       }
+
+//       console.log("[SYNC] Completed successfully");
+//       return newLogs;
+
+//   } catch (err) {
+//       console.error("[SYNC] Error:", err);
+//       throw err;
+//   } finally {
+//       try {
+//           await zk.disconnect();
+//           console.log("[SYNC] Device disconnected");
+//       } catch {
+//           console.warn("[SYNC] Device disconnect failed");
+//       }
+//   }
+// }
+
+function formatLocalDateTime(date) {
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+    const yyyy = date.getFullYear();
+
+    const hh = String(date.getHours()).padStart(2, "0");
+    const min = String(date.getMinutes()).padStart(2, "0");
+    const ss = String(date.getSeconds()).padStart(2, "0");
+
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
-// 5-minute cron sync
+
+async function getDeviceAttendance() {
+    const deviceSN = "EUF7251400009";
+    const deviceIP = "60.254.61.177";
+    const zk = new ZKLib(deviceIP, 4370, 10000, 4000);
+
+    // Helper to format Date to IST with +05:30 offset
+    function formatISTWithOffset(date) {
+        if (!(date instanceof Date) || isNaN(date.getTime())) return null;
+
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const dd = String(date.getDate()).padStart(2, "0");
+
+        const hh = String(date.getHours()).padStart(2, "0");
+        const min = String(date.getMinutes()).padStart(2, "0");
+        const ss = String(date.getSeconds()).padStart(2, "0");
+
+        const offset = "+05:30"; // IST
+        return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}${offset}`;
+    }
+
+    try {
+        console.log("[SYNC] Connecting to device...");
+        await zk.createSocket();
+        await zk.enableDevice();
+
+        console.log("[SYNC] Fetching attendance logs...");
+        const logs = await zk.getAttendances();
+        if (!logs?.data?.length) {
+            console.log("[SYNC] No logs found");
+            return [];
+        }
+
+        const { rows: trackerRows } = await db.query(
+            `SELECT last_sync FROM attendance_tracker WHERE device_sn = $1`,
+            [deviceSN]
+        );
+
+        let lastSync = trackerRows[0]?.last_sync || "1970-01-01 00:00:00";
+        let lastSyncDate = new Date(lastSync);
+        lastSyncDate.setSeconds(lastSyncDate.getSeconds() - 2);
+
+        const newLogs = logs.data.filter(log => {
+            const punchTime = new Date(normalizePunchTime(log.recordTime));
+            return punchTime > lastSyncDate;
+        });
+
+        console.log(`[SYNC] New punches found: ${newLogs.length}`);
+        let latestPunch = lastSyncDate;
+
+        for (const log of newLogs) {
+            const punchTimeStr = normalizePunchTime(log.recordTime);
+            if (!punchTimeStr) continue;
+
+            const punchDate = new Date(punchTimeStr); //
+            if (isNaN(punchDate.getTime())) continue;
+
+            const { rows: userRows } = await db.query(
+                `SELECT emp_id, name, email FROM users WHERE emp_id = $1`,
+                [String(log.deviceUserId)]
+            );
+            if (!userRows.length) continue;
+            const employee = userRows[0];
+
+            const formattedPunch = formatISTWithOffset(punchDate);
+
+            // --- Insert into attendance_logs ---
+            await db.query(
+                `INSERT INTO attendance_logs 
+                 (emp_id, punch_time, device_ip, device_sn, raw_log)
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (emp_id, punch_time) DO NOTHING`,
+                [employee.emp_id, formattedPunch, deviceIP, deviceSN, JSON.stringify(log)]
+            );
+
+            // --- Insert into activity_log ---
+           const insertRes =  await db.query(
+                `INSERT INTO activity_log (emp_id, punch_time, device_ip, device_sn)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (emp_id, punch_time) DO NOTHING`,
+                [employee.emp_id, formattedPunch, deviceIP, deviceSN]
+            );
+
+            if (punchDate > latestPunch) latestPunch = punchDate;
+
+            // --- Daily Attendance Update ---
+            const dayStr = punchDate.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+            let firstPunch, lastPunch, durationStr;
+            let emailNeeded = false;
+
+
+
+            const { rows: dailyRow } = await db.query(
+                `SELECT * FROM daily_attendance 
+                 WHERE emp_id = $1 AND attendance_date = $2`,
+                [employee.emp_id, dayStr]
+            );
+
+            if (dailyRow.length) {
+                const existing = dailyRow[0];
+                firstPunch = new Date(existing.punch_in);
+                lastPunch = new Date(existing.punch_out);
+
+                if (punchDate < firstPunch) {
+                    firstPunch = punchDate;
+                    emailNeeded = true;
+                }
+                if (punchDate > lastPunch) {
+                    lastPunch = punchDate;
+                    emailNeeded = true;
+                }
+
+                const diffMs = lastPunch - firstPunch;
+                const hours = Math.floor(diffMs / 3600000);
+                const minutes = Math.floor((diffMs % 3600000) / 60000);
+                durationStr = `${hours}h ${minutes}m`;
+
+                await db.query(
+                    `UPDATE daily_attendance 
+                     SET punch_in = $1, punch_out = $2, total_hours = $3
+                     WHERE emp_id = $4 AND attendance_date = $5`,
+                    [
+                        formatISTWithOffset(firstPunch),
+                        formatISTWithOffset(lastPunch),
+                        durationStr,
+                        employee.emp_id,
+                        dayStr
+                    ]
+                );
+            } 
+            else {
+                firstPunch = lastPunch = punchDate;
+                durationStr = "0h 0m";
+                emailNeeded = true;
+
+                await db.query(
+                    `INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, total_hours)
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [employee.emp_id, dayStr, formattedPunch, formattedPunch, durationStr]
+                );
+            }
+
+            // --- Send email only if first or last punch changed ---
+            if (emailNeeded) {
+                const punchInTimeStr = firstPunch.toLocaleTimeString("en-IN", {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Kolkata'
+                });
+                const punchOutTimeStr = lastPunch.toLocaleTimeString("en-IN", {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Kolkata'
+                });
+
+                const formattedDate = `${String(firstPunch.getDate()).padStart(2, '0')}-${String(firstPunch.getMonth() + 1).padStart(2, '0')}-${firstPunch.getFullYear()}`;
+                const dayName = firstPunch.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' });
+
+                // try {
+                //     await sendEmail(
+                //         "s.imran@i-diligence.com",
+                //         `Attendance Notification: Punch`,
+                //         "punch_in_out",
+                //         {
+                //             name: employee.name,
+                //             emp_id: employee.emp_id,
+                //             action: "Punch",
+                //             date: formattedDate,
+                //             day: dayName,
+                //             time: formattedPunch,
+                //             punch_in: punchInTimeStr,
+                //             punch_out: punchOutTimeStr,
+                //             duration: durationStr,
+                //             is_out: punchOutTimeStr !== punchInTimeStr
+                //         }
+                //     );
+
+                //     console.log("Email sent to:", employee.email);
+                // } catch (emailErr) {
+                //     console.error("Email error:", emailErr);
+                // }
+            }
+        }
+
+        // --- Update attendance_tracker ---
+        if (newLogs.length) {
+            const finalLastSync = formatISTWithOffset(latestPunch);
+            await db.query(
+                `INSERT INTO attendance_tracker (device_sn, last_sync)
+                 VALUES ($1, $2)
+                 ON CONFLICT (device_sn)
+                 DO UPDATE SET last_sync = EXCLUDED.last_sync`,
+                [deviceSN, finalLastSync]
+            );
+        }
+
+        console.log("[SYNC] Completed successfully");
+        return newLogs;
+
+    } catch (err) {
+        console.error("[SYNC] Error:", err);
+        throw err;
+    } finally {
+        try {
+            await zk.disconnect();
+            console.log("[SYNC] Device disconnected");
+        } catch {
+            console.warn("[SYNC] Device disconnect failed");
+        }
+    }
+}
 let isSyncRunning = false;
 cron.schedule("*/5 * * * *", async () => {
   if (isSyncRunning) {
@@ -313,6 +577,8 @@ cron.schedule("*/5 * * * *", async () => {
   isSyncRunning = true;
   try {
     await getDeviceAttendance();
+   
+   
   } finally {
     isSyncRunning = false;
   }
@@ -328,10 +594,15 @@ cron.schedule("*/1 * * * *", async () => {
   isSyncRunning2 = true;
   try {
     await getDeviceAttendance();
+   
   } finally {
     isSyncRunning2 = false;
   }
 });
+
+
+
+
 module.exports = { getDeviceAttendance };
 
 

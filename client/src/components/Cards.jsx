@@ -7,6 +7,7 @@ import { IoEnterOutline } from "react-icons/io5";
 import { useLocation } from "react-router-dom";
 
 import { IoExit } from "react-icons/io5";
+import { useEffect } from "react";
 
 
 const Cards = () => {
@@ -14,15 +15,35 @@ const Cards = () => {
 const isAdminRoute = location.pathname.startsWith("/admin");
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const role = user?.role?.toLowerCase()?.trim();
+
+  const token = localStorage.getItem("token");
 
   const {
     adminAttendance = [],
     singleAttendance,
     loading,
+    auth,
+    refreshEmployeeDashboard,refreshAdminAttendance
+    
   } = useContext(EmployContext);
+  const role = user?.role?.toLowerCase()?.trim();
+
+
 
   // console.log(singleAttendance);
+
+
+useEffect(() => {
+  if (!auth?.token) return;
+
+  if (role === "admin") {
+    refreshAdminAttendance(); 
+  } else {
+    refreshEmployeeDashboard();
+  }
+
+}, [auth?.token, role]);
+
 
   const getTime = (dateTime) => {
     if (!dateTime) return "--";
@@ -95,7 +116,7 @@ const isAdminRoute = location.pathname.startsWith("/admin");
         id: 1,
         title: "Punch In",
         value: singleAttendance?.today?.punch_in
-          ? getTime(singleAttendance.today.punch_in)
+          ? singleAttendance?.today?.punch_in.split(" ")[0]
           : "--",
         icon: <IoEnterOutline />,
         bgColor: "#32a852",
@@ -104,7 +125,7 @@ const isAdminRoute = location.pathname.startsWith("/admin");
         id: 2,
         title: "Punch Out",
         value: singleAttendance?.today?.punch_out
-          ? getTime(singleAttendance.today.punch_out)
+          ? singleAttendance?.today?.punch_out
           : "Working",
         icon: <IoExit />,
         bgColor: "#dc2626",
@@ -134,7 +155,7 @@ const isAdminRoute = location.pathname.startsWith("/admin");
     );
   }
 
-  // const cardsToRender = role === "admin" ? adminCards : employeeCards;
+ 
 
   const cardsToRender = isAdminRoute ? adminCards : employeeCards;
 

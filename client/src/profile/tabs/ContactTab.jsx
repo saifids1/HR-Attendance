@@ -17,7 +17,7 @@ const ContactTab = ({
   const [draft, setDraft] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
 
-  const hasData = contactData && contactData.length > 0;
+  // console.log("contactData",contactData);
 
   /* ================= HANDLE CHANGE ================= */
 

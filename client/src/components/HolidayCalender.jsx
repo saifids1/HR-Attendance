@@ -26,6 +26,7 @@ export default function HolidayTimeline({ data }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+ 
   const nextHolidayIndex = data.findIndex(item => new Date(item.holiday_date) >= today);
 
   return (

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { loginUser } from "../../services/authServices";
 import LoginImg from "../assets/HR-login(2).png";
 import logo from "../assets/ids-logo.png"
-import { scheduleAutoLogout } from "../../api/axiosInstance";
+import api, { scheduleAutoLogout } from "../../api/axiosInstance";
+import { EmployContext } from "../context/EmployContextProvider";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ export default function Login() {
 
   // New state for inline validation errors
   const [errors, setErrors] = useState({});
+  const {setProfileImage} = useContext(EmployContext);
+  
 
   const validate = () => {
     let tempErrors = {};
@@ -45,42 +48,53 @@ export default function Login() {
     return Object.keys(tempErrors).length === 0;
   };
 
- const handleLogin = async (e) => {
-    if (e) e.preventDefault();
+const handleLogin = async (e) => {
+  if (e) e.preventDefault();
 
-    setErrors({});
-    const isValid = validate();
-    if (!isValid) return;
+  setErrors({});
+  const isValid = validate();
+  if (!isValid) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const resp = await loginUser({ email, password });
-      
-      // Save data to localStorage
-      localStorage.setItem("token", resp.token);
-      localStorage.setItem("user", JSON.stringify(resp.user));
+  try {
+    const resp = await loginUser({ email, password });
 
+    // Save token & user
+    localStorage.setItem("token", resp.token);
+    localStorage.setItem("user", JSON.stringify(resp.user));
 
-      // This ensures the "Active Redirect" starts the moment the user logs in
-      scheduleAutoLogout(resp.token);
+    const empId = resp.user.emp_id;  //  FIX
 
-      window.dispatchEvent(new Event("storage"));
-      toast.success("Welcome to HR Attendance System");
+    // Fetch profile image immediately after login
+    const profileResp = await api.get(`/employee/profile/image/${empId}`);
 
-      if (resp.user.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/employee");
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || "Invalid credentials";
-      toast.error(errorMessage);
-      setErrors({ auth: errorMessage });
-    } finally {
-      setLoading(false);
+    if (profileResp.data?.profile_image) {
+      setProfileImage(profileResp.data.profile_image);
+    } else {
+      setProfileImage(null); // will show default
     }
-  };
+
+    scheduleAutoLogout(resp.token);
+
+    window.dispatchEvent(new Event("storage"));
+    toast.success("Welcome to HR Attendance System");
+
+    if (resp.user.role === "admin") {
+      navigate("/admin");
+    } else {
+      navigate("/employee");
+    }
+
+  } catch (err) {
+    const errorMessage =
+      err.response?.data?.message || "Invalid credentials";
+    toast.error(errorMessage);
+    setErrors({ auth: errorMessage });
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="flex flex-col gap-12 min-h-screen overflow-hidden items-center justify-center bg-white px-4">
       {/* Header Section */}

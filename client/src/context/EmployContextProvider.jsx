@@ -1,7 +1,6 @@
 import React, { createContext, useEffect, useState, useMemo, useCallback } from "react";
-import axios from "axios";
-import ProfImg from "../assets/avatar.webp";
 import api from "../../api/axiosInstance";
+import ProfImg from "../assets/avatar.webp";
 
 export const EmployContext = createContext();
 
@@ -27,23 +26,40 @@ const EmployProvider = ({ children }) => {
   const [adminLoading, setAdminLoading] = useState(false);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [personalAddress,setPersonalAddress] = useState(null);
+
+  // Pagination weekly Attendance
+  const [page, setPage] = useState(1);
+const [limit] = useState(10); // items per page
+const [totalPages, setTotalPages] = useState(1);
 
   /* Weekly Data & Filters */
   const [weeklyData, setWeeklyData] = useState([]);
+  
+  // 1. UPDATED: Synchronized filter keys with Filters.jsx
   const [filters, setFilters] = useState({
+    // Generic
+    search: "",
+    // My Attendance / Admin All
     startDate: "",
     endDate: "",
-    attendanceSearch: "",
-    adminAttSearch: "",
-    activitySearch: "",
     employeeSearch: "",
-    search: ""
+    // Admin Attendance (Daily)
+    attendanceSearch: "",
+    // Single Admin History
+    adminStart: "",
+    adminEnd: "",
+    adminAttSearch: "",
+    // Activity Logs
+    actStart: "",
+    actEnd: "",
+    activitySearch: "",
+    // Weekly
+    weekSearch: ""
   });
 
-  // Profile Image - Initialized from LocalStorage for INSTANT load
-  const [profileImage, setProfileImage] = useState(
-    localStorage.getItem("profileImage") || ProfImg
-  );
+  // Profile Image
+  const [profileImage, setProfileImage] = useState(null);
 
   /* Auth State */
   const [auth, setAuth] = useState(() => {
@@ -56,41 +72,9 @@ const EmployProvider = ({ children }) => {
     };
   });
 
-  // Sync Auth across tabs
-  useEffect(() => {
-    const syncAuth = () => {
-      const token = localStorage.getItem("token");
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      setAuth({
-        token,
-        role: user?.role?.toLowerCase() || null,
-        emp_id: user?.emp_id || null
-      });
-    };
-    window.addEventListener("storage", syncAuth);
-    return () => window.removeEventListener("storage", syncAuth);
-  }, []);
-
   const axiosConfig = useMemo(() => ({
     headers: { Authorization: `Bearer ${auth.token}` },
   }), [auth.token]);
-
-  /* --- PROFILE IMAGE LOGIC --- */
-  const refreshImage = useCallback(async () => {
-    if (!auth.token) return;
-    try {
-      const res = await api.get(`employee/profile/image/${auth.emp_id}`, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      });
-      if (res.data?.profile_image) {
-        const imageUrl = `${res.data.profile_image}?t=${Date.now()}`;
-        setProfileImage(imageUrl);
-        localStorage.setItem("profileImage", imageUrl); // Persistent storage
-      }
-    } catch (err) {
-      console.error("Image fetch failed", err);
-    }
-  }, [auth.token]);
 
   /* --- ACTIONS --- */
   const handleFilterChange = (e) => {
@@ -98,11 +82,14 @@ const EmployProvider = ({ children }) => {
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
 
-  const fetchEmployeeDashboard = async (page = 1, appliedFilters = filters) => {
+  // 2. UPDATED: Fetch Employee Dashboard logic to use standard startDate/endDate
+  const fetchEmployeeDashboard = async (page = 1) => {
+    if (!auth.token) return;
     try {
       setEmployeeLoading(true);
-      const { startDate, endDate } = appliedFilters;
+      const { startDate, endDate } = filters;
       let url = `employee/attendance/history?page=${page}&limit=${pagination.limit}`;
+      
       if (startDate) url += `&startDate=${startDate}`;
       if (endDate) url += `&endDate=${endDate}`;
 
@@ -114,10 +101,6 @@ const EmployProvider = ({ children }) => {
       if (historyRes.data?.attendance) {
         setEmployeeAttendance(historyRes.data.attendance);
         if (historyRes.data.pagination) setPagination(historyRes.data.pagination);
-        if (historyRes.data.attendance.length > 0) {
-          const emp = historyRes.data.attendance[0];
-          setEmployee({ emp_id: emp.emp_id, name: emp.employee_name });
-        }
       }
       setSingleAttendance(todayRes.data || null);
     } catch (err) {
@@ -129,84 +112,104 @@ const EmployProvider = ({ children }) => {
   };
 
   const fetchAdminAttendance = async () => {
-    if (!auth.token) return;
+    if (!auth.token || auth.role !== "admin") return;
     try {
       setAdminLoading(true);
       const res = await api.get("admin/attendance/today", axiosConfig);
       setAdminAttendance(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.clear();
-        window.location.href = "/login";
-      }
+      console.error("Admin fetch failed", err);
     } finally {
       setAdminLoading(false);
-      setInitialized(true);
     }
   };
 
-  const fetchLogs = useCallback(async () => {
-    const currentSearch = (filters.search || filters.activitySearch || auth.emp_id || "").toString().trim();
-    if (!currentSearch || !auth.token) return;
+  // 3. UPDATED: Weekly logs logic
+const fetchLogs = useCallback(async () => {
+  const currentSearch = (
+    filters.activitySearch ||
+    filters.search ||
+    filters.weekSearch ||
+    ""
+  )
+    .toString()
+    .trim();
 
+  if (!auth.token) return;
+
+  try {
+    setWeeklyLoading(true);
+
+    const params = new URLSearchParams();
+
+    if (currentSearch) params.append("search", currentSearch);
+    if (filters.startDate) params.append("from", filters.startDate);
+    if (filters.endDate) params.append("to", filters.endDate);
+
+    // ✅ Pagination params
+    params.append("page", page);
+    params.append("limit", limit);
+
+    const queryString = params.toString();
+    const url = `admin/attendance/weekly-attendance${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    console.log("Fetching URL:", url);
+
+    const res = await api.get(url, axiosConfig);
+
+    setWeeklyData(res.data);
+    setTotalPages(res.data.totalPages || 1); // update total pages from API
+  } catch (err) {
+    console.error("Fetch error:", err);
+    setWeeklyData({ data: [] });
+  } finally {
+    setWeeklyLoading(false);
+  }
+}, [
+  filters.search,
+  filters.activitySearch,
+  filters.weekSearch,
+  filters.startDate,
+  filters.endDate,
+  auth.token,
+  axiosConfig,
+  page, // important dependency
+  limit,
+]);
+ 
+const fetchHolidays = (async()=>{
+   
     try {
-      setWeeklyLoading(true);
-      let url = `admin/attendance/weekly-attendance?search=${encodeURIComponent(currentSearch)}`;
-      if (filters.startDate) url += `&from=${filters.startDate}`;
-      if (filters.endDate) url += `&to=${filters.endDate}`;
 
-      const res = await api.get(url, axiosConfig);
-      const logs = res.data || [];
-      setWeeklyData(logs);
-      setActiveLogs(logs);
+      const res = await api.get("employee/attendance/holiday", axiosConfig);
+      setHolidays(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
-      setWeeklyData([]);
+      console.error("Admin fetch failed", err);
     } finally {
-      setWeeklyLoading(false);
+      setAdminLoading(false);
     }
-  }, [filters.search, filters.activitySearch, filters.startDate, filters.endDate, auth.emp_id, auth.token, axiosConfig]);
-
-  const fetchHolidays = async () => {
-
-    try {
-
-      const resp = await api.get(
-
-        "employee/attendance/holiday",
-
-        axiosConfig
-
-      );
-
-      setHolidays(resp.data);
-
-    } catch (err) {
-
-      console.error(err);
-
-      setHolidays([]);
-
-    }
-
-  };
-
-  /* --- EFFECTS --- */
+})
   
-  // Debounced logs fetch
   useEffect(() => {
     const handler = setTimeout(() => { fetchLogs(); }, 400);
     return () => clearTimeout(handler);
   }, [fetchLogs]);
 
-  // Initial Data Fetch
   useEffect(() => {
-    if (!auth.token || !auth.role) return;
-    refreshImage();
-    if (auth.role === "admin") fetchAdminAttendance();
+  const effectiveToken = auth.token || localStorage.getItem("token");
+  
+  if (!effectiveToken) return;
+    if (auth.role === "admin") {
+      fetchAdminAttendance();
+       fetchHolidays();
+
+    }
     fetchEmployeeDashboard();
-    fetchHolidays()
-    // fetchHolidays logic here...
+    fetchHolidays();
   }, [auth.token, auth.role]);
+  
 
   const formatDate = (value) => {
     if (!value) return "--";
@@ -214,19 +217,20 @@ const EmployProvider = ({ children }) => {
     return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
   };
 
-  const loading = auth.role === "admin" ? adminLoading : employeeLoading;
-
   return (
     <EmployContext.Provider
       value={{
         employee, employeeAttendance, singleAttendance, adminAttendance,
+        personalAddress,setPersonalAddress,
         setAdminAttendance, orgAddress, setOrgAddress, holidays,
-        loading, initialized, profileImage, setProfileImage, refreshImage,
+        loading: auth.role === "admin" ? adminLoading : employeeLoading,
+        initialized, profileImage, setProfileImage,
         activelogs, setActiveLogs, singleAdminAttendance, setSingleAdminAttendance,
         weeklyLoading, weeklyData, setWeeklyData, filters, setFilters,
         pagination, setPagination, handleFilterChange, formatDate,
         refreshEmployeeDashboard: fetchEmployeeDashboard,
         refreshAdminAttendance: fetchAdminAttendance,
+        refreshWeeklyAttendane:fetchLogs,
       }}
     >
       {children}

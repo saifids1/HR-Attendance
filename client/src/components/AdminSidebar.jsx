@@ -37,7 +37,7 @@ const AdminSidebar = ({ open, setOpen }) => {
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-40 bg-white shadow-xl
+          fixed inset-y-0 left-0 z-40  shadow-xl
           transition-all duration-300 ease-in-out 
           flex flex-col h-screen overflow-hidden
           
@@ -69,34 +69,32 @@ const AdminSidebar = ({ open, setOpen }) => {
        </div>
 
         {/* Navigation Menu */}
-        <nav className="mt-4 space-y-1 px-3 flex-1 overflow-y-auto custom-scrollbar">
+        <nav className="mt-4 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
           <NavLink to="/admin" end className={navClass}>
             <House size={15} className="shrink-0" />
-            <span className="text-[16px]">Overview</span>
+            <span className="text-[15px]">Company Dashboard </span>
           </NavLink>
 
           {/* Employees Dropdown - Pass openSidebar={true} to keep it expanded on desktop */}
           <SidebarDropdown
             icon={Book}
-            label="Employees"
+            label="Company Employees"
             openSidebar={true}
             items={[
               { label: "Employee List", path: "/admin/employees" },
               { label: "Add Employee", path: "/admin/add-emp" },
               { label: "Daily Attendance", path: "/admin/attendance" },
               { label: "Weekly Attendance", path: "/admin/week" },
-              // { label: "Employee Attendance", path: "/admin/all" },
+              { label: "Monthly Attendance", path: "/admin/all" },
             ]}
-          />
+          /> 
 
-          {/* <NavLink to="/admin/admin-attendance" className={navClass}>
-            <LockKeyhole size={20} className="shrink-0" />
-            <span className="text-[16px]">My Attendance</span>
-          </NavLink> */}
+          
+          
           <NavLink to="/employee" className={navClass}>
             <House size={18} className="shrink-0" />
-            <span className="whitespace-nowrap">
-              My Employee Dashboard
+            <span className="whitespace-nowrap text-[15px]">
+              My Dashboard
             </span>
           </NavLink>
 
@@ -104,17 +102,22 @@ const AdminSidebar = ({ open, setOpen }) => {
           
 
             <RxAvatar size={18} className="shrink-0" />
-            <span className="text-[16px]">My Profile</span>
+            <span className="text-[15px]">Company Profile</span>
           </NavLink>
 
           <NavLink to="/admin/activity-logs" className={navClass}>
             <TbLogs size={18} className="shrink-0" />
-            <span className="text-[16px]">Attendance Log</span>
+            <span className="text-[15px] text-nowrap">Company Attendance Log</span>
           </NavLink>
 
           <NavLink to="/admin/leaves" className={navClass}>
             <FaRegCalendarAlt size={18} className="shrink-0" />
-            <span className="text-[16px]">Leave Requests</span>
+            <span className="text-[15px] text-nowrap">Company Leave Requests</span>
+          </NavLink>
+
+            <NavLink to="/admin/cron-manager" className={navClass}>
+            <FaRegCalendarAlt size={18} className=" shrink-0" />
+            <span className="text-[15px] text-nowrap">Company Manage Reports</span>
           </NavLink>
         </nav>
 

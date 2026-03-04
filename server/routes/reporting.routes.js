@@ -65,7 +65,7 @@ router.post("/employees/reporting", authMiddleware, isAdmin, async (req, res) =>
   try {
     const { emp_code, managers } = req.body;
 
-    // 1️⃣ Validation
+    //  Validation
     if (!emp_code || !Array.isArray(managers) || managers.length === 0) {
       return res.status(400).json({
         message: "emp_code and managers array are required",

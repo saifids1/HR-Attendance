@@ -7,6 +7,7 @@ import {
   CalendarDaysIcon,
   AdjustmentsHorizontalIcon,
 } from "@heroicons/react/24/outline";
+import api from "../../api/axiosInstance";
 
 // Status Icon component
 const StatusIcon = ({ type }) => {
@@ -77,8 +78,8 @@ export default function AttendanceSheet() {
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
     try {
-      const resp = await axios.get(
-        "http://localhost:5000/api/admin/attendance/all-attendance",
+      const resp = await api.get(
+        "/admin/attendance/all-attendance",
         {
           params: {
             month: month + 1, // API expects 1-12

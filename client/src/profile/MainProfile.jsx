@@ -20,11 +20,12 @@ const tabs = [
   "Documents",
 ];
 
-const MainProfile = ({
+const MainProfile = ({ 
   personalData,
   educationData,
   experienceData,
   contactData,
+  nomineeData,
   bankData,
   organizationData,
   userRole, // "admin" or "employee"
@@ -42,10 +43,14 @@ const MainProfile = ({
   const isAdmin = userRole === "admin";
   const isOrganizationTab = activeTab === "Organization";
 
-  // console.log("aciveTab",activeTab)
+  // console.log("Main profile nomineeData",nomineeData)
 
   // Admins can edit anything. Employees can edit anything except Organization.
   const canShowEditButton = !isEditing && !isAddingNew && (isAdmin || !isOrganizationTab);
+
+  const cancelEdit = ()=>{
+    setIsEditing(false)
+  }
 
   return (
     <div>
@@ -90,7 +95,7 @@ const MainProfile = ({
       </div>
 
       <div className="mt-4">
-        {activeTab === "Organization" && (
+          {activeTab === "Organization" && (
           <OrganizationTab
             organizationData={organizationData}
             isEditing={isEditing}
@@ -98,9 +103,9 @@ const MainProfile = ({
             onSave={onSave}
             empId={empId}
             personalData={personalData}
+            cancelEdit={cancelEdit}
           />
         )}
-
         {activeTab === "Personal" && (
           <PersonalTab
             personalData={personalData}
@@ -173,6 +178,7 @@ const MainProfile = ({
             setIsEditing={setIsEditing}
             empId={empId}
             onSave={onSave}
+            nomineData={nomineeData}
           />
         )}
       </div>
