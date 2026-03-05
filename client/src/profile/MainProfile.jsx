@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import OrganizationTab from "./tabs/OrganizationTab";
 import PersonalTab from "./tabs/PersonalTab";
 import EducationTab from "./tabs/EducationTab";
@@ -7,7 +7,6 @@ import ContactsTab from "./tabs/ContactTab";
 import BankTab from "./tabs/BankTab";
 import DocumentTab from "./tabs/DocumentTab";
 import NomineeTab from "./tabs/NomineeTab";
-// import { getEducation } from "../../api/profile";
 
 const tabs = [
   "Organization",
@@ -20,7 +19,7 @@ const tabs = [
   "Documents",
 ];
 
-const MainProfile = ({ 
+const MainProfile = ({
   personalData,
   educationData,
   experienceData,
@@ -28,29 +27,53 @@ const MainProfile = ({
   nomineeData,
   bankData,
   organizationData,
-  userRole, // "admin" or "employee"
+  userRole,
   isEditing,
   setIsEditing,
   onSave,
-  empId, // The dynamic ID (from URL or LocalStorage)
+  empId,
   isAddingNew,
   setIsAddingNew,
+  addNewEmployee,
 }) => {
   const [activeTab, setActiveTab] = useState("Personal");
-
-  // console.log("empId",empId);
 
   const isAdmin = userRole === "admin";
   const isOrganizationTab = activeTab === "Organization";
 
-  // console.log("Main profile nomineeData",nomineeData)
+  // ✅ If addNewEmployee is true → force editing mode
+  useEffect(() => {
+    console.log("can show eidt button", canShowEditButton);
+    console.log("addNewEmployee", addNewEmployee);
+    if (addNewEmployee) {
+      setIsEditing(true);
+    }
+  }, [addNewEmployee, setIsEditing]);
 
-  // Admins can edit anything. Employees can edit anything except Organization.
-  const canShowEditButton = !isEditing && !isAddingNew && (isAdmin || !isOrganizationTab);
+  // ✅ Hide buttons when editing OR  adding new employee
+  const canShowEditButton =
+    (!isEditing || addNewEmployee) &&
+    !isAddingNew &&
+    (isAdmin || !isOrganizationTab);
 
-  const cancelEdit = ()=>{
-    setIsEditing(false)
-  }
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setIsAddingNew(false);
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+
+    // Reset add new always
+    setIsAddingNew(false);
+
+    // If adding new employee → stay in editing mode
+    if (addNewEmployee) {
+      setIsEditing(true);
+    } else {
+      setIsEditing(false);
+    }
+  };
 
   return (
     <div>
@@ -59,11 +82,7 @@ const MainProfile = ({
           {tabs.map((tab) => (
             <button
               key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setIsEditing(false); // Reset editing mode when switching tabs
-                setIsAddingNew(false); // Reset adding new mode when switching tabs
-              }}
+              onClick={() => handleTabChange(tab)}
               className={`whitespace-nowrap text-sm px-4 py-1.5 transition-all ${
                 activeTab === tab
                   ? "bg-white text-[#222F7D] rounded-md font-bold"
@@ -74,6 +93,7 @@ const MainProfile = ({
             </button>
           ))}
         </div>
+
         {canShowEditButton &&
           (["Education", "Experience", "Contacts", "Documents"].includes(
             activeTab,
@@ -84,18 +104,18 @@ const MainProfile = ({
             >
               + Add New
             </button>
-          ) : (
+          ) : !addNewEmployee ? (
             <button
               onClick={() => setIsEditing(true)}
               className="bg-white px-4 py-1.5 rounded-md text-sm font-medium text-[#222F7D] hover:bg-gray-100"
             >
               Edit Profile
             </button>
-          ))}
+          ) : null)}
       </div>
 
       <div className="mt-3">
-          {activeTab === "Organization" && (
+        {activeTab === "Organization" && (
           <OrganizationTab
             organizationData={organizationData}
             isEditing={isEditing}
@@ -104,8 +124,10 @@ const MainProfile = ({
             empId={empId}
             personalData={personalData}
             cancelEdit={cancelEdit}
+            addNewEmployee={addNewEmployee}
           />
         )}
+
         {activeTab === "Personal" && (
           <PersonalTab
             personalData={personalData}
@@ -113,6 +135,7 @@ const MainProfile = ({
             setIsEditing={setIsEditing}
             onSave={onSave}
             empId={empId}
+            addNewEmployee={addNewEmployee}
           />
         )}
 
@@ -125,6 +148,7 @@ const MainProfile = ({
             empId={empId}
             isAddingNew={isAddingNew}
             setIsAddingNew={setIsAddingNew}
+            addNewEmployee={addNewEmployee}
           />
         )}
 
@@ -137,6 +161,7 @@ const MainProfile = ({
             onSave={onSave}
             isAddingNew={isAddingNew}
             setIsAddingNew={setIsAddingNew}
+            addNewEmployee={addNewEmployee}
           />
         )}
 
@@ -149,6 +174,7 @@ const MainProfile = ({
             onSave={onSave}
             isAddingNew={isAddingNew}
             setIsAddingNew={setIsAddingNew}
+            addNewEmployee={addNewEmployee}
           />
         )}
 
@@ -159,6 +185,7 @@ const MainProfile = ({
             setIsEditing={setIsEditing}
             empId={empId}
             onSave={onSave}
+            addNewEmployee={addNewEmployee}
           />
         )}
 
@@ -170,8 +197,10 @@ const MainProfile = ({
             onSave={onSave}
             isAddingNew={isAddingNew}
             setIsAddingNew={setIsAddingNew}
+            addNewEmployee={addNewEmployee}
           />
         )}
+
         {activeTab === "Nominees" && (
           <NomineeTab
             isEditing={isEditing}
@@ -179,6 +208,7 @@ const MainProfile = ({
             empId={empId}
             onSave={onSave}
             nomineData={nomineeData}
+            addNewEmployee={addNewEmployee}
           />
         )}
       </div>

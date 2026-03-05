@@ -191,7 +191,7 @@ const Profile = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  // console.log("orgAddress",orgAddress)
+  console.log("orgAddress",orgAddress)
   return (
     <div className="min-h-screen py-4 px-3 sm:py-6 sm:px-4 bg-gray-50/70">
       {/* HEADER */}
@@ -240,7 +240,7 @@ const Profile = () => {
               <div className="flex flex-col sm:flex-row gap-4 mt-4 text-gray-600 text-sm justify-center md:justify-start">
                 <span className="flex items-center gap-2">
                   <IoHomeSharp className="text-[#222F7D]" />{" "}
-                  {orgAddress?.address || "Office Address"}
+                  {orgAddress?.organization_location || "Office Address"}
                 </span>
                 <span className="flex items-center gap-2">
                   <MdOutlineEmail className="text-[#222F7D] text-lg" />{" "}
@@ -260,7 +260,7 @@ const Profile = () => {
 
       {/* TABS CONTENT */}
       <div className="mx-auto mt-6">
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white rounded overflow-hidden">
           <MainProfile
             organizationData={organizationData}
             personalData={personalData}

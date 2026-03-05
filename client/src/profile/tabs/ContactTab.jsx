@@ -111,28 +111,28 @@ const ContactTab = ({
   /* ================= UI ================= */
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid rounded">
       <div className="bg-white p-4 rounded shadow-sm border border-gray-200">
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded">
+        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Type
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Phone
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Email
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Relation
                 </th>
-                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-center text-sm text-gray-600 mb-1 font-medium">
                   Primary
                 </th>
-                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-center text-sm text-gray-600 mb-1 font-medium">
                   Actions
                 </th>
               </tr>
@@ -150,16 +150,16 @@ const ContactTab = ({
                   />
                 ) : (
                   <tr key={contact.id || index}>
-                    <td className="px-4 py-2 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       {contact.contact_type}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{contact.phone}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{contact.email}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{contact.relation}</td>
-                    <td className="px-4 py-2 text-center text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">{contact.phone}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{contact.email}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{contact.relation}</td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-600">
                       {contact.is_primary ? "Yes" : "No"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-center text-gray-600">
+                    <td className="px-4 py-3 text-sm text-center text-gray-600">
                       <div className="flex gap-4 justify-center">
                         <button
                           onClick={() => handleEdit(contact, index)}

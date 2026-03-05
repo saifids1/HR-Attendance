@@ -220,22 +220,22 @@ const DocumentTab = ({
   /* ================= UI ================= */
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid rounded">
       <div className="bg-white p-4 shadow-sm border border-gray-200">
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5">
+        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-left">
+                <th className="px-4 py-3 text-sm text-gray-600 mb-1 font-medium text-left">
                   Document type
                 </th>
-                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-left">
+                <th className="px-4 py-3 text-sm text-gray-600 mb-1 font-medium text-left">
                   Document No.
                 </th>
-                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-left">
+                <th className="px-4 py-3 text-sm text-gray-600 mb-1 font-medium text-left">
                   Document
                 </th>
-                <th className="px-4 py-2 text-sm text-gray-600 mb-1 font-medium text-center">
+                <th className="px-4 py-3 text-sm text-gray-600 mb-1 font-medium text-center">
                   Actions
                 </th>
               </tr>
@@ -255,16 +255,16 @@ const DocumentTab = ({
                   />
                 ) : (
                   <tr key={doc.id}>
-                    <td className="px-4 py-2 text-sm text-gray-600">{doc.document_type}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">{doc.document_type}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       {doc.document_number || "-"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600 underline cursor-pointer">
+                    <td className="px-4 py-3 text-sm text-gray-600 underline cursor-pointer">
                       <span onClick={() => window.open(doc.fullUrl, "_blank")}>
                         {doc.file_name}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600 text-center">
+                    <td className="px-4 py-3 text-sm text-gray-600 text-center">
                       <div className="flex gap-4 justify-center">
                         <button
                           onClick={() => handleEdit(doc, index)}
@@ -288,16 +288,16 @@ const DocumentTab = ({
               {/* Draft row normal view */}
               {draft && editingIndex === "new" && (
                 <tr>
-                  <td className="px-4 py-2 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-gray-600">
                     {draft.documentType}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-gray-600">
                     {draft.documentNumber || "-"}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm text-gray-600">
                     {draft.file ? draft.file : "-"}
                   </td>
-                  <td className="px-4 py-2 text-center text-sm text-gray-600">
+                  <td className="px-4 py-3 text-center text-sm text-gray-600">
                     <button
                       onClick={() => setEditingIndex("new-edit")}
                       className="text-blue-500"

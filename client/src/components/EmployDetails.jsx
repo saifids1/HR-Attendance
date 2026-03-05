@@ -34,11 +34,11 @@ const EmployeeDetails = () => {
   const emp_id = urlEmpId || user.emp_id;
   const isAdmin = user.role === "admin";
 
-  const { setAdminAttendance,personalAddress } = useContext(EmployContext);
+  const { setAdminAttendance, personalAddress } = useContext(EmployContext);
 
-  useEffect(()=>{
-    console.log("personalAddress",personalAddress)
-  },[personalAddress])
+  useEffect(() => {
+    console.log("personalAddress", personalAddress);
+  }, [personalAddress]);
   // --- State Management ---
   const [isEditing, setIsEditing] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -50,7 +50,7 @@ const EmployeeDetails = () => {
   const [contact, setContact] = useState([]);
   const [education, setEducation] = useState([]);
   const [experience, setExperience] = useState([]);
-  const[nominee,setNominee] = useState([]);
+  const [nominee, setNominee] = useState([]);
   const [bank, setBank] = useState([]);
   const [documents, setDocuments] = useState({});
 
@@ -65,7 +65,6 @@ const EmployeeDetails = () => {
       const res = await api.get(`employee/profile/image/${emp_id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
 
       if (res.data?.profile_image) {
         setProfileImage(`${res.data.profile_image}?t=${Date.now()}`);
@@ -92,15 +91,16 @@ const EmployeeDetails = () => {
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-     const [pRes, cRes, eRes, exRes, bRes, dRes, nRes] =
-  await Promise.allSettled([
-    api.get(`employee/profile/personal/${emp_id}`, { headers }),
-    api.get(`employee/profile/contact/${emp_id}`, { headers }),
-    api.get(`employee/profile/education/${emp_id}`, { headers }),
-    api.get(`employee/profile/experience/${emp_id}`, { headers }),
-    api.get(`employee/profile/bank/${emp_id}`, { headers }),
-    api.get(`employee/profile/bank/doc/${emp_id}`, { headers }),
-    api.get(`employee/profile/nominee/${emp_id}`, { headers }),   ]);
+      const [pRes, cRes, eRes, exRes, bRes, dRes, nRes] =
+        await Promise.allSettled([
+          api.get(`employee/profile/personal/${emp_id}`, { headers }),
+          api.get(`employee/profile/contact/${emp_id}`, { headers }),
+          api.get(`employee/profile/education/${emp_id}`, { headers }),
+          api.get(`employee/profile/experience/${emp_id}`, { headers }),
+          api.get(`employee/profile/bank/${emp_id}`, { headers }),
+          api.get(`employee/profile/bank/doc/${emp_id}`, { headers }),
+          api.get(`employee/profile/nominee/${emp_id}`, { headers }),
+        ]);
 
       if (pRes.status === "fulfilled") setPersonal(pRes.value.data || {});
       if (cRes.status === "fulfilled")
@@ -110,15 +110,14 @@ const EmployeeDetails = () => {
       if (exRes.status === "fulfilled")
         setExperience(exRes.value.data?.experience || []);
 
-      if(nRes.status === "fulfilled")
-        setNominee(nRes.value.data?.nominee ||[]);
+      if (nRes.status === "fulfilled")
+        setNominee(nRes.value.data?.nominee || []);
 
-      console.log("bRes",bRes);
+      console.log("bRes", bRes);
       if (bRes.status === "fulfilled")
         setBank(bRes.value.data?.bankDetails || []);
 
-
-      console.log("dRes",dRes);
+      console.log("dRes", dRes);
 
       if (dRes?.status === "fulfilled") {
         const docObj = {};
@@ -128,18 +127,16 @@ const EmployeeDetails = () => {
         setDocuments(docObj);
       }
     } catch (err) {
-      console.log("error employData",err);
+      console.log("error employData", err);
       toast.error("Error fetching employee data");
     } finally {
       setLoading(false);
     }
   }, [emp_id, token]);
 
-  useEffect(()=>{
-
-    console.log("setNominee",nominee);
-
-  },[])
+  useEffect(() => {
+    console.log("setNominee", nominee);
+  }, []);
 
   useEffect(() => {
     if (personal) {
@@ -156,7 +153,7 @@ const EmployeeDetails = () => {
     fetchAllData();
     fetchProfileImage();
     fetchReporting();
-  }, [fetchAllData, fetchProfileImage, fetchReporting,refreshTrigger]);
+  }, [fetchAllData, fetchProfileImage, fetchReporting, refreshTrigger]);
 
   // --- Handlers ---
   // const handleToggleActive = async () => {
@@ -200,26 +197,28 @@ const EmployeeDetails = () => {
   //   }
   // };
 
-   const handleProfileUpload = async (e) => {
-
+  const handleProfileUpload = async (e) => {
     // console.log("click Profile")
     const file = e.target.files[0];
- if (!file || !urlEmpId) return;
+    if (!file || !urlEmpId) return;
 
     const formData = new FormData();
     formData.append("profile", file);
 
     try {
-      const res = await api.post(`employee/profile/image/${urlEmpId}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post(
+        `employee/profile/image/${urlEmpId}`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
 
-      console.log("profile Res",res);
+      console.log("profile Res", res);
 
       setRefreshTrigger((prev) => prev + 1);
       toast.success("Profile Image Updated");
     } catch (error) {
-
       console.log(error);
       toast.error("Failed to upload image");
     }
@@ -240,33 +239,35 @@ const EmployeeDetails = () => {
             Employee Profile
           </Typography>
         </div>
-        
 
         {/* PROFILE HEADER SECTION */}
         <div className="mx-auto grid grid-cols-1 lg:grid-cols-[4fr_1.5fr] gap-6">
           {/* LEFT CARD */}
           <div className="bg-white rounded-xl shadow p-4 sm:p-6 h-25">
             <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
-            <div className="relative w-32 h-32">
-  <label htmlFor="profileUpload" className="cursor-pointer block w-full h-full">
-    <img
-      src={profileImage || defaultProfile}
-      alt="Profile"
-      className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
-    />
+              <div className="relative w-32 h-32">
+                <label
+                  htmlFor="profileUpload"
+                  className="cursor-pointer block w-full h-full"
+                >
+                  <img
+                    src={profileImage || defaultProfile}
+                    alt="Profile"
+                    className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
+                  />
 
-    <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
-      ✎
-    </div>
-  </label>
+                  <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
+                    ✎
+                  </div>
+                </label>
 
-  <input
-    id="profileUpload"
-    type="file"
-    className="hidden"
-    onChange={handleProfileUpload}
-  />
-</div>
+                <input
+                  id="profileUpload"
+                  type="file"
+                  className="hidden"
+                  onChange={handleProfileUpload}
+                />
+              </div>
 
               <div className="w-full text-center md:text-left">
                 <h2 className="text-xl font-bold text-gray-800">
@@ -302,7 +303,7 @@ const EmployeeDetails = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto bg-transparent mt-5 rounded-xl shadow min-h-[400px]">
+      <div className="max-w-6xl mx-auto bg-transparent mt-5 rounded-xl min-h-[400px]">
         {loading ? (
           <div className="flex justify-center items-center h-64 text-gray-500 italic">
             Loading Profile Data...

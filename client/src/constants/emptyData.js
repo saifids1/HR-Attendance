@@ -1,4 +1,57 @@
-export const degreeOptions = ["B.Tech", "M.Tech", "B.Sc", "M.Sc", "MBA", "MCA"];
+export const degreeOptions = [
+  // School Level
+  "High School",
+  "Secondary School (10th)",
+  "Higher Secondary (12th)",
+
+  // Diploma
+  "Diploma",
+  "Advanced Diploma",
+  "Post Graduate Diploma (PGDM)",
+
+  // Associate
+  "Associate of Arts (AA)",
+  "Associate of Science (AS)",
+  "Associate of Commerce (AC)",
+
+  // Bachelor's Degrees
+  "Bachelor of Arts (BA)",
+  "Bachelor of Science (BSc)",
+  "Bachelor of Commerce (BCom)",
+  "Bachelor of Engineering (BE)",
+  "Bachelor of Technology (BTech)",
+  "Bachelor of Computer Applications (BCA)",
+  "Bachelor of Business Administration (BBA)",
+  "Bachelor of Architecture (BArch)",
+  "Bachelor of Pharmacy (BPharm)",
+  "Bachelor of Education (BEd)",
+  "Bachelor of Law (LLB)",
+  "Bachelor of Medicine, Bachelor of Surgery (MBBS)",
+
+  // Master's Degrees
+  "Master of Arts (MA)",
+  "Master of Science (MSc)",
+  "Master of Commerce (MCom)",
+  "Master of Engineering (ME)",
+  "Master of Technology (MTech)",
+  "Master of Computer Applications (MCA)",
+  "Master of Business Administration (MBA)",
+  "Master of Architecture (MArch)",
+  "Master of Pharmacy (MPharm)",
+  "Master of Education (MEd)",
+  "Master of Law (LLM)",
+
+  // Doctoral
+  "Doctor of Philosophy (PhD)",
+  "Doctor of Medicine (MD)",
+  "Doctor of Surgery (MS)",
+  "Doctor of Business Administration (DBA)",
+
+  // Other
+  "Certification Course",
+  "Vocational Training",
+  "ITI",
+  "Other"];
 
 export const emptyEducation = {
   degree: "MCA",
@@ -67,7 +120,7 @@ export const emptyBank = {
 };
 
 export const emptyNominee = {
-  nominee_name:"James",
+  nominee_name: "James",
   nominee_relation: "Brother",
   nominee_contact: "1234567890"
 };
@@ -85,17 +138,139 @@ export const reportingLocationOptions = [
   "Branch_Office"
 ];
 
+export const designationOptions = [
+  // Executive Level
+  "Founder",
+  "Co-Founder",
+  "CEO (Chief Executive Officer)",
+  "COO (Chief Operating Officer)",
+  "CTO (Chief Technology Officer)",
+  "CFO (Chief Financial Officer)",
+  "CMO (Chief Marketing Officer)",
+  "Director",
+  "Managing Director",
+  "VP (Vice President)",
+  "Associate Vice President",
+
+  // Management Level
+  "General Manager",
+  "Senior Manager",
+  "Manager",
+  "Assistant Manager",
+  "Team Lead",
+  "Project Manager",
+  "Product Manager",
+  "Program Manager",
+
+  // Technical Roles
+  "Software Engineer",
+  "Senior Software Engineer",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "Mobile App Developer",
+  "DevOps Engineer",
+  "Cloud Engineer",
+  "Data Scientist",
+  "Data Analyst",
+  "AI/ML Engineer",
+  "QA Engineer",
+  "UI/UX Designer",
+  "System Administrator",
+  "Database Administrator",
+
+  // Corporate Roles
+  "HR Manager",
+  "HR Executive",
+  "Recruiter",
+  "Business Analyst",
+  "Marketing Executive",
+  "Sales Executive",
+  "Accountant",
+  "Finance Executive",
+  "Operations Executive",
+  "Customer Support Executive",
+
+  // Entry Level
+  "Intern",
+  "Trainee",
+  "Junior Executive",
+  "Associate",
+  "Consultant",
+  "Freelancer",
+
+  // Other
+  "Other"
+];
+
+export const departmentOptions = [
+  // Engineering & Tech
+  "Engineering",
+  "Software Development",
+  "Frontend Development",
+  "Backend Development",
+  "Full Stack Development",
+  "Mobile Development",
+  "DevOps",
+  "Cloud Infrastructure",
+  "Data Engineering",
+  "Data Science",
+  "Artificial Intelligence / Machine Learning",
+  "Quality Assurance (QA)",
+  "UI/UX Design",
+  "Product Engineering",
+  "Research & Development (R&D)",
+
+  // Product & Strategy
+  "Product Management",
+  "Project Management",
+  "Program Management",
+  "Business Analysis",
+  "Technology Strategy",
+
+  // IT & Support
+  "IT Support",
+  "System Administration",
+  "Network Administration",
+  "Cybersecurity",
+  "Database Administration",
+  "Technical Support",
+
+  // Business & Operations
+  "Human Resources (HR)",
+  "Talent Acquisition",
+  "Finance",
+  "Accounting",
+  "Legal",
+  "Operations",
+  "Administration",
+  "Procurement",
+
+  // Sales & Marketing
+  "Sales",
+  "Business Development",
+  "Marketing",
+  "Digital Marketing",
+  "Customer Success",
+  "Customer Support",
+
+  // Other
+  "Training & Development",
+  "Corporate Communications",
+  "Other"
+];
+
 export const emptyOrganization = {
-  organization_name: "Techn",
-  organization_code: "TECH",
-  organization_location: "Pune",
+  organization_name: "I-Diligence",
+  organization_code: "Enterprise",
+  organization_location: "Chh.Sambhajinager",
   industry_type: "IT",
   department: "HR",
   designation: "Intern",
   employee_type: "Permanent",
   status: "Active",
   joining_date: "2022-08-20",
-  leaving_date: "2023-08-20",
+  // leaving_date: "2023-08-20",
   reportingTo: "John Doe",
   reportingLocation: "Registered_Office"
 };

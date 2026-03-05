@@ -5,13 +5,22 @@ import { addNominee, getNominee, updateNominee } from "../../../api/profile";
 import { useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
-export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
+export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing, addNewEmployee }) => {
   const [nomineeData, setNomineeData] = useState(emptyNominee);
   const { emp_id } = useParams();
 
   const finalEmpId = emp_id || empId;
 
   useEffect(() => {
+    if(addNewEmployee){
+      setNomineeData({
+        nominee_name : "",
+        nominee_relation : "",
+        nominee_contact : "",
+
+      })
+      return;
+    }
     if (nomineData) {
       setNomineeData(nomineData);
     }
@@ -92,7 +101,7 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
   // },[nomineData])
 
   return (
-    <div className="bg-white shadow">
+    <div className="bg-white">
       <form>
         <div className="border rounded p-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
@@ -104,6 +113,7 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Nominee Name"
                   value={nomineeData?.nominee_name || ""}
                   onChange={(e) => handleChange("nominee_name", e.target.value)}
                   disabled={!isEditing}
@@ -119,6 +129,7 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Nominee Address"
                   value={nomineeData?.nominee_relation || ""}
                   onChange={(e) =>
                     handleChange("nominee_relation", e.target.value)
@@ -136,6 +147,7 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Nominee Contact"
                   value={nomineeData?.nominee_contact || ""}
                   onChange={(e) =>
                     handleChange("nominee_contact", e.target.value)

@@ -12,6 +12,7 @@ const AddEmployee = () => {
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isAddNewEmployee, setIsAddNewEmployee] = useState(true);
 
   const emp_id = "";
   // const isAdmin = user.role === "admin";
@@ -79,19 +80,27 @@ const AddEmployee = () => {
           <div className="bg-white rounded-xl shadow p-4 sm:p-6 h-25">
             <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
               <div className="relative w-32 h-32">
-                <img
-                  src={profileImage || defaultProfile}
-                  alt="Profile"
-                  className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
-                />
+                <label
+                  htmlFor="profileUpload"
+                  className="cursor-pointer block w-full h-full"
+                >
+                  <img
+                    src={profileImage || defaultProfile}
+                    alt="Profile"
+                    className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
+                  />
+
+                  <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
+                    ✎
+                  </div>
+                </label>
+
                 <input
+                  id="profileUpload"
                   type="file"
                   className="hidden"
                   // onChange={handleProfileUpload}
                 />
-                <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
-                  ✎
-                </div>
               </div>
 
               <div className="w-full text-center md:text-left">
@@ -103,7 +112,14 @@ const AddEmployee = () => {
                   {employeeBasic?.role || "Employee"}
                 </p>
 
-                <p className="text-gray-500 text-sm mt-1">ID: {emp_id}</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  ID:{" "}
+                  <input
+                    type="text"
+                    className={`border rounded px-1 py-1 text-sm transition-all duration-200 bg-gray-100 text-gray-600 border-gray-100 focus:outline-none focus:ring-2 
+                     `}
+                  />
+                </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 mt-4 text-gray-600 text-sm justify-center md:justify-start">
                   <span className="flex items-center gap-2">
@@ -128,7 +144,7 @@ const AddEmployee = () => {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto bg-transparent mt-5 rounded-xl shadow min-h-[400px]">
+      <div className="max-w-6xl mx-auto bg-transparent mt-5 rounded-xl  min-h-[400px]">
         {loading ? (
           <div className="flex justify-center items-center h-64 text-gray-500 italic">
             Loading Profile Data...
@@ -143,6 +159,7 @@ const AddEmployee = () => {
             userRole={"admin"}
             isEditing={isEditing}
             setIsEditing={setIsEditing}
+            addNewEmployee={isAddNewEmployee}
             // onSave={handleSavePersonal} // Specifically for personal tab
             empId={null}
             onSave={handleCreateEmployee}

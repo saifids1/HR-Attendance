@@ -16,7 +16,9 @@
 label{
   text-transform: capitalize !important;
 }
-
+option{
+     background-color: white !important;
+}
 select{
   margin-top: 4px !important;
 }

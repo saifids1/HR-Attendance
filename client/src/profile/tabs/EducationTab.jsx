@@ -17,6 +17,7 @@ const EducationTab = ({
   empId,
   isAddingNew,
   setIsAddingNew,
+  addNewEmployee
 }) => {
   const [draft, setDraft] = useState(educationData);
   const [errors, setErrors] = useState({});
@@ -135,28 +136,28 @@ const EducationTab = ({
   /* ================= UI ================= */
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid rounded">
       <div className="bg-white p-4 rounded shadow-sm border border-gray-200">
-        <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 rounded">
+        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Degree
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Field of Study
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Institution
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   Year
                 </th>
-                <th className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium">
                   University
                 </th>
-                <th className="px-4 py-2 text-center text-sm text-gray-600 mb-1 font-medium">
+                <th className="px-4 py-3 text-center text-sm text-gray-600 mb-1 font-medium">
                   Actions
                 </th>
               </tr>
@@ -174,22 +175,22 @@ const EducationTab = ({
                   />
                 ) : (
                   <tr key={edu.id || index} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       {edu.degree}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       {edu.field_of_study}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       {edu.institution_name}
                     </td>
                     <td className="p-3 text-sm text-gray-600">
                       {edu.passing_year}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       {edu.university}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600 text-center">
+                    <td className="px-4 py-3 text-sm text-gray-600 text-center">
                       <div className="flex gap-4 justify-center">
                         <button
                           onClick={() => handleEdit(edu, index)}
@@ -220,7 +221,7 @@ const EducationTab = ({
               )}
 
               {(!educationData || educationData.length === 0) &&
-                !isAddingNew && (
+                !isAddingNew && !addNewEmployee && (
                   <tr>
                     <td
                       colSpan="6"

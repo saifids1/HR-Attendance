@@ -7,7 +7,7 @@ import { emptyBank } from "../../constants/emptyData";
 import { AuthContext } from "../../context/AuthContextProvider";
 import { useParams } from "react-router-dom";
 
-const BankTab = ({ isEditing, setIsEditing, empId }) => {
+const BankTab = ({ isEditing, setIsEditing, empId, addNewEmployee }) => {
   // const emp_id = JSON.parse(localStorage.getItem("user"))?.emp_id;
 
   const { emp_id } = useParams();
@@ -50,6 +50,19 @@ const BankTab = ({ isEditing, setIsEditing, empId }) => {
   }, [emp_id]);
 
   useEffect(() => {
+    if(addNewEmployee){
+      setDraft([{
+        account_holder_name : '',
+        bank_name : '',
+        account_number : '',
+        ifsc_code : '',
+        branch_name : '',
+        account_type : '',
+
+      }])
+      return;
+    }
+    setDraft([{ ...emptyBank }]);
     if (token) fetchBank();
   }, [fetchBank, token]);
 
@@ -114,7 +127,7 @@ const BankTab = ({ isEditing, setIsEditing, empId }) => {
       {draft.map((bank, index) => (
         <>
           {/* Strict 3-column Grid Wrapper */}
-          <div className="bg-white shadow">
+          <div className="bg-white">
             <div className="border rounded p-4 mb-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
                 {Object.keys(emptyBank).map((key) => {
@@ -124,13 +137,17 @@ const BankTab = ({ isEditing, setIsEditing, empId }) => {
                     <div key={key} className="flex flex-col w-full">
                       <Input
                         label={key.replace(/_/g, " ")}
+                        placehoder={key.replace(/_/g, " ")}
                         value={bank[key] || ""}
                         disabled={!isEditing}
-                        className="w-full capitalized"
+                        isEditing={isEditing}
                         onChange={(e) => {
                           const copy = [...draft];
                           // Update the specific field in the specific bank object
-                          copy[index] = { ...copy[index], [key]: e.target.value };
+                          copy[index] = {
+                            ...copy[index],
+                            [key]: e.target.value,
+                          };
                           setDraft(copy);
                           // Clear error for this field
                           if (errors[index]?.[key]) {
@@ -156,20 +173,35 @@ const BankTab = ({ isEditing, setIsEditing, empId }) => {
       ))}
 
       {isEditing && (
-        <div className="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-          <button
-            className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all"
-            onClick={handleCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-6 py-2 bg-[#222F7D] text-white rounded-lg hover:bg-blue-900 shadow-md transition-all font-medium"
-            onClick={handleSave}
-          >
-            Save Bank Details
-          </button>
-        </div>
+        <>
+          {/* <div className="flex justify-start mb-4">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm"
+              >
+                + Add Nominee
+              </button>
+            </div> */}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-6 py-2 bg-gray-200 rounded-lg text-sm"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-6 py-2 bg-[#222F7D] text-white rounded-lg text-sm"
+            >
+              Save Changes
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

@@ -9,52 +9,88 @@ import { toast } from "react-hot-toast";
 import { addPersonal, getPersonal, updatePersonal } from "../../../api/profile";
 import { EmployContext } from "../../context/EmployContextProvider";
 
-const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave,empId }) => {
-  const [draft, setDraft] = useState({ ...emptyPersonal });
+const PersonalTab = ({
+  personalData,
+  isEditing,
+  setIsEditing,
+  onSave,
+  empId,
+  addNewEmployee,
+}) => {
+  const [draft, setDraft] = useState(emptyPersonal);
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
- const {setPersonalAddress} =  useContext(EmployContext)
+  const { setPersonalAddress } = useContext(EmployContext);
+
+  /* =========================
+     ADD NEW EMPLOYEE MODE
+  ==========================*/
   useEffect(() => {
-    if (personalData && Object.keys(personalData).length > 0) {
+    if (addNewEmployee) {
+      setDraft({
+        first_name: "",
+        last_name: "",
+        contact: "",
+        email: "",
+        dob: "",
+        gender: "",
+        maritalstatus: "",
+        nationality: "",
+        bloodgroup: "",
+        current_address: "",
+        permanent_address: "",
+      });
+      return;
+    }
+
+    if (personalData) {
+      setDraft(emptyPersonal);
+    }
+  }, [addNewEmployee]);
+
+  /* =========================
+     FETCH PERSONAL DATA
+  ==========================*/
+  useEffect(() => {
+    if (!empId || addNewEmployee) return; // 🚀 prevent override in add mode
+
+    const fetchPersonal = async () => {
+      try {
+        const resp = await getPersonal(empId);
+        if (!resp?.data) return;
+
+        const formattedDob = formatDOB(resp.data.dob);
+
+        setDraft((prev) => ({
+          ...prev,
+          ...resp.data,
+          dob: formattedDob,
+        }));
+
+        setPersonalAddress(resp.data);
+      } catch (error) {
+        console.error("Personal fetch error:", error);
+      }
+    };
+
+    fetchPersonal();
+  }, [empId, addNewEmployee, setPersonalAddress]);
+
+  useEffect(() => {
+    if (!addNewEmployee && personalData) {
       setDraft({ ...emptyPersonal, ...personalData });
     }
-  }, [personalData]);
-  
-const formatDOB = (dateStr) => {
-  if (!dateStr) return "";
-
-  // Convert DD-MM-YYYY to YYYY-MM-DD
-  const [day, month, year] = dateStr.split("-");
-  return `${year}-${month}-${day}`;
-};
-  // console.log("personalData",personalData)
-
- useEffect(() => {
-  const getPersonalData = async () => {
-    try {
-      const resp = await getPersonal(empId);
-
-      console.log("resp", resp.data);
-
-      const formattedDob = formatDOB(resp.data.dob);
-
-      setDraft((prevData) => ({
-        ...prevData,
-        ...resp.data,
-        dob: formattedDob,   // 👈 FIX HERE
-      }));
-
-      setPersonalAddress(resp.data);
-
-    } catch (error) {
-      console.log(error);
-    }
+  }, [personalData, addNewEmployee]);
+  /* =========================
+     HELPERS
+  ==========================*/
+  const formatDOB = (dateStr) => {
+    if (!dateStr) return "";
+    if (!dateStr.includes("-")) return dateStr;
+    const [day, month, year] = dateStr.split("-");
+    return `${year}-${month}-${day}`;
   };
-
-  getPersonalData();
-}, []);
-
-  // console.log(draft.dob);
 
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -68,43 +104,73 @@ const formatDOB = (dateStr) => {
     }
   };
 
-  const handleSave = async(e) => {
+  /* =========================
+     SAVE
+  ==========================*/
+  const handleSave = async (e) => {
     e.preventDefault();
-    console.log("Personal Form Data:", draft);
 
     const newErrors = {};
+
     Object.keys(emptyPersonal).forEach((key) => {
-      if (!draft[key] || draft[key].toString().trim() === "") {
+      if (!draft[key]?.toString().trim()) {
         newErrors[key] = `${key.replace(/_/g, " ").toUpperCase()} IS REQUIRED`;
       }
     });
 
-    if (Object.keys(newErrors).length > 0) {
-
-      console.log("newErrros Personal",newErrors);
+    if (Object.keys(newErrors).length) {
       setErrors(newErrors);
-      toast.error("Please fix the errors below");
+      toast.error("Please fix required fields");
       return;
     }
 
-    if(draft.emp_id){
-      await updatePersonal(empId,draft);
-      toast.success("Personal updated successfully");
-    }else{
-      await addPersonal(empId,draft);
-      toast.success("Personal added successfully");
-    }
-    // toast.success("Personal data logged in console");
+    try {
+      setIsLoading(true);
 
-    if (onSave) onSave(draft);
-    else setIsEditing(false);
+      if (empId && !addNewEmployee) {
+        await updatePersonal(empId, draft);
+        toast.success("Personal updated successfully");
+      } else {
+        await addPersonal(empId, draft);
+        toast.success("Personal added successfully");
+      }
+
+      onSave?.(draft);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Save error:", error);
+      toast.error("Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
-    setDraft({ ...emptyPersonal, ...personalData });
+    if (addNewEmployee) {
+      setDraft({
+        first_name: "",
+        last_name: "",
+        contact: "",
+        email: "",
+        dob: "",
+        gender: "",
+        maritalstatus: "",
+        nationality: "",
+        bloodgroup: "",
+        current_address: "",
+        permanent_address: "",
+      });
+    } else {
+      setDraft({ ...emptyPersonal, ...personalData });
+    }
+
     setErrors({});
     setIsEditing(false);
   };
+
+  /* =========================
+     UI
+  ==========================*/
 
   return (
     <>
@@ -119,16 +185,17 @@ const formatDOB = (dateStr) => {
                 </label>
                 <input
                   type="text"
-                 value={draft.first_name ?? emptyPersonal.first_name}
+                  value={draft.first_name || ""}
                   onChange={(e) => handleChange("first_name", e.target.value)}
                   disabled={!isEditing}
+                  placeholder="First Name"
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.first_name && (
+                {errors.first_name && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.firstName}
+                    * {errors.first_name}
                   </p>
                 )}
               </div>
@@ -140,14 +207,15 @@ const formatDOB = (dateStr) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.last_name ?? emptyPersonal.last_name}
+                  value={draft.last_name || ""}
                   onChange={(e) => handleChange("last_name", e.target.value)}
                   disabled={!isEditing}
+                  placeholder="Last Name"
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.last_name && (
+                {errors.last_name && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.last_name}
                   </p>
@@ -160,14 +228,15 @@ const formatDOB = (dateStr) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.contact ?? emptyPersonal.contact}
+                  placeholder="Contact No"
+                  value={draft.contact || ""}
                   onChange={(e) => handleChange("contact", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.contact && (
+                {errors.contact && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.contact}
                   </p>
@@ -180,20 +249,21 @@ const formatDOB = (dateStr) => {
                 </label>
                 <input
                   type="text"
-                  value={draft.email}
+                  value={draft.email || ""}
+                  placeholder="Email"
                   onChange={(e) => handleChange("email", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.email && (
+                {errors.email && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.email}
                   </p>
                 )}
               </div>
-                {/* Date of Birth */}
+              {/* Date of Birth */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
                   Date of Birth
@@ -201,35 +271,36 @@ const formatDOB = (dateStr) => {
                 <input
                   type="date"
                   // placeholder={draft.dob}
-                  value={draft?.dob}
+                  value={draft?.dob || " "}
                   onChange={(e) => handleChange("dob", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.dob && (
+                {errors.dob && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.dob}
                   </p>
                 )}
               </div>
 
-                {/* Nationality */}
+              {/* Nationality */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
                   Nationality
                 </label>
                 <input
                   type="text"
-                  value={draft.nationality}
+                  placeholder="Nationality"
+                  value={draft.nationality || ""}
                   onChange={(e) => handleChange("nationality", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.nationality && (
+                {errors.nationality && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.nationality}
                   </p>
@@ -242,14 +313,14 @@ const formatDOB = (dateStr) => {
                   Gender
                 </label>
                 <select
-                  value={draft.gender ?? emptyPersonal.gender}
+                  value={draft.gender || ""}
                   onChange={(e) => handleChange("gender", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 >
-                  <option value="">Select</option>
+                  <option value="">Gender</option>
                   {gender.map((g) => (
                     <option key={g} value={g}>
                       {g}
@@ -264,7 +335,7 @@ const formatDOB = (dateStr) => {
                   Marital Status
                 </label>
                 <select
-                  value={draft.maritalstatus}
+                  value={draft.maritalstatus || ""}
                   onChange={(e) =>
                     handleChange("maritalstatus", e.target.value)
                   }
@@ -273,7 +344,7 @@ const formatDOB = (dateStr) => {
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 >
-                  <option value="">Select</option>
+                  <option value="">Marital Status</option>
                   {maritalstatus.map((m) => (
                     <option key={m} value={m}>
                       {m}
@@ -288,14 +359,14 @@ const formatDOB = (dateStr) => {
                   Blood Group
                 </label>
                 <select
-                  value={draft.bloodgroup ?? emptyPersonal.bloodgroup}
+                  value={draft.bloodgroup || ""}
                   onChange={(e) => handleChange("bloodgroup", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 >
-                  <option value="">Select</option>
+                  <option value="">Blood Group</option>
                   {bloodGroup.map((b) => (
                     <option key={b} value={b}>
                       {b}
@@ -305,41 +376,47 @@ const formatDOB = (dateStr) => {
               </div>
             </div>
             <div className="grid mt-4 grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                {/* Address */}
+              {/* Address */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
                   Current Address
                 </label>
                 <input
                   type="text"
-                  value={draft.current_address}
-                  onChange={(e) => handleChange("current_address", e.target.value)}
+                  value={draft.current_address || ""}
+                  placeholder="Current Address"
+                  onChange={(e) =>
+                    handleChange("current_address", e.target.value)
+                  }
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.current_address && (
+                {errors.current_address && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.current_address}
                   </p>
                 )}
               </div>
-                {/* permanent Address */}
+              {/* permanent Address */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
                   Permanent Address
                 </label>
                 <input
                   type="text"
-                  value={draft.permanent_address}
-                  onChange={(e) => handleChange("permanent_address", e.target.value)}
+                  placeholder="Permanent Address"
+                  value={draft.permanent_address || ""}
+                  onChange={(e) =>
+                    handleChange("permanent_address", e.target.value)
+                  }
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
                     isEditing ? "" : "cursor-not-allowed"
                   }`}
                 />
-                {isEditing && errors.permanent_address && (
+                {errors.permanent_address && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
                     * {errors.permanent_address}
                   </p>
@@ -347,22 +424,22 @@ const formatDOB = (dateStr) => {
               </div>
             </div>
           </div>
-
           {isEditing && (
-            <div className="flex justify-end gap-3 mt-2 p-3">
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
-                className="px-4 py-2 bg-gray-200 rounded"
                 onClick={handleCancel}
+                className="px-6 py-2 bg-gray-200 rounded-lg text-sm"
               >
                 Cancel
               </button>
 
               <button
                 type="submit"
-                className="px-4 py-2 bg-[#222F7D] text-white rounded"
+                disabled={isLoading}
+                className="px-6 py-2 bg-[#222F7D] text-white rounded-lg text-sm"
               >
-                Save Personal
+                {isLoading ? "Saving..." : "Save Changes"}
               </button>
             </div>
           )}

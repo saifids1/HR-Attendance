@@ -16,6 +16,7 @@ const ExperienceTab = ({
   setIsAddingNew,
   empId,
   onSave,
+  addNewEmployee
 }) => {
   const [draft, setDraft] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -185,9 +186,9 @@ const ExperienceTab = ({
   /* ================= UI ================= */
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid rounded">
       <div className="bg-white p-4 rounded shadow-sm border border-gray-200">
-        <div className="overflow-x-auto rounded border">
+        <div className="overflow-hidden rounded border">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-200">
               <tr>
@@ -202,7 +203,7 @@ const ExperienceTab = ({
                 ].map((head) => (
                   <th
                     key={head}
-                    className="px-4 py-2 text-left text-sm text-gray-600 mb-1 font-medium"
+                    className="px-4 py-3 text-left text-sm text-gray-600 mb-1 font-medium"
                   >
                     {head}
                   </th>
@@ -210,13 +211,13 @@ const ExperienceTab = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
+              {loading ?  (
                 <tr>
                   <td colSpan="7" className="text-center py-10 text-sm text-gray-600">
                     <Loader />
                   </td>
                 </tr>
-              ) : experienceData.length === 0 && editingIndex !== "new" ? (
+              ) : experienceData.length === 0 && editingIndex !== "new" && !addNewEmployee ? (
                 <tr>
                   <td
                     colSpan="7"
@@ -237,15 +238,15 @@ const ExperienceTab = ({
                     />
                   ) : (
                     <tr key={exp.id || index} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-600">{exp.company_name}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{exp.location}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{exp.designation}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600">{exp.company_name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{exp.location}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{exp.designation}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
                         {formatDate(exp.start_date)}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{formatDate(exp.end_date)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{exp.total_years} yrs</td>
-                      <td className="px-4 py-2 text-sm text-gray-600 text-center">
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatDate(exp.end_date)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{exp.total_years} yrs</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 text-center">
                         <div className="flex justify-center gap-4">
                           <button
                             onClick={() => handleEdit(exp, index)}
