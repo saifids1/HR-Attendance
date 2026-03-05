@@ -425,7 +425,7 @@ const PersonalTab = ({
             </div>
           </div>
           {isEditing && (
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 p-2">
               <button
                 type="button"
                 onClick={handleCancel}

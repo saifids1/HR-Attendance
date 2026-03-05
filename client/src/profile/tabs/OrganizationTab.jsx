@@ -452,7 +452,7 @@ const OrganizationTab = ({
               </button>
             </div> */}
 
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 p-2">
                 <button
                   type="button"
                   // onClick={handleCancel}

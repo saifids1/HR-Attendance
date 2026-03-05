@@ -101,7 +101,7 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing, addNewE
   // },[nomineData])
 
   return (
-    <div className="bg-white">
+    <div className="bg-white shadow rounded-lg">
       <form>
         <div className="border rounded p-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
@@ -175,7 +175,7 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing, addNewE
               </button>
             </div> */}
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 p-2">
               <button
                 type="button"
                 onClick={handleCancel}

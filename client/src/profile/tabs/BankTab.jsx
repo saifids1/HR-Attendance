@@ -50,16 +50,17 @@ const BankTab = ({ isEditing, setIsEditing, empId, addNewEmployee }) => {
   }, [emp_id]);
 
   useEffect(() => {
-    if(addNewEmployee){
-      setDraft([{
-        account_holder_name : '',
-        bank_name : '',
-        account_number : '',
-        ifsc_code : '',
-        branch_name : '',
-        account_type : '',
-
-      }])
+    if (addNewEmployee) {
+      setDraft([
+        {
+          account_holder_name: "",
+          bank_name: "",
+          account_number: "",
+          ifsc_code: "",
+          branch_name: "",
+          account_type: "",
+        },
+      ]);
       return;
     }
     setDraft([{ ...emptyBank }]);
@@ -127,7 +128,7 @@ const BankTab = ({ isEditing, setIsEditing, empId, addNewEmployee }) => {
       {draft.map((bank, index) => (
         <>
           {/* Strict 3-column Grid Wrapper */}
-          <div className="bg-white">
+          <div className="bg-white shadow rounded-lg">
             <div className="border rounded p-4 mb-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
                 {Object.keys(emptyBank).map((key) => {
@@ -168,13 +169,9 @@ const BankTab = ({ isEditing, setIsEditing, empId, addNewEmployee }) => {
                 })}
               </div>
             </div>
-          </div>
-        </>
-      ))}
-
-      {isEditing && (
-        <>
-          {/* <div className="flex justify-start mb-4">
+            {isEditing && (
+              <>
+                {/* <div className="flex justify-start mb-4">
               <button
                 type="button"
                 onClick={handleAddRow}
@@ -184,25 +181,28 @@ const BankTab = ({ isEditing, setIsEditing, empId, addNewEmployee }) => {
               </button>
             </div> */}
 
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-6 py-2 bg-gray-200 rounded-lg text-sm"
-            >
-              Cancel
-            </button>
+                <div className="flex justify-end gap-3 p-2">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-6 py-2 bg-gray-200 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-6 py-2 bg-[#222F7D] text-white rounded-lg text-sm"
-            >
-              Save Changes
-            </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="px-6 py-2 bg-[#222F7D] text-white rounded-lg text-sm"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </>
-      )}
+      ))}
     </div>
   );
 };
