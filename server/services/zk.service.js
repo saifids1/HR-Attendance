@@ -620,29 +620,29 @@ VALUES ($1,$2,$3,$4,$5,$6)`,
                 const formattedDate = `${String(firstPunch.getDate()).padStart(2, '0')}-${String(firstPunch.getMonth() + 1).padStart(2, '0')}-${firstPunch.getFullYear()}`;
                 const dayName = firstPunch.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' });
 
-                // try {
-                //     await sendEmail(
-                //         "s.imran@i-diligence.com",
-                //         `Attendance Notification: Punch`,
-                //         "punch_in_out",
-                //         {
-                //             name: employee.name,
-                //             emp_id: employee.emp_id,
-                //             action: "Punch",
-                //             date: formattedDate,
-                //             day: dayName,
-                //             time: formattedPunch,
-                //             punch_in: punchInTimeStr,
-                //             punch_out: punchOutTimeStr,
-                //             duration: durationStr,
-                //             is_out: punchOutTimeStr !== punchInTimeStr
-                //         }
-                //     );
+                try {
+                    await sendEmail(
+                        employee.email,
+                        `Attendance Notification: Punch`,
+                        "punch_in_out",
+                        {
+                            name: employee.name,
+                            emp_id: employee.emp_id,
+                            action: "Punch",
+                            date: formattedDate,
+                            day: dayName,
+                            time: formattedPunch,
+                            punch_in: punchInTimeStr,
+                            punch_out: punchOutTimeStr,
+                            duration: durationStr,
+                            is_out: punchOutTimeStr !== punchInTimeStr
+                        }
+                    );
 
-                //     console.log("Email sent to:", employee.email);
-                // } catch (emailErr) {
-                //     console.error("Email error:", emailErr);
-                // }
+                    console.log("Email sent to:", employee.email);
+                } catch (emailErr) {
+                    console.error("Email error:", emailErr);
+                }
             }
         }
 
