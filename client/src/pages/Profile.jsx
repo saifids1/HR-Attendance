@@ -30,9 +30,11 @@ const Profile = () => {
    const finalEmpId = emp_id ? emp_id : empId;
 
 
-  const { profileImage, setProfileImage, orgAddress } =
+  const { profileImage, setProfileImage, orgAddress,personalAddress } =
     useContext(EmployContext);
 
+
+    // console.log("personalAddress",personalAddress);
   // --- State Management ---
   const [isEditing, setIsEditing] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -144,7 +146,8 @@ const fetchProfileImage = useCallback(async () => {
   useEffect(()=>{
     console.log("profileImage",profileImage);
 
-  },[profileImage])
+  },[profileImage]);
+
   const BASE_URL = import.meta.env.VITE_DOC;
 
   // --- Handlers ---
@@ -245,7 +248,8 @@ const handleProfileUpload = async (e) => {
               <div className="flex flex-col sm:flex-row gap-4 mt-4 text-gray-600 text-sm justify-center md:justify-start">
                 <span className="flex items-center gap-2">
                   <IoHomeSharp className="text-[#222F7D]" />{" "}
-                  {orgAddress?.address || "Office Address"}
+               
+                  {personalAddress?.current_address || "Office Address"}
                 </span>
                 <span className="flex items-center gap-2">
                   <MdOutlineEmail className="text-[#222F7D] text-lg" />{" "}

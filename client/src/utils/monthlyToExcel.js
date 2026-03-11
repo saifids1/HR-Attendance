@@ -1,12 +1,14 @@
 import * as XLSX from "xlsx";
 
 export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
+
+    // console.log("rawData", rawData);
     try {
         // 1. STACK FIX: Deep clone data to strip React Proxies
         const data = JSON.parse(JSON.stringify(rawData));
 
         // 2. Identify all unique dates first to ensure consistent columns
-        const allDates = [...new Set(data.flatMap(emp => 
+        const allDates = [...new Set(data.flatMap(emp =>
             (emp.attendance || [])
                 .map(day => day.date)
                 .filter(date => date.startsWith(targetMonth))
@@ -26,19 +28,59 @@ export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
             (emp.attendance || []).forEach(d => { attMap[d.date] = d; });
 
             // Ensure every date column exists for every row, even if empty
+            const today = new Date(); // current date
+
             allDates.forEach(date => {
+                const formattedDate = new Date(date)
+                    .toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+                    .replace(/\//g, "-");
+
                 const dayRecord = attMap[date];
-                if (dayRecord) {
-                    const char = dayRecord.status === "Present" ? "P" : 
-                                 (dayRecord.status === "Absent" ? "A" : "W");
-                    row[date] = char;
-                    if (char === "P" || char === "W") pCount++;
+
+                console.log("dayRecord",dayRecord)
+                const recordDate = new Date(date);
+
+                if (recordDate > today) {
+                    // Future date, show placeholder
+                    row[formattedDate] = "--";
+                } else if (dayRecord) {
+                    if (dayRecord.status === "Present") {
+                        const formatTime = (isoDate) =>
+                            isoDate
+                                ? new Date(isoDate).toLocaleTimeString("en-IN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                    timeZone: "Asia/Kolkata",
+                                })
+                                : "--";
+
+                        // console.log("dayRecord",dayRecord)
+                        const punchIn = formatTime(dayRecord.first_in);
+                        const punchOut = formatTime(dayRecord.last_out);
+
+                        const totalHours = dayRecord.hours_worked
+
+                            ? `${Math.floor(dayRecord.hours_worked
+                            )}:${Math.round((dayRecord.hours_worked
+                                % 1) * 60)
+                                .toString()
+                                .padStart(2, "0")}`
+                            : "--";
+
+                        row[formattedDate] = `P\n (${punchIn} - ${punchOut} - ${totalHours})`;
+                    } else if (dayRecord.status === "Absent") {
+                        row[formattedDate] = "A";
+                    } else {
+                        row[formattedDate] = "H";
+                    }
                 } else {
-                    row[date] = "-"; // Placeholder for missing data
+                    // No record, but date is past or today
+                    row[formattedDate] = "-";
                 }
             });
 
-            row["Total Present"] = pCount;
+            // row["Total Present"] = pCount;
             return row;
         });
 

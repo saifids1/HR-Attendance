@@ -18,7 +18,9 @@ const EducationTab = ({
   isAddingNew,
   setIsAddingNew,
 }) => {
-  const [draft, setDraft] = useState([educationData]);
+  const [educationList, setEducationList] = useState([]);
+const [draft, setDraft] = useState(null);
+  // const [draft, setDraft] = useState([educationData]);
   const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -27,7 +29,7 @@ const EducationTab = ({
 
   useEffect(()=>{
     console.log("Education Data",educationData);
-
+console.log("empId",empId);
   },[])
   
 useEffect(() => {
@@ -41,21 +43,23 @@ useEffect(() => {
       console.log("education data",education);
 
       if (Array.isArray(education) && education.length > 0) {
-        setDraft(education);
+        // setDraft(education);
+        setEducationList(education);
       } else {
-        setDraft([emptyEducation]);
+        setEducationList(emptyEducation);
       }
 
     } catch (error) {
       console.error("Error fetching education:", error);
-      setDraft([emptyEducation]);
+      // setDraft([emptyEducation]);
+      setEducationList([]);
     }
   };
 
   fetchEducation();
 }, [empId]);
 
-console.log("draft",draft);
+// console.log("educationList",educationList);
 
   const handleChange = (key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -63,12 +67,27 @@ console.log("draft",draft);
 
   /* ================= EDIT ================= */
 
-const handleEdit = (education, index) => {
+// const handleEdit = (education, index) => {
 
+//   if (editingIndex === index) {
+//     // Clicking same row → cancel edit
+//     setEditingIndex(null);
+//     setDraft(emptyEducation);
+//     return;
+//   }
+
+//   if (editingIndex !== null) {
+//     toast.error("Please save or cancel current changes first");
+//     return;
+//   }
+
+//   setEditingIndex(index);
+//   setDraft({ ...emptyEducation, ...education });
+// };
+const handleEdit = (education, index) => {
   if (editingIndex === index) {
-    // Clicking same row → cancel edit
     setEditingIndex(null);
-    setDraft(emptyEducation);
+    setDraft(null);
     return;
   }
 
@@ -78,9 +97,8 @@ const handleEdit = (education, index) => {
   }
 
   setEditingIndex(index);
-  setDraft({ ...emptyEducation, ...education });
+  setDraft({ ...education });
 };
-
   /* ================= CANCEL ================= */
 
   const handleCancel = () => {
@@ -167,7 +185,7 @@ const handleEdit = (education, index) => {
             </thead>
 
             <tbody className="bg-white divide-y divide-gray-200">
-              {educationData?.map((edu, index) =>
+              {educationList?.map((edu, index) =>
                 editingIndex === index ? (
                   <EditableRow
                     key={edu.id || index}
@@ -213,7 +231,7 @@ const handleEdit = (education, index) => {
                 />
               )}
 
-              {(!educationData || educationData.length === 0) &&
+              {(!draft || draft.length === 0) &&
                 !isAddingNew && (
                   <tr>
                     <td colSpan="6" className="text-center py-8 text-sm text-gray-600 italic bg-gray-50">

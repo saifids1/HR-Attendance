@@ -36,7 +36,7 @@ const MainProfile = ({
   isAddingNew,
   setIsAddingNew,
 }) => {
-  const [activeTab, setActiveTab] = useState("Personal");
+  const [activeTab, setActiveTab] = useState("Organization");
 
   // console.log("empId",empId);
 

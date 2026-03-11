@@ -88,9 +88,15 @@ const Employleaves = () => {
 
   return (
     <div className="px-3 pb-6">
-       <div className="sticky top-0 z-10 bg-[#222F7D] rounded-lg mt-[15px]">
+       {/* <div className="sticky top-0 z-10 bg-[#222F7D] rounded-lg mt-[15px]">
          <Typography className="text-white py-2 text-2xl text-center ">Leaves</Typography>
-       </div>
+       </div> */}
+
+        <div className="sticky z-20 top-4 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6 h-[40px] -mt-2">
+               <Typography className="text-white text-2xl sm:text-2xl text-center font-bold tracking-wide py-0">
+                 Leaves
+               </Typography>
+             </div>
        <h1 className='text-lg py-2'>Leave Management</h1>
 
         <Leavecards LeavecardData={leaveCardData}/>

@@ -22,6 +22,7 @@ const Filters = () => {
     singleAdminAttendance,
     formatDate,
     weeklyData,
+    weekTime,
 
   } = useContext(EmployContext);
 
@@ -65,7 +66,9 @@ const Filters = () => {
         isActivityPage: true
       };
     }
-    if (path.includes("employee/attendance") || path.includes("admin/all")) {
+    if (path.includes("employee/attendance") || path.includes("admin/my-dashboard/attendance") )
+      // || path.includes("/admin/my-dashboard/attendance")) 
+      {
       return {
         key: "employeeSearch",
         startKey: "startDate",
@@ -75,13 +78,16 @@ const Filters = () => {
       };
     }
 
-    if (path.includes("admin/week")) {
-      return {
-        key: "weekSearch",
-        label: "Weekly Attendance",
-        isWeeklyPage: true
-      };
-    }
+   if (path.includes("admin/week")) {
+  return {
+    key: "weekSearch",
+    label: "Weekly Attendance",
+    isWeeklyPage: true,
+    weekTime: "",       // optional, will hold time filter value
+    startTime: "",      // start of time range
+    endTime: ""         // end of time range
+  };
+}
     return { key: "search", label: "Employee", isDefault: true };
   };
 
@@ -92,7 +98,9 @@ const Filters = () => {
       ...prev,
       [config.startKey]: "",
       [config.endKey]: "",
-      [config.key]: ""
+      [config.key]: "",
+      punchInTime: "",
+      punchOutTime: ""
     }));
   };
 
@@ -158,19 +166,32 @@ const Filters = () => {
         </div>
       )}
 
-      {role === "admin" && location.pathname !== "/employee/attendance" && (
-        <div className="relative w-full md:max-w-[250px] lg:max-w-[300px]">
-          <input
-            type="text"
-            name={config.key}
-            value={filters[config.key] || ""}
-            onChange={handleFilterChange}
-            placeholder={`Search ${config.label}...`}
-            className="w-full border border-gray-300 pl-4 pr-10 py-2 md:py-1.5 rounded outline-none text-sm focus:border-blue-500"
-          />
-          <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-700 font-bold" />
-        </div>
-      )}
+     {role === "admin" && location.pathname !== "/employee/attendance" && location.pathname !== "/admin/my-dashboard/attendance"  && (
+  <div className="relative w-full md:max-w-[250px] lg:max-w-[300px]">
+    <input
+      type="text"
+      name={config.key}
+      value={filters[config.key] || ""}
+      onChange={handleFilterChange}
+      placeholder={`Search ${config.label} (name / empId / punch-in / punch-out)...`}
+      className="w-full border border-gray-300 pl-4 pr-10 py-2 md:py-1.5 rounded outline-none text-sm focus:border-blue-500"
+    />
+    <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-700 font-bold" />
+  </div>
+)}
+      {/* {role === "admin" && location.pathname.includes("/week") && (
+  <div className="relative w-full md:max-w-[300px]">
+    <input
+      type="text"
+      name={config.key}
+      value={filters[config.key] || ""}
+      onChange={handleFilterChange}
+      placeholder={`Search ${config.label} (name / empid / time)...`}
+      className="w-full border border-gray-300 pl-4 pr-10 py-2 md:py-1.5 rounded outline-none text-sm focus:border-blue-500"
+    />
+    <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-700 font-bold" />
+  </div>
+)} */}
 
       {/* RIGHT SECTION: Buttons */}
       <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-3 border-t border-gray-100 md:border-none pt-4 md:pt-0">

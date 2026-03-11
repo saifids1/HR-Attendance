@@ -97,7 +97,9 @@ const formatDOB = (dateStr) => {
     // toast.success("Personal data logged in console");
 
     if (onSave) onSave(draft);
-    else setIsEditing(false);
+    setIsEditing(false);
+
+    // else setIsEditing(false);
   };
 
   const handleCancel = () => {

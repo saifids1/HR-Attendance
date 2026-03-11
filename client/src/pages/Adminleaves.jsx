@@ -22,7 +22,7 @@ const Adminleaves = () => {
     try {
       // 1. Fetch Leaves pending for THIS manager
       // Endpoint: GET /api/leaves/pending-approvals/:managerId
-      const response = await axios.get(`http://localhost:5500/api/leaves/pending-approvals/${managerId}`);
+      const response = await axios.get(`http://localhost:5000/api/leaves/pending-approvals/${managerId}`);
 
       const allData = response.data;
       setLeaveTableData(allData);

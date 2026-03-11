@@ -1,13 +1,13 @@
 export const degreeOptions = ["B.Tech", "M.Tech", "B.Sc", "M.Sc", "MBA", "MCA"];
 
-export const emptyEducation = {
+export const emptyEducation = [{
   degree: "MCA",
   field_of_study: "CS",
   institution_name: "Techno Institute",
   passing_year: "2012",
   university: "John University",
   percentage_or_grade: "72%"
-};
+}];
 
 export const emptyExperience = {
   companyName: "Trades",

@@ -89,34 +89,50 @@ export default function MonthlyAttendance() {
     exportMonthlyMatrixAttendance(data, targetMonthStr)
   }
 
-  const formatTime = (dateString)=>{
+  const formatTime = (dateString) => {
+  if (!dateString) return "--";
 
+  const date = new Date(dateString);
 
-    // console.log("dateString",dateString);
+  // handle invalid date
+  if (isNaN(date.getTime())) return "--";
 
-    return new Date(dateString).toLocaleTimeString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
-  }
+  return date
+    .toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true
+    })
+    .replace("AM", "am")
+    .replace("PM", "pm");
+};
   // Attendance status icons
   const getStatusIcon = (dayData) => {
 
-    // console.log("emp",emp);
+    // console.log("dayData",dayData);
     const punchIn = dayData?.first_in || "--";
     const punchout = dayData?.last_out || "--";
+    const totalhrs = dayData?.hours_worked || "--";
 
     // console.log("punchIn",punchIn);
     // console.log("punchout",punchout);
     switch ((dayData?.status || "")) {
-      case "Present": return <FaRegCheckCircle className="text-green-500 inline text-lg" title={`punch in (${formatTime(punchIn)}) - punch out (${formatTime(punchout)})`} />; // punch in and punch out show 
+    case "Present":
+  return <FaRegCheckCircle
+      className="text-green-500 inline text-lg"
+      title={`Punch In: (${formatTime(punchIn)})
+Punch Out: (${punchout ? formatTime(punchout) : "--"})
+Total Hours: (${totalhrs ?? "--"})`}
+    />
       case "Absent": return <ImCancelCircle className="text-red-500 inline text-lg" title="Absent" />;
       case "late": return <MdOutlineAccessTime size={22} className="text-orange-500 inline" title="Late" />;
       case "Holiday": return <CiStar size={22} className="text-yellow-500 inline" title="Holiday" />;
       case "leave": return <FaRegCalendarAlt className="text-orange-500 inline text-lg" title="Leave" />;
       case "ondrive": return <MdDriveEta size={20} className="text-blue-500 inline" title="OD" />;
+      
+
+      // <MdOutlineAccessTime className="text-yellow-500" />
       default: return "-";
     }
   };
@@ -295,91 +311,90 @@ export default function MonthlyAttendance() {
                 </tr>
               </thead>
 
-            <tbody>
-  {filteredEmployees
-    .filter((emp) => emp.is_active === true)
-    .map(
-      (emp) =>
-        emp.emp_id !== "2020" && (
-          <tr key={emp.emp_id} className="hover:bg-gray-50 transition">
-            
-            <td className="border border-gray-200 px-2 sm:px-4 py-2 sm:py-3 font-semibold sticky left-0 bg-white z-10 min-w-[200px] sm:min-w-[240px]">
-              <div className="flex items-center gap-2">
-                <div className="leading-tight">
-                  <span className="block text-xs sm:text-sm truncate max-w-[120px]">
-                    {emp.name}
-                  </span>
-                  <div className="text-[10px] text-gray-400 truncate max-w-[120px]">
-                    {emp.department}
-                  </div>
-                </div>
-              </div>
-            </td>
+              <tbody>
+                {filteredEmployees
+                  .filter((emp) => emp.is_active === true)
+                  .map(
+                    (emp) =>
+                      emp.emp_id !== "2020" && (
+                        <tr key={emp.emp_id} className="hover:bg-gray-50 transition">
 
-            {monthDays.map((day) => {
-              const dateStr = `${selectedYear}-${String(
-                selectedMonth + 1
-              ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              
-              const today = new Date();
-              // year-month-date
-              const currentDate = new Date(
-                today.getFullYear(),
-                today.getMonth(),
-                today.getDate()
-              )
+                          <td className="border border-gray-200 px-2 sm:px-4 py-2 sm:py-3 font-semibold sticky left-0 bg-white z-10 min-w-[200px] sm:min-w-[240px]">
+                            <div className="flex items-center gap-2">
+                              <div className="leading-tight">
+                                <span className="block text-xs sm:text-sm truncate max-w-[120px]">
+                                  {emp.name}
+                                </span>
+                                <div className="text-[10px] text-gray-400 truncate max-w-[120px]">
+                                  {emp.department}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
 
-              // current Date of cell
-              const cellDate = new Date(selectedYear,selectedMonth,day);
+                          {monthDays.map((day) => {
+                            const dateStr = `${selectedYear}-${String(
+                              selectedMonth + 1
+                            ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-              // console.log("cellDate",cellDate)
+                            const today = new Date();
+                            // year-month-date
+                            const currentDate = new Date(
+                              today.getFullYear(),
+                              today.getMonth(),
+                              today.getDate()
+                            )
 
-              // finding the Future Date
+                            // current Date of cell
+                            const cellDate = new Date(selectedYear, selectedMonth, day);
 
-              const isFutureDate = currentDate < cellDate;
+                            // console.log("cellDate",cellDate)
 
-              const isHoliday = holidayDates.includes(dateStr);
-              
-              const dayData = emp.attendance?.find(
-                (a) => a.date === dateStr
-              );
+                            // finding the Future Date
+
+                            const isFutureDate = currentDate < cellDate;
+
+                            const isHoliday = holidayDates.includes(dateStr);
+
+                            const dayData = emp.attendance?.find(
+                              (a) => a.date === dateStr
+                            );
 
 
-              // console.log("dayData",dayData);
+                            // console.log("dayData",dayData);
 
-              const weekDayIndex = new Date(
-                selectedYear,
-                selectedMonth,
-                day
-              ).getDay();
+                            const weekDayIndex = new Date(
+                              selectedYear,
+                              selectedMonth,
+                              day
+                            ).getDay();
 
-              const isSunday = weekDayIndex === 0;
+                            const isSunday = weekDayIndex === 0;
 
-              return (
-                <td
-                  key={`${emp.emp_id}-${day}`}
-                  className={`border border-gray-200 px-2 sm:px-4 py-2 text-center
-                    ${
-                      isSunday
-                        ? "bg-orange-50 text-orange-600 font-semibold"
-                        : ""
-                    }`}
-                >
-                  {
-                    isFutureDate ? ("--"): isHoliday ? (
-                    <span title="Public Holiday">🎉</span>
-                  ) : isSunday ? (
-                    "--"
-                  ) : (
-                    getStatusIcon(dayData)
+                            return (
+                              <td
+                                key={`${emp.emp_id}-${day}`}
+                                className={`border border-gray-200 px-2 sm:px-4 py-2 text-center
+                    ${isSunday
+                                    ? "bg-orange-50 text-orange-600 font-semibold"
+                                    : ""
+                                  }`}
+                              >
+                                {
+                                  isFutureDate ? ("--") : isHoliday ? (
+                                    <span title="Public Holiday">🎉</span>
+                                  ) : isSunday ? (
+                                    "--"
+                                  ) : (
+                                    getStatusIcon(dayData)
+                                  )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )
                   )}
-                </td>
-              );
-            })}
-          </tr>
-        )
-    )}
-</tbody>
+              </tbody>
             </table>
           </div>
         </div>

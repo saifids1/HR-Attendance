@@ -172,6 +172,13 @@ const renderError = (field) =>
       <p className="text-red-500 text-xs mt-1">{errors[field]}</p>
     );
 
+const allowedIds = [
+  "202300015",
+  "202100009",
+  "202000002",
+  "202000005"
+];
+
 
    
   return (
@@ -369,7 +376,8 @@ const renderError = (field) =>
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 >
                   <option value="">Select</option>
-                  {reportingOptions?.filter((emp) => emp.emp_id != "2020").map((person, index) => (
+                 
+                  {reportingOptions?.filter((emp) => allowedIds.includes(emp.emp_id)).map((person, index) => (
                     <option key={index} value={person.emp_id}>
                       {person.name} ({person.emp_id})
                     </option>

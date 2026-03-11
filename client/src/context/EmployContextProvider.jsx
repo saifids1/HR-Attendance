@@ -2,6 +2,7 @@ import React, { createContext, useEffect, useState, useMemo, useCallback } from 
 import api from "../../api/axiosInstance";
 import ProfImg from "../assets/avatar.webp";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const EmployContext = createContext();
 
 const EmployProvider = ({ children }) => {
@@ -55,9 +56,15 @@ const [totalPages, setTotalPages] = useState(1);
     actEnd: "",
     activitySearch: "",
     // Weekly
-    weekSearch: ""
+    weekSearch: "",
+    // Time Filter
+    weekTime:"",
+    punchIn:"",
+    punchOut:"",
   });
 
+  // Dashboard Switch State
+    const [isMyDash,setIsMyDash] = useState(false);
   // Profile Image
   const [profileImage, setProfileImage] = useState(null);
 
@@ -81,6 +88,14 @@ const [totalPages, setTotalPages] = useState(1);
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
+
+  // Admin My Dashboard
+  
+
+    const handleDashboard = ()=>{
+      setIsMyDash(true);
+      
+    } 
 
   // 2. UPDATED: Fetch Employee Dashboard logic to use standard startDate/endDate
   const fetchEmployeeDashboard = async (page = 1) => {
@@ -130,7 +145,9 @@ const fetchLogs = useCallback(async () => {
     filters.activitySearch ||
     filters.search ||
     filters.weekSearch ||
-    ""
+    filters.punchIn ||
+    filters.punchOut
+
   )
     .toString()
     .trim();
@@ -199,7 +216,8 @@ const fetchHolidays = (async()=>{
 
   useEffect(() => {
   const effectiveToken = auth.token || localStorage.getItem("token");
-  
+    
+  console.log("effectiveToken",effectiveToken)
   if (!effectiveToken) return;
     if (auth.role === "admin") {
       fetchAdminAttendance();
@@ -210,6 +228,26 @@ const fetchHolidays = (async()=>{
     fetchHolidays();
   }, [auth.token, auth.role]);
   
+useEffect(() => {
+  const syncAuth = () => {
+    const token = localStorage.getItem("token");
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+    setAuth({
+      token,
+      role: user?.role?.toLowerCase() || null,
+      emp_id: user?.emp_id || null
+    });
+  };
+
+  // initial load
+  syncAuth();
+
+  // multi-tab sync
+  window.addEventListener("storage", syncAuth);
+
+  return () => window.removeEventListener("storage", syncAuth);
+}, []);
 
   const formatDate = (value) => {
     if (!value) return "--";
@@ -225,6 +263,7 @@ const fetchHolidays = (async()=>{
         setAdminAttendance, orgAddress, setOrgAddress, holidays,
         loading: auth.role === "admin" ? adminLoading : employeeLoading,
         initialized, profileImage, setProfileImage,
+        handleDashboard,isMyDash,setIsMyDash,
         activelogs, setActiveLogs, singleAdminAttendance, setSingleAdminAttendance,
         weeklyLoading, weeklyData, setWeeklyData, filters, setFilters,
         pagination, setPagination, handleFilterChange, formatDate,
