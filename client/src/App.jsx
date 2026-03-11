@@ -136,7 +136,7 @@ function App() {
 
         <Route element={<AdminRoute allowedRole="admin" />}>
   <Route path="/admin" element={<Adminlayout />}>
-
+  {/* <Route path="employee-details/edit/:emp_id" element={<AdminEditEmpProfile />} /> */}
     {/* ADMIN */}
     <Route index element={<Overview />} />
     <Route path="attendance" element={<Attendance />} />
@@ -153,8 +153,10 @@ function App() {
     <Route path="week" element={<WeeklyAttendance />} />
     <Route path="all" element={<MonthlyAttendance />} />
 
+    {/* admin/employee-details/202500025 */}
+
     {/* Employee profile from admin */}
-    {/* <Route path="employee/:emp_id" element={<EmployeeDetails />} /> */}
+    <Route path="employee/edit/:emp_id" element={<EmployeeDetails />} />
     <Route path="employee/edit/:emp_id" element={<AdminEditEmpProfile />} />
 
     {/* ADMIN VIEWING OWN EMPLOYEE DASHBOARD */}
@@ -166,6 +168,8 @@ function App() {
       <Route path="settings" element={<Settings />} />
       <Route path="leaves" element={<Employleaves />} />
     </Route>
+
+    {/* Emp */}
 
   </Route>
 </Route>
