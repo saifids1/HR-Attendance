@@ -24,7 +24,7 @@ const Navbar = ({ open, setOpen }) => {
 
 
   // Destructure BOTH profileImage and setProfileImage
-  const { profileImage, setProfileImage } = useContext(EmployContext);
+  const { profileImage, setProfileImage,setAuth } = useContext(EmployContext);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const openMenu = Boolean(anchorEl);
@@ -73,7 +73,7 @@ const Navbar = ({ open, setOpen }) => {
     // CRITICAL: Reset the profile image in context so the 
     // next user doesn't see the previous one's image.
     setProfileImage(null);
-
+ 
     toast.success("Logout Successfully");
     navigate("/");
   };

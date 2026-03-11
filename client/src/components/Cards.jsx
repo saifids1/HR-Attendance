@@ -12,8 +12,9 @@ import { useEffect } from "react";
 
 const Cards = () => {
   const location = useLocation();
-const isAdminRoute = location.pathname.startsWith("/admin");
-
+  const isAdminRoute = location.pathname.startsWith("/admin");
+  const isEmployeeDashboard = location.pathname.startsWith("/admin/my-dashboard");
+  const isEmployee = location.pathname.startsWith("/employee")
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   const token = localStorage.getItem("token");
@@ -97,6 +98,7 @@ useEffect(() => {
         icon: <CheckCircleIcon />,
         bgColor: "#16A34A",
       },
+      
       {
         id: 3,
         title: "Absent Today",
@@ -125,13 +127,20 @@ useEffect(() => {
         id: 2,
         title: "Punch Out",
         value: singleAttendance?.today?.punch_out
-          ? singleAttendance?.today?.punch_out
-          : "Working",
+          ? singleAttendance?.today?.punch_out.split(" ")[0]
+          : "--",
         icon: <IoExit />,
         bgColor: "#dc2626",
       },
-      {
+        {
         id: 3,
+        title: "Total Hours",
+        value: singleAttendance?.today?.total_hours ?? "--",
+        icon: <CheckCircleIcon />,
+        bgColor: "#2563eb",
+      },
+      {
+        id: 4,
         title: "Weekly Hours",
         value: singleAttendance?.weekly?.total_hours ?? "--",
         icon: <CheckCircleIcon />,
@@ -155,9 +164,18 @@ useEffect(() => {
     );
   }
 
- 
-
-  const cardsToRender = isAdminRoute ? adminCards : employeeCards;
+  
+  
+  // const cardsToRender = isAdminRoute && (isEmployeeDashboard &&  isEmployee) ? adminCards : employeeCards;
+  const cardsToRender =
+  isEmployee || (isAdminRoute && isEmployeeDashboard)
+    ? employeeCards
+    : isAdminRoute
+    ? adminCards
+    : [];
+  
+  // console.log("cardsToRender",cardsToRender)
+  //  const cardsToRender = isAdminRoute  ? adminCards : employeeCards;
 
 
   if (!cardsToRender.length) return null;
@@ -193,3 +211,4 @@ useEffect(() => {
 };
 
 export default Cards;
+

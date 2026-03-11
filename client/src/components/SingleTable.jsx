@@ -183,7 +183,7 @@ const SingleTable = ({ empId }) => {
                       {dayStr}
                     </td>
                     <td className="px-6 py-4">
-                      {formatDate(row.date)}
+                      {/* {formatDate(row.date)} */}
                      
                     </td>
                     <td className="px-6 py-4">

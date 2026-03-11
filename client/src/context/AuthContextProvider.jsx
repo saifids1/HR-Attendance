@@ -4,25 +4,45 @@ import { createContext, useEffect, useState } from "react";
 export const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+
+  const [auth, setAuth] = useState({
+    token: null,
+    role: null,
+    emp_id: null
+  });
+
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-const triggerRefresh = () => setRefreshTrigger(prev => prev + 1);
-  
-const token = localStorage.getItem("token")
+  const triggerRefresh = () => setRefreshTrigger(prev => prev + 1);
+
   useEffect(() => {
 
+    const token = localStorage.getItem("token");
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
 
     if (token) {
-      setUser({ token }); // minimal info
+      setAuth({
+        token,
+        role: user?.role?.toLowerCase() || null,
+        emp_id: user?.emp_id || null
+      });
     }
 
     setLoading(false);
+
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading,token,refreshTrigger, triggerRefresh}}>
+    <AuthContext.Provider
+      value={{
+        auth,
+        setAuth,
+        loading,
+        refreshTrigger,
+        triggerRefresh
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

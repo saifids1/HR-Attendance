@@ -18,7 +18,7 @@ const SingleEmpAttendance = () => {
 
       setFilters((prev) => ({
         ...prev,
-        // 🔥 Employee auto locked
+        // Employee auto locked
         allEmpId:
           parsedUser.role === "employee"
             ? parsedUser.emp_id

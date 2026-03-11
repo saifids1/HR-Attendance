@@ -1,5 +1,9 @@
-import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
+import React, { useContext, useState } from "react";
+import { CgProfile } from "react-icons/cg";
+import { IoMdSettings } from "react-icons/io";
+import { MdOutlineHolidayVillage } from "react-icons/md";
+import { Tooltip } from "@mui/material";
+import { NavLink, useNavigate } from "react-router-dom";
 import { RxAvatar } from "react-icons/rx";
 import {
   House,
@@ -15,15 +19,27 @@ import { SlCalender } from "react-icons/sl";
 import SidebarDropdown from "./SidebarDropdown";
 import logo from "../assets/ids-logo.png"
 import logoIcon from "../assets/IDS-Outline-logo.png"
+import { EmployContext } from "../context/EmployContextProvider";
 
 
 const AdminSidebar = ({ open, setOpen }) => {
+  const navigate = useNavigate();
+
+  const { handleDashboard,isMyDash,setIsMyDash,} = useContext(EmployContext);
+
+
+
   const navClass = ({ isActive }) =>
     `flex items-center gap-3 px-4 py-2 rounded transition border
      ${isActive
       ? "bg-[#222F7D] text-white"
       : "text-black hover:bg-[#222F7D] hover:text-white border-[#dbdbdb]"
     }`;
+
+  // const handleNavigate = ()=>{
+  //   navigate("/admin/employee");
+  //   setIsMyDash((prev)=> !prev);
+  // }
 
   return (
     <>
@@ -45,7 +61,7 @@ const AdminSidebar = ({ open, setOpen }) => {
           ${open ? "translate-x-0" : "-translate-x-full"}
           
           /* DESKTOP: Always Open */
-          md:static md:translate-x-0 md:w-[260px] 
+          md:static md:translate-x-0 md:w-[280px] 
         `}
       >
         {/* Header Section */}
@@ -70,6 +86,7 @@ const AdminSidebar = ({ open, setOpen }) => {
 
         {/* Navigation Menu */}
         <nav className="mt-4 space-y-2 px-4 flex-1 overflow-y-auto custom-scrollbar">
+          {/* <h1 className="text-center">Admin Dashboard</h1> */}
           <NavLink to="/admin" end className={navClass}>
             <House size={15} className="shrink-0" />
             <span className="text-[15px]">Company Dashboard </span>
@@ -90,13 +107,37 @@ const AdminSidebar = ({ open, setOpen }) => {
           /> 
 
           
-          
-          <NavLink to="/employee" className={navClass}>
+{/*           
+          <NavLink to="/employee"  className={navClass} >
             <House size={18} className="shrink-0" />
             <span className="whitespace-nowrap text-[15px]">
               My Dashboard
             </span>
-          </NavLink>
+          </NavLink> */}
+
+           {/* <SidebarDropdown
+            icon={Book}
+            label="My Dashboard"
+            openSidebar={true}
+              onClick={() => {
+          setIsMyDash((prev) => !prev);       // open dropdown
+          navigate("/admin/employee-details"); // go to first option
+        }}
+            items={[
+            {label:"My Dashboard",path:"/admin/employee-details"},
+              { label: "My Attendance", path: "/admin/employee-details/attendance" },
+              
+              { label: "My Profile ", path: "/admin/employee-details/profile" },
+              { label: "My Holiday", path: "/admin/employee-details/holidays" },
+              { label: "My Leaves ", path: "/admin/employee-details/leaves" },
+             
+            ]}
+          />  */}
+
+          {/* <NavLink to="/employee"  className={navClass}>
+           <RxAvatar size={18} className="shrink-0" />
+            <span className="text-[15px]">My Dashboard</span>
+          </NavLink> */}
 
           <NavLink to="/admin/profile" className={navClass}>
           
@@ -119,7 +160,48 @@ const AdminSidebar = ({ open, setOpen }) => {
             <FaRegCalendarAlt size={18} className=" shrink-0" />
             <span className="text-[15px] text-nowrap">Company Manage Reports</span>
           </NavLink>
+
+
+
+        <h1 className="text-center text-blue-600">My Employee Dashboard</h1>
+
+<NavLink to="/admin/my-dashboard" end className={navClass}>
+  <House size={20} className="shrink-0" />
+  <span className="text-md">My Dashboard</span>
+</NavLink>
+
+<NavLink to="/admin/my-dashboard/attendance" className={navClass}>
+  <LockKeyhole size={20} className="shrink-0" />
+  <span>My Attendance</span>
+</NavLink>
+
+<NavLink to="/admin/my-dashboard/profile" className={navClass}>
+  <CgProfile size={20} className="shrink-0" />
+  <span>My Profile</span>
+</NavLink>
+
+<NavLink to="/admin/my-dashboard/holidays" className={navClass}>
+  <MdOutlineHolidayVillage size={20} className="shrink-0" />
+  <span>My Holidays</span>
+</NavLink>
+
+<NavLink to="/admin/my-dashboard/leaves" className={navClass}>
+  <Tooltip
+    title="My Leaves"
+    placement="right"
+    arrow
+    disableHoverListener={true}
+  >
+    <span className="flex items-center justify-center shrink-0">
+      <SlCalender size={20} />
+    </span>
+  </Tooltip>
+  <span>My Leaves</span>
+</NavLink>
         </nav>
+
+        {/* Employee Dashboard */}
+        
 
         {/* Footer Section */}
         <div className="p-4 border-t text-center">

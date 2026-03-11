@@ -1,13 +1,18 @@
-import React, { useState,useEffect } from "react";
+import React, { useState,useEffect, useContext } from "react";
 import { Outlet } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import EmploySidebar from "../components/EmploySidebar";
 import axios from "axios";
+import { EmployContext } from "../context/EmployContextProvider";
 
 const Employlayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const role = JSON.parse(localStorage.getItem("user")).role;
+  const{isMyDash} = useContext(EmployContext);
   
-  
+  const isAdmin = role === "admin" ? true:false;
+  // console.log("isAdmin",isAdmin)
   
   return (
     <div className="flex h-screen overflow-hidden bg-white">
@@ -20,12 +25,20 @@ const Employlayout = () => {
         />
       )}
 
-      {/* Sidebar */}
+    {/* Sidebar */}
+      {
+        // isMyDash &&
+        !isAdmin && 
       <EmploySidebar open={sidebarOpen} setOpen={setSidebarOpen} />
+      }
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col min-w-0 ">
-        <Navbar open={sidebarOpen} setOpen={setSidebarOpen} />
+          {
+        // isMyDash &&
+        !isAdmin &&
+   <Navbar open={sidebarOpen} setOpen={setSidebarOpen} />
+      }
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-0">
           <Outlet />

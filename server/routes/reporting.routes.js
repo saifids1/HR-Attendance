@@ -150,12 +150,19 @@ router.get("/employees/reporting/:emp_id", authMiddleware, async (req, res) => {
     if (!emp_id) {
       return res.status(400).json({ message: "Employee ID is required" });
     }
+    // 202300015
+    // 202100009
+// 202000002
+// 202000005
+
+
 
     // Check employee exists
     const empResult = await db.query(
       `SELECT emp_id, name 
        FROM users 
-       WHERE emp_id = $1`,
+       WHERE emp_id IN ('202300015','202100009','202000002','202000005') 
+       ANDemp_id = $1`,
       [emp_id]
     );
 

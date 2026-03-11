@@ -45,7 +45,9 @@ const startAllSchedules = async () => {
 
 
 
-startAllSchedules();
+// startAllSchedules();
+
+// console.log("REPORT ROUTER LOADED", process.pid);
 
 router.get('/', authMiddleware, async (req, res) => {
     try {

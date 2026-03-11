@@ -441,62 +441,166 @@ async function getDeviceAttendance() {
             if (punchDate > latestPunch) latestPunch = punchDate;
 
             // --- Daily Attendance Update ---
+            // const dayStr = punchDate.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+            // let firstPunch, lastPunch;
+            // let emailNeeded = false;
+            // let durationStr = "Initial Punch";
+
+
+            // const { rows: dailyRow } = await db.query(
+            //     `SELECT * FROM daily_attendance 
+            //      WHERE emp_id = $1 AND attendance_date = $2`,
+            //     [employee.emp_id, dayStr]
+            // );
+
+
+            // if (dailyRow.length) {
+
+            //     // Existing Record
+            //     const existing = dailyRow[0];
+            //     firstPunch = new Date(existing.punch_in);
+            //     lastPunch = new Date(existing.punch_out);
+
+            //     if (punchDate < firstPunch) {
+            //         firstPunch = punchDate;
+            //         emailNeeded = true;
+            //     }
+            //     if (punchDate > lastPunch) {
+            //         lastPunch = punchDate;
+            //         emailNeeded = true;
+            //     }
+
+            //     const diffMs = lastPunch - firstPunch;
+            //     const hours = Math.floor(diffMs / 3600000);
+            //     const minutes = Math.floor((diffMs % 3600000) / 60000);
+            //     durationStr = `${hours}h ${minutes}m`;
+
+            //     await db.query(
+            //         `UPDATE daily_attendance 
+            //          SET punch_in = $1, punch_out = $2, total_hours = $3
+            //          WHERE emp_id = $4 AND attendance_date = $5`,
+            //         [
+            //             formatISTWithOffset(firstPunch),
+            //             formatISTWithOffset(lastPunch),
+            //             durationStr,
+            //             employee.emp_id,
+            //             dayStr
+            //         ]
+            //     );
+            // } 
+            // else {
+            //     firstPunch = lastPunch = punchDate;
+            //     durationStr = "Initial Punch";
+            //     emailNeeded = true;
+
+            //     await db.query(
+            //         `INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, total_hours)
+            //          VALUES ($1, $2, $3, $4, $5)`,
+            //         // [employee.emp_id, dayStr, formattedPunch, formattedPunch, durationStr]
+            //         [employee.emp_id, dayStr, formattedPunch, "Initial Punch", "Initial Punch"]
+            //     );
+            // }
+
+
+            //
+
             const dayStr = punchDate.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-            let firstPunch, lastPunch, durationStr;
-            let emailNeeded = false;
 
+let firstPunch, lastPunch;
+let emailNeeded = false;
+let durationStr = "Initial Punch";
 
+const { rows: dailyRow } = await db.query(
+    `SELECT * FROM daily_attendance 
+     WHERE emp_id = $1 AND attendance_date = $2`,
+    [employee.emp_id, dayStr]
+);
 
-            const { rows: dailyRow } = await db.query(
-                `SELECT * FROM daily_attendance 
-                 WHERE emp_id = $1 AND attendance_date = $2`,
-                [employee.emp_id, dayStr]
-            );
+if (dailyRow.length) {
 
-            if (dailyRow.length) {
-                const existing = dailyRow[0];
-                firstPunch = new Date(existing.punch_in);
-                lastPunch = new Date(existing.punch_out);
+    const existing = dailyRow[0];
 
-                if (punchDate < firstPunch) {
-                    firstPunch = punchDate;
-                    emailNeeded = true;
-                }
-                if (punchDate > lastPunch) {
-                    lastPunch = punchDate;
-                    emailNeeded = true;
-                }
+    firstPunch = new Date(existing.punch_in);
 
-                const diffMs = lastPunch - firstPunch;
-                const hours = Math.floor(diffMs / 3600000);
-                const minutes = Math.floor((diffMs % 3600000) / 60000);
-                durationStr = `${hours}h ${minutes}m`;
+    if (!existing.punch_out) {
+        lastPunch = punchDate;
+        emailNeeded = true;
+    } else {
+        lastPunch = new Date(existing.punch_out);
 
-                await db.query(
-                    `UPDATE daily_attendance 
-                     SET punch_in = $1, punch_out = $2, total_hours = $3
-                     WHERE emp_id = $4 AND attendance_date = $5`,
-                    [
-                        formatISTWithOffset(firstPunch),
-                        formatISTWithOffset(lastPunch),
-                        durationStr,
-                        employee.emp_id,
-                        dayStr
-                    ]
-                );
-            } 
-            else {
-                firstPunch = lastPunch = punchDate;
-                durationStr = "0h 0m";
-                emailNeeded = true;
+        if (punchDate < firstPunch) {
+            firstPunch = punchDate;
+            emailNeeded = true;
+        }
 
-                await db.query(
-                    `INSERT INTO daily_attendance (emp_id, attendance_date, punch_in, punch_out, total_hours)
-                     VALUES ($1, $2, $3, $4, $5)`,
-                    [employee.emp_id, dayStr, formattedPunch, formattedPunch, durationStr]
-                );
-            }
+        if (punchDate > lastPunch) {
+            lastPunch = punchDate;
+            emailNeeded = true;
+        }
+    }
 
+    const diffMs = lastPunch - firstPunch;
+    const hours = Math.floor(diffMs / 3600000);
+    const minutes = Math.floor((diffMs % 3600000) / 60000);
+
+    durationStr = `${hours}h ${minutes}m`;
+
+    // status logic
+    const status = lastPunch ? "Present" : "Working";
+
+    await db.query(
+        `UPDATE daily_attendance 
+         SET punch_in = $1, 
+             punch_out = $2, 
+             total_hours = $3,
+             status = $4
+         WHERE emp_id = $5 
+         AND attendance_date = $6`,
+        [
+            formatISTWithOffset(firstPunch),
+            lastPunch ? formatISTWithOffset(lastPunch) : null,
+            durationStr,
+            status,
+            employee.emp_id,
+            dayStr
+        ]
+    );
+}
+else {
+
+    // FIRST PUNCH
+    firstPunch = punchDate;
+    lastPunch = null;
+
+    durationStr = "Initial Punch";
+    emailNeeded = true;
+
+//    await db.query(
+//     `INSERT INTO daily_attendance 
+//     (emp_id, attendance_date, punch_in, punch_out, total_hours)
+//     VALUES ($1, $2, $3, $4, $5)`,
+//     [
+//         employee.emp_id,
+//         dayStr,
+//         formattedPunch,
+//         null,     // punch_out
+//         null      // total_hours
+//     ]
+// );
+
+await db.query(
+`INSERT INTO daily_attendance 
+(emp_id, attendance_date, punch_in, punch_out, total_hours, status)
+VALUES ($1,$2,$3,$4,$5,$6)`,
+[
+    employee.emp_id,
+    dayStr,
+    formattedPunch,
+    null,
+    null,
+    "Working"
+]);
+}
             // --- Send email only if first or last punch changed ---
             if (emailNeeded) {
                 const punchInTimeStr = firstPunch.toLocaleTimeString("en-IN", {
@@ -505,7 +609,8 @@ async function getDeviceAttendance() {
                     hour12: true,
                     timeZone: 'Asia/Kolkata'
                 });
-                const punchOutTimeStr = lastPunch.toLocaleTimeString("en-IN", {
+                const punchOutTimeStr =  durationStr === "Initial Punch"
+        ? "Initial Punch":  lastPunch.toLocaleTimeString("en-IN", {
                     hour: '2-digit',
                     minute: '2-digit',
                     hour12: true,

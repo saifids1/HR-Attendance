@@ -1,54 +1,72 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 export const exportWeekToExcel = (data, fileName = "Weekly_Attendance") => {
-  // 1. Check if data exists and contains the attendance array
-  console.log("Exporting Data:", data);
-  
-  const attendance = data?.attendance || [];
-  const employee = data?.employee || {};
 
-  if (!attendance.length) {
-    console.error("No attendance data found in the response object.");
-    alert("No data available to export."); // Helpful for the user
+  console.log("data",data);
+
+  if (!data.data || !data.data.length) {
+    alert("No attendance data found");
     return;
   }
 
-  // 2. Map the data to a flat structure for Excel
-  const excelData = attendance.map((row, index) => ({
-    "Sr No": index + 1,
-    "Emp ID": employee.emp_id || "--",
-    "Employee Name": employee.name || "--",
-    "Date": row.date || "--",
-    "First In": row.first_in || "Absent", // Handles null from backend
-    "Last Out": row.last_out || "Absent", // Handles null from backend
-    "Total Hours": row.total_hours || "0.00",
-  }));
+  const formatDate = (date) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-GB").replace(/\//g, "-");
+  };
 
-  // 3. Create Workbook and Sheet
+  const getDay = (date) => {
+    return new Date(date).toLocaleDateString("en-US", { weekday: "long" });
+  };
+
+  const convertHours = (decimalHours) => {
+    if (!decimalHours) return "0:00";
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.round((decimalHours % 1) * 60);
+    return `${hours}:${minutes.toString().padStart(2, "0")}`;
+  };
+
+  // Flatten all employees + attendance
+ const excelData = data.data.flatMap((empRow) => {
+  return empRow.attendance.map((att, index) => ({
+    "Sr No": index + 1,
+    "Day": getDay(att.date),
+    "Emp ID": empRow.emp_id || "--",
+    "Employee Name": empRow.name || "--",
+    "Date": formatDate(att.date),
+    "Status": att.status || "--",
+    "Punch In": att.first_in ? att.first_in.replace("AM", "am").replace("PM", "pm") : "--",
+    "Punch Out": att.last_out ? att.last_out.replace("AM", "am").replace("PM", "pm") : "--",
+    "Total Hours": att.total_hours ? convertHours(Number(att.total_hours)) : "--",
+    "Shift Hours": att.shift_hours || "9.3" // optional dynamic
+  }));
+});
+
   const worksheet = XLSX.utils.json_to_sheet(excelData);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Report");
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Weekly Attendance");
 
-  // 4. Set column widths
-  worksheet['!cols'] = [
-    { wch: 8 },  // Sr No
-    { wch: 15 }, // Emp ID
-    { wch: 25 }, // Employee Name
-    { wch: 15 }, // Date
-    { wch: 12 }, // First In
-    { wch: 12 }, // Last Out
-    { wch: 12 }  // Total Hours
+  worksheet["!cols"] = [
+    { wch: 6 },
+    { wch: 12 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 }
   ];
 
-  // 5. Generate Buffer
-  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([excelBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  
-  // 6. FIX: Use 'data' instead of 'response' for the filename
-  const dateRange = data.date_range 
-    ? `${data.date_range.from}_to_${data.date_range.to}` 
-    : new Date().toISOString().split('T')[0];
+  const excelBuffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array"
+  });
 
-  saveAs(blob, `${fileName}_${employee.name || 'User'}_${dateRange}.xlsx`);
+  const blob = new Blob([excelBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
+
+  saveAs(blob, `Weekly Report.xlsx`);
 };

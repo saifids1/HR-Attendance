@@ -96,7 +96,7 @@ app.use("/api/leaves/types",leavesRoutes);
 
 // Cron Schedule Route
 
-app.use("/api/update-schedule",cronRoutes);
+// app.use("/api/update-schedule",cronRoutes);
 
 app.listen(PORT,()=>{
 
