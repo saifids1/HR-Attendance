@@ -40,41 +40,50 @@ export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
                 console.log("dayRecord",dayRecord)
                 const recordDate = new Date(date);
 
-                if (recordDate > today) {
-                    // Future date, show placeholder
-                    row[formattedDate] = "--";
-                } else if (dayRecord) {
-                    if (dayRecord.status === "Present") {
-                        const formatTime = (isoDate) =>
-                            isoDate
-                                ? new Date(isoDate).toLocaleTimeString("en-IN", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    hour12: true,
-                                    timeZone: "Asia/Kolkata",
-                                })
-                                : "--";
+               if (recordDate > today) {
+    // Future date
+    row[formattedDate] = "--";
 
-                        // console.log("dayRecord",dayRecord)
-                        const punchIn = formatTime(dayRecord.first_in);
-                        const punchOut = formatTime(dayRecord.last_out);
+} else if (dayRecord) {
 
-                        const totalHours = dayRecord.hours_worked
+    if (dayRecord.status === "Present") {
 
-                            ? `${Math.floor(dayRecord.hours_worked
-                            )}:${Math.round((dayRecord.hours_worked
-                                % 1) * 60)
-                                .toString()
-                                .padStart(2, "0")}`
-                            : "--";
+        const formatTime = (isoDate) =>
+            isoDate
+                ? new Date(isoDate).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                      timeZone: "Asia/Kolkata",
+                  })
+                : "--";
 
-                        row[formattedDate] = `P\n (${punchIn} - ${punchOut} - ${totalHours})`;
-                    } else if (dayRecord.status === "Absent") {
-                        row[formattedDate] = "A";
-                    } else {
-                        row[formattedDate] = "H";
-                    }
-                } else {
+        const punchIn = formatTime(dayRecord.first_in);
+        const punchOut = formatTime(dayRecord.last_out);
+
+        const totalHours = dayRecord.hours_worked
+            ? `${Math.floor(dayRecord.hours_worked)}:${Math.round(
+                  (dayRecord.hours_worked % 1) * 60
+              )
+                  .toString()
+                  .padStart(2, "0")}`
+            : "--";
+
+        row[formattedDate] = `P\n (${punchIn} - ${punchOut} - ${totalHours})`;
+
+    } else if (dayRecord.status === "Absent") {
+
+        // Check Sunday 
+        if (recordDate.getDay() === 0) {
+            row[formattedDate] = "Week Off";
+        } else {
+            row[formattedDate] = "A";
+        }
+
+    } else {
+        row[formattedDate] = "H";
+    }
+} else {
                     // No record, but date is past or today
                     row[formattedDate] = "-";
                 }

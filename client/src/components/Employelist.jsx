@@ -75,7 +75,7 @@ const Employelist = () => {
 
                   <td className="px-6 py-4 flex gap-2">
                     <NavLink
-                      to={`/admin/employee-details/${emp.emp_id}`}
+                      to={`/admin/employee/edit/${emp.emp_id}`}
                       className="inline-flex items-center px-3 py-1.5 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm"
                     >
                       View Profile
