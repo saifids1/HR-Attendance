@@ -32,21 +32,17 @@ const DocumentTab = ({
 
   // console.log("isEditing Document",isEditing);
 
-  
-
   const [documents, setDocuments] = useState([]);
   const [draft, setDraft] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
   const [isNew, setIsNew] = useState(false);
   const fileRef = useRef(null);
 
-
-  useEffect(()=>{
-
-    console.log("isEditing",isEditing)
-    console.log("setIsAddingNew",setIsAddingNew)
-    console.log(" setEditingIndex(null);",  setEditingIndex(null))
-  },[setIsAddingNew,isEditing])
+  useEffect(() => {
+    console.log("isEditing", isEditing);
+    console.log("setIsAddingNew", setIsAddingNew);
+    console.log(" setEditingIndex(null);", setEditingIndex(null));
+  }, [setIsAddingNew, isEditing]);
   /* ================= FETCH DOCUMENTS ================= */
 
   useEffect(() => {
@@ -64,7 +60,7 @@ const DocumentTab = ({
             ...doc,
             fullUrl: `${BASE_URL}${doc.file_path}`.replace(
               /([^:]\/)\/+/g,
-              "$1"
+              "$1",
             ),
             fileName: doc.file_path.split("/").pop(),
           })) || [];
@@ -97,26 +93,21 @@ const DocumentTab = ({
   /* ================= EDIT EXISTING ================= */
 
   const handleEdit = (doc, index) => {
+    if (editingIndex === index) {
+      handleCancel();
+      return;
+    }
 
+    // Switch to new row
+    setEditingIndex(index);
 
-  if (editingIndex === index) {
-    handleCancel();
-    return;
-  }
-
-  // Switch to new row 
-  setEditingIndex(index);
-
-  setDraft({
-    documentType: doc.document_type,
-    documentNumber: doc.document_number || "",
-    file: null,
-    id: doc.id,
-  });
-
-  
-};
-
+    setDraft({
+      documentType: doc.document_type,
+      documentNumber: doc.document_number || "",
+      file: null,
+      id: doc.id,
+    });
+  };
 
   /* ================= FILE CHANGE ================= */
 
@@ -146,7 +137,7 @@ const DocumentTab = ({
         fd.append("file", draft.file);
       }
 
-      console.log("formData", fd)
+      console.log("formData", fd);
       await api.post(`/employee/profile/bank/doc/${empId}`, fd, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -171,10 +162,7 @@ const DocumentTab = ({
       const formatted =
         res.data.documents?.map((doc) => ({
           ...doc,
-          fullUrl: `${BASE_URL}${doc.file_path}`.replace(
-            /([^:]\/)\/+/g,
-            "$1"
-          ),
+          fullUrl: `${BASE_URL}${doc.file_path}`.replace(/([^:]\/)\/+/g, "$1"),
           fileName: doc.file_path.split("/").pop(),
         })) || [];
 
@@ -217,6 +205,32 @@ const DocumentTab = ({
     setIsEditing(false);
   };
 
+  // =========================== Download Document =======================
+
+  const handleDownloadDocument = async (doc) => {
+    try {
+      const response = await fetch(doc.fullUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = doc.fileName || "document";
+      document.body.appendChild(link);
+      link.click();
+
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Download failed");
+    }
+  };
+
   /* ================= UI ================= */
 
   return (
@@ -255,7 +269,9 @@ const DocumentTab = ({
                   />
                 ) : (
                   <tr key={doc.id}>
-                    <td className="px-4 py-2 text-sm text-gray-600">{doc.document_type}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">
+                      {doc.document_type}
+                    </td>
                     <td className="px-4 py-2 text-sm text-gray-600">
                       {doc.document_number || "-"}
                     </td>
@@ -263,6 +279,18 @@ const DocumentTab = ({
                       <span onClick={() => window.open(doc.fullUrl, "_blank")}>
                         {doc.file_name}
                       </span>
+                      <button
+                        onClick={() => handleDownloadDocument(doc)}
+                        className="text-blue-500 ml-3 "
+                        style={{
+                          fontSize: "25px",
+                          position: "relative",
+                          top: "4px",
+                        }}
+                      >
+                        {/* <FaPencilAlt /> */}
+                        <MdSaveAlt />
+                      </button>
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-600 text-center">
                       <div className="flex gap-4 justify-center">
@@ -282,7 +310,7 @@ const DocumentTab = ({
                       </div>
                     </td>
                   </tr>
-                )
+                ),
               )}
 
               {/* Draft row normal view */}
@@ -382,9 +410,7 @@ const EditableRow = ({
         />
 
         {draft.file ? (
-          <span className="text-sm text-gray-600 ms-4">
-            {draft.file.name}
-          </span>
+          <span className="text-sm text-gray-600 ms-4">{draft.file.name}</span>
         ) : (
           <button
             onClick={() => fileRef.current?.click()}

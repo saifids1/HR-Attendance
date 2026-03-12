@@ -5,13 +5,11 @@ import { addNominee, getNominee, updateNominee } from "../../../api/profile";
 import { useParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
-
 export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
   const [nomineeData, setNomineeData] = useState(emptyNominee);
-  const { emp_id } = useParams()
+  const { emp_id } = useParams();
 
   const finalEmpId = emp_id || empId;
-
 
   useEffect(() => {
     if (nomineData && Object.keys(nomineData).length > 0) {
@@ -25,33 +23,29 @@ export const NomineeTab = ({ nomineData, isEditing, empId, setIsEditing }) => {
   //   console.log("url id ", emp_id)
   // },[emp_id])
 
-useEffect(() => {
-  if (!finalEmpId) return;
+  useEffect(() => {
+    if (!finalEmpId) return;
 
-  const fetchNominee = async () => {
-    try {
-      const resp = await getNominee(finalEmpId);
+    const fetchNominee = async () => {
+      try {
+        const resp = await getNominee(finalEmpId);
 
-      setNomineeData(
-        resp?.data?.nominee || emptyNominee
-      );
-    } catch (error) {
-      console.log(error);
-      setNomineeData(emptyNominee);
-    }
-  };
+        setNomineeData(resp?.data?.nominee || emptyNominee);
+      } catch (error) {
+        console.log(error);
+        setNomineeData(emptyNominee);
+      }
+    };
 
-  fetchNominee();
-}, [finalEmpId]);
+    fetchNominee();
+  }, [finalEmpId]);
 
   // console.log("nomineeData",nomineeData)
 
-
-
   const handleChange = (field, value) => {
-    setNomineeData(prev => ({
+    setNomineeData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -81,16 +75,14 @@ useEffect(() => {
         : await addNominee(finalEmpId, nomineeData);
 
       console.log("reps save", resp.data.data);
-      setNomineeData(prev => ({
+      setNomineeData((prev) => ({
         ...prev,
-        ...resp.data.data
+        ...resp.data.data,
       }));
 
       setIsEditing(false);
 
-      toast.success("Nominee Updated Sucessfully")
-
-
+      toast.success("Nominee Updated Sucessfully");
     } catch (error) {
       console.error(error);
     }
@@ -114,11 +106,11 @@ useEffect(() => {
                 <input
                   type="text"
                   value={nomineeData?.nominee_name || ""}
-                  onChange={(e) =>
-                    handleChange("nominee_name", e.target.value)
-                  }
+                  onChange={(e) => handleChange("nominee_name", e.target.value)}
                   disabled={!isEditing}
-                  className="border rounded px-3 py-2 text-sm"
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
+                    isEditing ? "" : "cursor-not-allowed"
+                  }`}
                 />
               </div>
 
@@ -133,7 +125,9 @@ useEffect(() => {
                     handleChange("nominee_relation", e.target.value)
                   }
                   disabled={!isEditing}
-                  className="border rounded px-3 py-2 text-sm"
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
+                    isEditing ? "" : "cursor-not-allowed"
+                  }`}
                 />
               </div>
 
@@ -148,16 +142,15 @@ useEffect(() => {
                     handleChange("nominee_contact", e.target.value)
                   }
                   disabled={!isEditing}
-                  className="border rounded px-3 py-2 text-sm"
+                  className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
+                    isEditing ? "" : "cursor-not-allowed"
+                  }`}
                 />
               </div>
             </>
             {/* ))} */}
-
-
           </div>
         </div>
-
 
         {isEditing && (
           <>
