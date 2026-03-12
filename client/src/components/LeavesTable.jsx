@@ -33,6 +33,15 @@ const LeavesTable = ({ leavesHeader, leavesBody, adminLeavesHeader, adminLeavesB
     }
   };
 
+  const formattedDate = (dateStr)=>{
+    const date = new Date(dateStr);
+    const dd = date.getDate().toString().padStart(2,"0");
+    const mm = (date.getMonth()+1).toString().padStart(2,"0");
+    const yy = date.getFullYear().toString().padStart(2,"0");
+
+    return `${dd}-${mm}-${yy}`
+  }
+
 
   useEffect(()=>{
     console.log(leavesBody,"leavesBody,")
@@ -50,8 +59,8 @@ const LeavesTable = ({ leavesHeader, leavesBody, adminLeavesHeader, adminLeavesB
         <tbody>
           {leavesBody?.map((data, i) => (
             <tr key={i} className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}>
-              <td className="border px-4 py-3">{new Date(data.applied_at).toLocaleDateString()}</td>
-              <td className="border px-4 py-3">{`${new Date(data.start_date).toLocaleDateString()} - ${new Date(data.end_date).toLocaleDateString()}`}</td>
+              <td className="border px-4 py-3">{formattedDate(data.applied_at)}</td>
+              <td className="border px-4 py-3">{`${formattedDate(data.start_date)} - ${formattedDate(data.end_date)}`}</td>
               <td className="border px-4 py-3">{data.total_days}</td>
               <td className="border px-4 py-3">{data.leaves_type}</td>
               <td className="border px-4 py-3">

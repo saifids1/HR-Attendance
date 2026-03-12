@@ -516,36 +516,23 @@ const { rows: dailyRow } = await db.query(
     [employee.emp_id, dayStr]
 );
 
+
 if (dailyRow.length) {
-
     const existing = dailyRow[0];
-
     firstPunch = new Date(existing.punch_in);
+    lastPunch = existing.punch_out ? new Date(existing.punch_out) : punchDate;
 
-    if (!existing.punch_out) {
-        lastPunch = punchDate;
-        emailNeeded = true;
-    } else {
-        lastPunch = new Date(existing.punch_out);
-
-        if (punchDate < firstPunch) {
-            firstPunch = punchDate;
-            emailNeeded = true;
-        }
-
-        if (punchDate > lastPunch) {
-            lastPunch = punchDate;
-            emailNeeded = true;
-        }
+    if (!existing.punch_out || punchDate < firstPunch || punchDate > lastPunch) {
+        if (punchDate < firstPunch) firstPunch = punchDate;
+        if (punchDate > lastPunch) lastPunch = punchDate;
+        emailNeeded = true;  
     }
 
     const diffMs = lastPunch - firstPunch;
     const hours = Math.floor(diffMs / 3600000);
     const minutes = Math.floor((diffMs % 3600000) / 60000);
-
     durationStr = `${hours}h ${minutes}m`;
 
-    // status logic
     const status = lastPunch ? "Present" : "Working";
 
     await db.query(
@@ -565,41 +552,26 @@ if (dailyRow.length) {
             dayStr
         ]
     );
-}
-else {
-
+} else {
     // FIRST PUNCH
     firstPunch = punchDate;
     lastPunch = null;
-
     durationStr = "Initial Punch";
     emailNeeded = true;
 
-//    await db.query(
-//     `INSERT INTO daily_attendance 
-//     (emp_id, attendance_date, punch_in, punch_out, total_hours)
-//     VALUES ($1, $2, $3, $4, $5)`,
-//     [
-//         employee.emp_id,
-//         dayStr,
-//         formattedPunch,
-//         null,     // punch_out
-//         null      // total_hours
-//     ]
-// );
-
-await db.query(
-`INSERT INTO daily_attendance 
-(emp_id, attendance_date, punch_in, punch_out, total_hours, status)
-VALUES ($1,$2,$3,$4,$5,$6)`,
-[
-    employee.emp_id,
-    dayStr,
-    formattedPunch,
-    null,
-    null,
-    "Working"
-]);
+    await db.query(
+        `INSERT INTO daily_attendance 
+         (emp_id, attendance_date, punch_in, punch_out, total_hours, status)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [
+            employee.emp_id,
+            dayStr,
+            formattedPunch,
+            null,
+            null,
+            "Working"
+        ]
+    );
 }
             // --- Send email only if first or last punch changed ---
             if (emailNeeded) {
@@ -616,6 +588,10 @@ VALUES ($1,$2,$3,$4,$5,$6)`,
                     hour12: true,
                     timeZone: 'Asia/Kolkata'
                 });
+
+                // const empEmail = process.env.NODE_ENV === "production" ? employee.email : "s.imran@i-diligence.com"
+
+                // console.log("empEmail",empEmail);
 
                 const formattedDate = `${String(firstPunch.getDate()).padStart(2, '0')}-${String(firstPunch.getMonth() + 1).padStart(2, '0')}-${firstPunch.getFullYear()}`;
                 const dayName = firstPunch.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' });

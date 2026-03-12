@@ -7,6 +7,7 @@ import { TfiMenuAlt } from "react-icons/tfi";
 import Leavecards from "../components/Leavecards";
 import LeavesTable from "../components/LeavesTable";
 import Loader from "../components/Loader";
+import PendingLeavesTable from "../components/PendingLeaves";
 
 const Adminleaves = () => {
   const [activeTab, setActiveTab] = useState("pending");
@@ -92,6 +93,7 @@ const Adminleaves = () => {
             <FaRegClock />
             <span>Pending Approvals</span>
           </p>
+        
           {stats.pending > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 text-xs rounded-full flex items-center justify-center">
               {stats.pending}
@@ -99,6 +101,7 @@ const Adminleaves = () => {
           )}
         </div>
 
+         
         <div
           onClick={() => setActiveTab("all")}
           className={`px-3 py-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === "all" ? "bg-[#1a8755] text-white" : "text-[#1a8755] border bg-[#1a8755] bg-opacity-10 border-[#1a8755]"
@@ -108,7 +111,7 @@ const Adminleaves = () => {
           <span>History</span>
         </div>
       </div>
-
+   {/* <PendingLeavesTable/> */}
       {/* Content */}
       <div className="mt-6">
         <LeavesTable

@@ -1,8 +1,31 @@
 const { db } = require("../db/connectDB");
+require("dotenv").config();
 const { getDeviceAttendance } = require("../services/zk.service");
 const sendEmail = require("../utils/mailer");
 const cron = require('node-cron');
 const bcrypt = require("bcrypt");
+const dotenv = require("dotenv");
+const path = require("path");
+const env = process.env.NODE_ENV ;
+
+
+// Pick the correct file
+const envFile = env === "production" ? ".env.production" : ".env.local";
+
+// console.log("envFile Attendance", envFile);
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+
+// Determine admin emails dynamically
+const adminEmails = process.env.NODE_ENV === "production"
+  ? process.env.PROD_ADMIN_EMAILS  // from .env.production
+  : process.env.LOCAL_ADMIN_EMAILS; // from .env.local
+
+const ccEmails = process.env.NODE_ENV === "production"
+  ? process.env.PROD_CC_EMAILS || "" // optional, can also fetch from DB if needed
+  : process.env.LOCAL_CC_EMAILS;
+
+// console.log("Admin Emails:", adminEmails);
+// console.log("CC Emails:", ccEmails);
 
 /* Sync machine logs */
 exports.syncAttendance = async (req, res) => {
@@ -133,7 +156,7 @@ exports.addEmployController = async (req, res) => {
 
   const client = await db.connect();
 
-  console.log("addEmp", req.body)
+  // console.log("addEmp", req.body)
   try {
     const {
       name,
@@ -568,7 +591,7 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
   try {
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-
+console.log("env",env);
     const query = `
                 WITH attendance_summary AS (
                   SELECT
@@ -647,13 +670,34 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
     }).replace(/\//g, '-');
 
 
+    dotenv.config({ path: process.env.NODE_ENV === "production" ? ".env.production" : ".env.local" });
     // --- EMAIL LOGIC ---
     // Only runs when triggered by Cron (passing true)
     if (sendEmailToAdmin) {
       // const adminEmails = "hradmin@i-diligence.com,s.hanif@i-diligence.com,s.imran@i-diligence.com"; 
-      const adminEmails = "s.imran@i-diligence.com"
-      const ccEmails = "s.irfan@i-diligence.com";
+      // const adminEmails = "s.imran@i-diligence.com"
+      // const ccEmails = "s.irfan@i-diligence.com";
+      // const adminEmails = process.env.NODE_ENV === "production"
+      //   ? process.env.PROD_ADMIN_EMAILS
+      //   : process.env.LOCAL_ADMIN_EMAILS;
+
+      // const ccEmails = process.env.NODE_ENV === "production"
+      //   ? process.env.PROD_CC_EMAILS || ""
+      //   : process.env.LOCAL_CC_EMAILS;
       const subject = `Attendance Report - ${mailDateFormat}`;
+
+      // Fetch from DB
+      const emailResult = await db.query('SELECT production_email, local_email FROM "EmployeeEmail" LIMIT 1');
+      const row = emailResult.rows[0];
+
+      
+      const adminEmails = process.env.NODE_ENV == "production"
+        ? row.production_email
+        : row.local_email.split(",")[0];
+
+        // console.log("process.env.NODE_ENV",process.env.NODE_ENV)
+
+        // console.log("adminEmails",adminEmails);
 
       // Generate HTML rows for the email
 
@@ -728,6 +772,8 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
         })
         .replace(/\//g, '-');
 
+        // console.log("adminEmail Send Mail",adminEmails);
+
       // console.log(formattedDate);
       await sendEmail(
         adminEmails,
@@ -770,33 +816,34 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
 cron.schedule('0 11,16,21 * * 1-6', async () => {
   console.log(`[${new Date().toISOString()}] Starting hourly attendance report...`);
-    const now = new Date();
+  const now = new Date();
 
   console.log("=================================");
   console.log("CRON START");
   console.log("TIME:", now.toLocaleString());
   console.log("PID:", process.pid);
   console.log("=================================");
-  exports.runAttendanceTask();
+  await exports.runAttendanceTask();
 }, {
   scheduled: true,
   timezone: "Asia/Kolkata"
 });
+//  exports.runAttendanceTask();
 
-cron.schedule('16 11 * * 1-6', async () => {
-  console.log(`[${new Date().toISOString()}] Starting  attendance report...`);
-    const now = new Date();
+// cron.schedule('5 15 * * 1-6', async () => {
+//   console.log(`[${new Date().toISOString()}] Starting  attendance report...`);
+//   const now = new Date();
 
-  console.log("=================================");
-  console.log("CRON START");
-  console.log("TIME:", now.toLocaleString());
-  console.log("PID:", process.pid);
-  console.log("=================================");
-  exports.runAttendanceTask();
-}, {
-  scheduled: true,
-  timezone: "Asia/Kolkata"
-});
+//   console.log("=================================");
+//   console.log("CRON START");
+//   console.log("TIME:", now.toLocaleString());
+//   console.log("PID:", process.pid);
+//   console.log("=================================");
+//   await exports.runAttendanceTask();
+// }, {
+//   scheduled: true,
+//   timezone: "Asia/Kolkata"
+// });
 
 
 // cron.schedule('4 12 * * *', async () => {
@@ -873,10 +920,11 @@ exports.getMyTodayAttendance = async (req, res) => {
         ELSE 'Present'
     END AS status,
 
-    CASE
-        WHEN punch_out IS NULL OR punch_out = punch_in THEN '00:00'
-        ELSE TO_CHAR(punch_out - punch_in, 'HH24:MI')
-    END AS total_hours
+   CASE
+    WHEN punch_out IS NULL OR punch_out = punch_in THEN '00:00'
+    ELSE TO_CHAR(punch_out - punch_in, 'HH24:MI')
+END AS total_hours
+
 
 FROM daily_attendance
 WHERE emp_id = $1
@@ -894,7 +942,7 @@ LIMIT 1;
       today = {
         punch_in: formatTime(row.punch_in),
         punch_out: formatTime(row.punch_out),
-        total_hours: secondsToHHMM(row.total_seconds),
+        total_hours: row.total_hours,
         status: row.status || "Absent",
       };
     } else {
@@ -1028,7 +1076,7 @@ exports.getMyAttendance = async (req, res) => {
 
     //   ORDER BY dr.attendance_date DESC;
     // `, [empId]);
-const { rows } = await db.query(`
+    const { rows } = await db.query(`
 WITH date_range AS (
   SELECT generate_series(
     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
@@ -1041,8 +1089,9 @@ logs_summary AS (
   SELECT
     emp_id,
     DATE(punch_time) AS attendance_date,
-    MIN(punch_time) AS punch_in,
-    MAX(punch_time) AS punch_out
+    MIN(punch_time) AS log_punch_in,
+    MAX(punch_time) AS log_punch_out,
+    COUNT(*) AS total_logs
   FROM attendance_logs
   WHERE emp_id = $1
   GROUP BY emp_id, DATE(punch_time)
@@ -1053,34 +1102,63 @@ SELECT
   u.name AS employee_name,
   to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
 
-  COALESCE(da.punch_in, ls.punch_in) AS punch_in,
-  COALESCE(da.punch_out, ls.punch_out) AS punch_out,
+  -- Punch In
+  COALESCE(da.punch_in, ls.log_punch_in) AS punch_in,
 
+  -- Punch Out Logic
+  CASE
+    WHEN da.punch_out IS NOT NULL THEN da.punch_out
+    WHEN ls.total_logs > 1 THEN ls.log_punch_out
+    ELSE NULL
+  END AS punch_out,
+
+  -- Total Seconds
   CASE 
-    WHEN COALESCE(da.punch_in, ls.punch_in) IS NULL THEN 0
-    WHEN COALESCE(da.punch_out, ls.punch_out) IS NULL THEN 0
+    WHEN COALESCE(da.punch_in, ls.log_punch_in) IS NULL THEN 0
+    
+    WHEN (
+      CASE
+        WHEN da.punch_out IS NOT NULL THEN da.punch_out
+        WHEN ls.total_logs > 1 THEN ls.log_punch_out
+        ELSE NULL
+      END
+    ) IS NULL THEN 0
+
     ELSE EXTRACT(EPOCH FROM (
-      COALESCE(da.punch_out, ls.punch_out) - 
-      COALESCE(da.punch_in, ls.punch_in)
+      (
+        CASE
+          WHEN da.punch_out IS NOT NULL THEN da.punch_out
+          WHEN ls.total_logs > 1 THEN ls.log_punch_out
+          ELSE NULL
+        END
+      ) - COALESCE(da.punch_in, ls.log_punch_in)
     ))
   END AS total_seconds,
 
- CASE
-    WHEN COALESCE(da.punch_in, ls.punch_in) IS NULL 
-        THEN 'Absent'
+  -- Status
+  CASE
+    WHEN COALESCE(da.punch_in, ls.log_punch_in) IS NULL 
+      THEN 'Absent'
 
-    WHEN COALESCE(da.punch_in, ls.punch_in) IS NOT NULL 
-         AND COALESCE(da.punch_out, ls.punch_out) IS NULL
-        THEN 'Working'
+    WHEN (
+      CASE
+        WHEN da.punch_out IS NOT NULL THEN da.punch_out
+        WHEN ls.total_logs > 1 THEN ls.log_punch_out
+        ELSE NULL
+      END
+    ) IS NULL
+      THEN 'Working'
 
-    WHEN COALESCE(da.punch_in, ls.punch_in) IS NOT NULL 
-         AND COALESCE(da.punch_out, ls.punch_out) IS NOT NULL
-        THEN 'Present'
-END AS status
+    ELSE 'Present'
+  END AS status
 
 FROM date_range dr
 
-CROSS JOIN (SELECT name FROM users WHERE emp_id = $1) u
+CROSS JOIN (
+  SELECT name 
+  FROM users 
+  WHERE emp_id = $1
+) u
 
 LEFT JOIN daily_attendance da
   ON da.emp_id = $1
@@ -1093,95 +1171,96 @@ LEFT JOIN logs_summary ls
 ORDER BY dr.attendance_date DESC;
 `, [empId]);
 
-// const { rows } = await db.query(`
-// WITH date_range AS (
-//   SELECT generate_series(
-//     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
-//     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
-//     '1 day'
-//   )::date AS attendance_date
-// ),
 
-// logs_summary AS (
-//   SELECT
-//     emp_id,
-//     DATE(punch_time) AS attendance_date,
-//     MIN(punch_time) AS punch_in,
-//     CASE 
-//       WHEN COUNT(*) > 1 THEN MAX(punch_time)
-//       ELSE NULL
-//     END AS punch_out
-//   FROM attendance_logs
-//   WHERE emp_id = $1
-//   GROUP BY emp_id, DATE(punch_time)
-// )
+    // const { rows } = await db.query(`
+    // WITH date_range AS (
+    //   SELECT generate_series(
+    //     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
+    //     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
+    //     '1 day'
+    //   )::date AS attendance_date
+    // ),
 
-// SELECT 
-//   $1 AS emp_id,
-//   u.name AS employee_name,
-//   to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+    // logs_summary AS (
+    //   SELECT
+    //     emp_id,
+    //     DATE(punch_time) AS attendance_date,
+    //     MIN(punch_time) AS punch_in,
+    //     CASE 
+    //       WHEN COUNT(*) > 1 THEN MAX(punch_time)
+    //       ELSE NULL
+    //     END AS punch_out
+    //   FROM attendance_logs
+    //   WHERE emp_id = $1
+    //   GROUP BY emp_id, DATE(punch_time)
+    // )
 
-//   COALESCE(da.punch_in, ls.punch_in) AS punch_in,
-//   COALESCE(da.punch_out, ls.punch_out) AS punch_out,
+    // SELECT 
+    //   $1 AS emp_id,
+    //   u.name AS employee_name,
+    //   to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
 
-//   CASE 
-//     WHEN COALESCE(da.punch_in, ls.punch_in) IS NULL THEN 0
-//     WHEN COALESCE(da.punch_out, ls.punch_out) IS NULL THEN 0
-//     ELSE EXTRACT(EPOCH FROM (
-//       COALESCE(da.punch_out, ls.punch_out) - 
-//       COALESCE(da.punch_in, ls.punch_in)
-//     ))
-//   END AS total_seconds,
+    //   COALESCE(da.punch_in, ls.punch_in) AS punch_in,
+    //   COALESCE(da.punch_out, ls.punch_out) AS punch_out,
 
-// CASE
+    //   CASE 
+    //     WHEN COALESCE(da.punch_in, ls.punch_in) IS NULL THEN 0
+    //     WHEN COALESCE(da.punch_out, ls.punch_out) IS NULL THEN 0
+    //     ELSE EXTRACT(EPOCH FROM (
+    //       COALESCE(da.punch_out, ls.punch_out) - 
+    //       COALESCE(da.punch_in, ls.punch_in)
+    //     ))
+    //   END AS total_seconds,
 
-//   -- Absent
-//   WHEN COALESCE(da.punch_in, ls.punch_in) IS NULL THEN 'Absent'
+    // CASE
 
-//   -- Working (punched in but no punch out today)
-//   WHEN COALESCE(da.punch_in, ls.punch_in) IS NOT NULL
-//        AND COALESCE(da.punch_out, ls.punch_out) IS NULL
-//        AND dr.attendance_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
-//   THEN 'Working'
+    //   -- Absent
+    //   WHEN COALESCE(da.punch_in, ls.punch_in) IS NULL THEN 'Absent'
 
-//   -- Late Come (after 10:00)
-//   WHEN COALESCE(da.punch_in, ls.punch_in)::time > time '10:00:00'
-//   THEN 'Late Come'
+    //   -- Working (punched in but no punch out today)
+    //   WHEN COALESCE(da.punch_in, ls.punch_in) IS NOT NULL
+    //        AND COALESCE(da.punch_out, ls.punch_out) IS NULL
+    //        AND dr.attendance_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+    //   THEN 'Working'
 
-//   -- Early Go
-//   WHEN COALESCE(da.punch_out, ls.punch_out) IS NOT NULL
-//        AND COALESCE(da.punch_out, ls.punch_out) <
-//            (
-//              COALESCE(da.punch_in, ls.punch_in) +
-//              INTERVAL '7:30 hours'
-//            )
-//   THEN 'Early Go'
+    //   -- Late Come (after 10:00)
+    //   WHEN COALESCE(da.punch_in, ls.punch_in)::time > time '10:00:00'
+    //   THEN 'Late Come'
 
-//   -- Present
-//   WHEN EXTRACT(EPOCH FROM (
-//         COALESCE(da.punch_out, ls.punch_out) -
-//         COALESCE(da.punch_in, ls.punch_in)
-//        )) >= (8 * 3600 - 600)
-//   THEN 'Present'
+    //   -- Early Go
+    //   WHEN COALESCE(da.punch_out, ls.punch_out) IS NOT NULL
+    //        AND COALESCE(da.punch_out, ls.punch_out) <
+    //            (
+    //              COALESCE(da.punch_in, ls.punch_in) +
+    //              INTERVAL '7:30 hours'
+    //            )
+    //   THEN 'Early Go'
 
-//   ELSE 'Absent'
+    //   -- Present
+    //   WHEN EXTRACT(EPOCH FROM (
+    //         COALESCE(da.punch_out, ls.punch_out) -
+    //         COALESCE(da.punch_in, ls.punch_in)
+    //        )) >= (8 * 3600 - 600)
+    //   THEN 'Present'
 
-// END AS status
+    //   ELSE 'Absent'
 
-// FROM date_range dr
+    // END AS status
 
-// CROSS JOIN (SELECT name FROM users WHERE emp_id = $1) u
+    // FROM date_range dr
 
-// LEFT JOIN daily_attendance da
-//   ON da.emp_id = $1
-//  AND da.attendance_date = dr.attendance_date
+    // CROSS JOIN (SELECT name FROM users WHERE emp_id = $1) u
 
-// LEFT JOIN logs_summary ls
-//   ON ls.emp_id = $1
-//  AND ls.attendance_date = dr.attendance_date
+    // LEFT JOIN daily_attendance da
+    //   ON da.emp_id = $1
+    //  AND da.attendance_date = dr.attendance_date
 
-// ORDER BY dr.attendance_date DESC;
-// `, [empId]);
+    // LEFT JOIN logs_summary ls
+    //   ON ls.emp_id = $1
+    //  AND ls.attendance_date = dr.attendance_date
+
+    // ORDER BY dr.attendance_date DESC;
+    // `, [empId]);
     const attendance = rows.map(r => {
       let total_hours = null;
 
