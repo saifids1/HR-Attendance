@@ -13,35 +13,66 @@ exports.getLeaves = async(req,res)=>{
 }
 
 
-exports.getBalanceLeaves = async(req,res)=>{
-    try {
-        const { emp_id } = req.params;
-        const year = new Date().getFullYear();
-    
-        const result = await db.query(
-          `
-          SELECT 
-            lt.name AS leaves_type,
-            lb.total,
-            lb.used,
-            lb.remaining
-          FROM leaves_balance lb
-          JOIN leaves_type lt ON lt.id = lb.leave_type_id
-          WHERE lb.emp_id = $1 AND lb.year = $2
-          `,
-          [emp_id, year]
-        );
-    
-        res.json(result.rows);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Failed to fetch leave balance" });
-      }
-}
+exports.getBalanceLeaves = async (req, res) => {
+  try {
+    const { emp_id } = req.params;
+    const year = new Date().getFullYear();
+
+    // Leave balance
+    const balanceResult = await db.query(
+      `
+      SELECT 
+        lt.name AS leaves_type,
+        lb.total,
+        lb.used,
+        (lb.total - lb.used) AS remaining
+      FROM leaves_balance lb
+      JOIN leaves_type lt ON lt.id = lb.leave_type_id
+      WHERE lb.emp_id = $1 AND lb.year = $2
+      `,
+      [emp_id, year]
+    );
+
+    const leaves = balanceResult.rows;
+
+    // Calculate totals
+    const summary = leaves.reduce(
+      (acc, leave) => {
+        acc.total += Number(leave.total);
+        acc.used += Number(leave.used);
+        acc.remaining += Number(leave.remaining);
+        return acc;
+      },
+      { total: 0, used: 0, remaining: 0, pending: 0 }
+    );
+
+    // Get pending leaves
+    const pendingResult = await db.query(
+      `
+      SELECT COUNT(*) AS pending
+      FROM leaves_request
+      WHERE emp_id = $1 
+      AND status = 'Pending'
+      AND EXTRACT(YEAR FROM start_date) = $2
+      `,
+      [emp_id, year]
+    );
+
+    summary.pending = Number(pendingResult.rows[0].pending);
+
+    res.json({
+      summary,
+      leaves
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch leave balance" });
+  }
+};
 
 exports.applyLeaves =  async (req, res) => {
     const client = await db.connect();
-    
     try {
       const {
         emp_id,         
@@ -164,36 +195,55 @@ exports.applyLeaves =  async (req, res) => {
     }
 }
 
-exports.getMyLeaves = async(req,res)=>{
-    try {
-        const { emp_id } = req.params;
-    
-        const result = await db.query(
-          `
-          SELECT 
-            lr.id,
-            lt.name AS leaves_type,
-            lr.start_date,
-            lr.end_date,
-            lr.total_days,
-            lr.status,
-            lr.reason,
-            lr.applied_at
-          FROM leaves_request lr
-          JOIN leaves_type lt ON lt.id = lr.leave_type_id
-          WHERE lr.emp_id = $1
-          ORDER BY lr.applied_at DESC
-          `,
-          [emp_id]
-        );
-    
-        res.json(result.rows);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Failed to fetch leaves" });
-      }
-}
+exports.getMyLeaves = async (req, res) => {
+  try {
 
+    const { emp_id } = req.params;
+
+    const result = await db.query(
+      `
+      SELECT 
+        lr.id,
+        lt.name AS leave_type,
+        lr.start_date,
+        lr.end_date,
+        lr.total_days,
+        lr.status,
+        lr.reason,
+        lr.applied_at,
+
+        la.approver_role,
+        la.status AS approval_status,
+        la.remarks,
+        la.action_at
+
+      FROM leaves_request lr
+
+      JOIN leaves_type lt
+      ON lt.id = lr.leave_type_id
+
+      LEFT JOIN leaves_approval la
+      ON la.leave_request_id = lr.id
+
+      WHERE lr.emp_id = $1
+
+      ORDER BY lr.applied_at DESC, la.approval_level
+      `,
+      [emp_id]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      message: "Failed to fetch leaves",
+    });
+
+  }
+};
 exports.getSummaryLeaves = async (req, res) => {
     try {
       const { emp_id } = req.params;
@@ -274,120 +324,207 @@ exports.getPendingLeaves =  async (req, res) => {
     }
 }
 
-exports.updateApproveLeaves =  async (req, res) => {
-    const client = await db.connect();
-    try {
-      const { approval_id } = req.params;
-      const { status, remarks } = req.body; 
-      const approver_emp_id = req.user.emp_id;
-  
-      await client.query("BEGIN");
-  
-      // 1. Fetch current approval and request details
-      const checkStatus = await client.query(
-        `SELECT la.*, lr.emp_id AS applicant_id, lr.leave_type_id, lr.total_days 
-         FROM leaves_approval la
-         JOIN leaves_request lr ON la.leave_request_id = lr.id
-         WHERE la.id = $1 FOR UPDATE`,
-        [approval_id]
+exports.updateApproveLeaves = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const { approval_id } = req.params;
+    const { status, remarks } = req.body;
+    const approver_emp_id = req.user.emp_id;
+
+    await client.query("BEGIN");
+
+    //  Fetch approval + leave request
+    const checkStatus = await client.query(
+      `SELECT la.*, lr.emp_id AS applicant_id, lr.leave_type_id, lr.total_days
+       FROM leaves_approval la
+       JOIN leaves_request lr ON la.leave_request_id = lr.id
+       WHERE la.id = $1
+       FOR UPDATE`,
+      [approval_id]
+    );
+
+    if (checkStatus.rowCount === 0) {
+      throw new Error("Approval record not found.");
+    }
+
+    const currentApproval = checkStatus.rows[0];
+
+    // Ensure correct approver
+    if (currentApproval.approver_emp_id !== approver_emp_id) {
+      throw new Error("You are not authorized to approve this leave.");
+    }
+
+    // Already processed check
+    if (currentApproval.status !== "pending") {
+      throw new Error(
+        `This request has already been ${currentApproval.status}.`
       );
-  
-      if (checkStatus.rowCount === 0) throw new Error("Approval record not found.");
-      const currentApproval = checkStatus.rows[0];
-  
-      if (currentApproval.status !== 'pending') {
-        throw new Error(`This request has already been ${currentApproval.status}.`);
-      }
-  
-      // 2. Update CURRENT approval record
+    }
+
+    //  Update current approval record
+    await client.query(
+      `UPDATE leaves_approval
+       SET status = $1,
+           remarks = $2,
+           action_at = NOW()
+       WHERE id = $3`,
+      [status, remarks, approval_id]
+    );
+
+    // ===============================
+    //REJECT LOGIC
+    // ===============================
+    if (status === "rejected") {
       await client.query(
-        `UPDATE leaves_approval 
-         SET status = $1, remarks = $2, action_at = NOW() 
-         WHERE id = $3`,
-        [status, remarks, approval_id]
+        `UPDATE leaves_request
+         SET status = 'rejected'
+         WHERE id = $1`,
+        [currentApproval.leave_request_id]
       );
-  
-      // 3. LOGIC FOR REJECTION
-      if (status === 'rejected') {
-        await client.query(`UPDATE leaves_request SET status = 'rejected' WHERE id = $1`, [currentApproval.leave_request_id]);
+
+      await client.query("COMMIT");
+
+      // Notify employee
+      const applicantSocketId = req.userSockets.get(
+        currentApproval.applicant_id.toString()
+      );
+
+      if (applicantSocketId) {
+        req.io.to(applicantSocketId).emit("LEAVE_STATUS_UPDATE", {
+          message: `Your leave request was rejected by ${currentApproval.approver_role}`,
+          status: "rejected",
+        });
+      }
+
+      return res.json({ message: "Leave request rejected." });
+    }
+
+    // ===============================
+    // APPROVE LOGIC
+    // ===============================
+    if (status === "approved") {
+
+      // Find next approver safely
+      const nextLevelRes = await client.query(
+        `SELECT reports_to
+         FROM employee_reporting
+         WHERE emp_id = $1`,
+        [approver_emp_id]
+      );
+
+      let nextApproverId = null;
+
+      if (nextLevelRes.rowCount > 0) {
+        nextApproverId = nextLevelRes.rows[0].reports_to;
+      }
+
+      // ===============================
+      // FINAL APPROVAL (ADMIN LEVEL)
+      // ===============================
+      if (!nextApproverId) {
+
+        await client.query(
+          `UPDATE leaves_request
+           SET status = 'approved'
+           WHERE id = $1`,
+          [currentApproval.leave_request_id]
+        );
+
+        const year = new Date().getFullYear();
+
+        await client.query(
+          `UPDATE leaves_balance
+           SET used = used + $1,
+               remaining = remaining - $1
+           WHERE emp_id = $2
+           AND leave_type_id = $3
+           AND year = $4`,
+          [
+            currentApproval.total_days,
+            currentApproval.applicant_id,
+            currentApproval.leave_type_id,
+            year,
+          ]
+        );
+
         await client.query("COMMIT");
-  
-        // SOCKET: Notify Employee of Rejection
-        const applicantSocketId = req.userSockets.get(currentApproval.applicant_id.toString());
+
+        // Notify employee
+        const applicantSocketId = req.userSockets.get(
+          currentApproval.applicant_id.toString()
+        );
+
         if (applicantSocketId) {
           req.io.to(applicantSocketId).emit("LEAVE_STATUS_UPDATE", {
-            message: `Your leave request was rejected by ${currentApproval.approver_role}`,
-            status: 'rejected'
+            message: "Your leave request has been fully approved!",
+            status: "approved",
           });
         }
-  
-        return res.json({ message: "Leave request rejected." });
+
+        return res.json({
+          message: "Final approval complete. Leave approved.",
+        });
       }
-  
-      // 4. LOGIC FOR APPROVAL
-      if (status === 'approved') {
-        const nextLevelRes = await client.query(
-          `SELECT reports_to FROM employee_reporting WHERE emp_id = $1 LIMIT 1`,
-          [approver_emp_id]
-        );
-  
-        if (nextLevelRes.rowCount > 0) {
-          // --- STEP A: Escalate to Admin/HR ---
-          const nextApproverId = nextLevelRes.rows[0].reports_to;
-          const nextApproverDetails = await client.query(`SELECT role FROM users WHERE emp_id = $1`, [nextApproverId]);
-          const nextRole = nextApproverDetails.rows[0]?.role || 'Admin';
-  
-          await client.query(
-            `INSERT INTO leaves_approval (leave_request_id, approver_emp_id, approver_role, approval_level, status)
-             VALUES ($1, $2, $3, $4, 'pending')`,
-            [currentApproval.leave_request_id, nextApproverId, nextRole, currentApproval.approval_level + 1]
-          );
-  
-          await client.query("COMMIT");
-  
-          // SOCKET: Notify Admin of new pending request
-          const adminSocketId = req.userSockets.get(nextApproverId.toString());
-          if (adminSocketId) {
-            req.io.to(adminSocketId).emit("NEW_LEAVE_REQUEST", {
-              message: "A leave request has been escalated to you for final approval.",
-              requestId: currentApproval.leave_request_id
-            });
-          }
-  
-          return res.json({ message: "Approved and escalated to Admin/HR." });
-  
-        } else {
-          // --- STEP B: Final Approval ---
-          await client.query(`UPDATE leaves_request SET status = 'approved' WHERE id = $1`, [currentApproval.leave_request_id]);
-  
-          const year = new Date().getFullYear();
-          await client.query(
-            `UPDATE leaves_balance SET used = used + $1, remaining = remaining - $1 
-             WHERE emp_id = $2 AND leave_type_id = $3 AND year = $4`,
-            [currentApproval.total_days, currentApproval.applicant_id, currentApproval.leave_type_id, year]
-          );
-  
-          await client.query("COMMIT");
-  
-          // SOCKET: Notify Employee of Final Success
-          const applicantSocketId = req.userSockets.get(currentApproval.applicant_id.toString());
-          if (applicantSocketId) {
-            req.io.to(applicantSocketId).emit("LEAVE_STATUS_UPDATE", {
-              message: "Your leave request has been fully approved!",
-              status: 'approved'
-            });
-          }
-  
-          return res.json({ message: "Final approval complete. Balance deducted." });
-        }
+
+      // ===============================
+      // ESCALATE TO NEXT APPROVER
+      // ===============================
+      const nextApproverDetails = await client.query(
+        `SELECT role
+         FROM users
+         WHERE emp_id = $1`,
+        [nextApproverId]
+      );
+
+      const nextRole =
+        nextApproverDetails.rows[0]?.role?.toLowerCase() || "admin";
+
+      await client.query(
+        `INSERT INTO leaves_approval
+        (leave_request_id, approver_emp_id, approver_role, approval_level, status)
+        VALUES ($1,$2,$3,$4,'pending')`,
+        [
+          currentApproval.leave_request_id,
+          nextApproverId,
+          nextRole,
+          currentApproval.approval_level + 1,
+        ]
+      );
+
+      await client.query("COMMIT");
+
+      // Notify next approver
+      const nextApproverSocketId = req.userSockets.get(
+        nextApproverId.toString()
+      );
+
+      if (nextApproverSocketId) {
+        req.io.to(nextApproverSocketId).emit("NEW_LEAVE_REQUEST", {
+          message: "A leave request has been escalated to you.",
+          requestId: currentApproval.leave_request_id,
+        });
       }
-    } catch (error) {
-      if (client) await client.query("ROLLBACK");
-      res.status(400).json({ message: error.message });
-    } finally {
-      client.release();
+
+      return res.json({
+        message: `Approved and forwarded to ${nextRole}.`,
+      });
     }
+
+  } catch (error) {
+
+    await client.query("ROLLBACK");
+
+    console.error(error);
+
+    res.status(400).json({
+      message: error.message,
+    });
+
+  } finally {
+    client.release();
   }
+};
 
 exports.getMyLeaveHistory =  async (req, res) => {
     try {

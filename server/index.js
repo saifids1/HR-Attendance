@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const path = require("path")
+// const path = require("path")
+// const dotenv = require("dotenv")
 const ZKLib = require("zklib-js");
 const {Client} = require("pg");
 const http = require("http"); // 1. Import http
@@ -16,7 +17,11 @@ const leavesRoutes = require("./routes/leave.routes");
 const cronRoutes = require("./routes/cron.routes");
 // const adminRoutes = require("./routes/admin.routes");
 require("./cron/attendance.cron");
-require("dotenv").config();
+// require("dotenv").config();
+const dotenv = require("dotenv"); 
+const path = require("path");
+
+dotenv.config({ path: path.resolve(process.cwd(), ".env") }); 
 
 const app = express();
 
@@ -32,6 +37,9 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
+
+
+
 
 // 5. Track Connected Users (Map emp_id -> socket_id)
 const userSockets = new Map();

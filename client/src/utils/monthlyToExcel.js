@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 
 export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
 
+
     // console.log("rawData", rawData);
     try {
         // 1. STACK FIX: Deep clone data to strip React Proxies
@@ -106,3 +107,137 @@ export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
         alert("Export failed. Check console for details.");
     }
 };
+
+
+
+// export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
+//   try {
+//     const data = JSON.parse(JSON.stringify(rawData));
+
+//     // Collect all unique dates in target month
+//     const allDates = [
+//       ...new Set(
+//         data.flatMap((emp) =>
+//           (emp.attendance || [])
+//             .map((day) => day.date)
+//             .filter((date) => date.startsWith(targetMonth))
+//         )
+//       ),
+//     ].sort();
+
+//     const today = new Date();
+
+//     const matrixRows = data.map((emp) => {
+//       const row = {
+//         "Emp ID": emp.emp_id,
+//         Name: emp.name,
+//         Department: emp.department || "General",
+//       };
+
+//       const attMap = {};
+//       (emp.attendance || []).forEach((d) => {
+//         attMap[d.date] = d;
+//       });
+
+//       allDates.forEach((date) => {
+//         const formattedDate = new Date(date)
+//           .toLocaleDateString("en-GB", {
+//             day: "2-digit",
+//             month: "2-digit",
+//             year: "numeric",
+//           })
+//           .replace(/\//g, "-");
+
+//         const dayRecord = attMap[date];
+//         const recordDate = new Date(date);
+
+//         if (recordDate > today) {
+//           // Future date
+//           row[formattedDate] = "--";
+//           return;
+//         }
+
+//         if (!dayRecord) {
+//           // No attendance record
+//           row[formattedDate] = "-";
+//           return;
+//         }
+
+//         const formatTime = (isoDate) =>
+//           isoDate
+//             ? new Date(isoDate).toLocaleTimeString("en-IN", {
+//                 hour: "2-digit",
+//                 minute: "2-digit",
+//                 hour12: true,
+//                 timeZone: "Asia/Kolkata",
+//               })
+//             : "--";
+
+//         const punchIn = formatTime(dayRecord.first_in);
+//         const punchOut = formatTime(dayRecord.last_out);
+
+//         // Decide the status text
+//         let statusText = "";
+//         switch (dayRecord.status) {
+//           case "Present":
+//             statusText = "P";
+//             break;
+//           case "Working":
+//             statusText = "Working";
+//             break;
+//           case "Late Come":
+//             statusText = "Late Come";
+//             break;
+//           case "Early Go":
+//             statusText = "Early Go";
+//             break;
+//           case "Late Come / Early Go":
+//             statusText = "Late/Early";
+//             break;
+//           case "Absent":
+//             statusText = recordDate.getDay() === 0 ? "Week Off" : "A";
+//             break;
+//           case "Holiday":
+//             statusText = "H";
+//             break;
+//           default:
+//             statusText = dayRecord.status;
+//         }
+
+//         // Append punch info only if employee actually worked
+//         if (
+//           dayRecord.first_in &&
+//           dayRecord.status !== "Absent" &&
+//           dayRecord.status !== "Holiday"
+//         ) {
+//           const totalHours = dayRecord.hours_worked
+//             ? `${Math.floor(dayRecord.hours_worked)}:${Math.round(
+//                 (dayRecord.hours_worked % 1) * 60
+//               )
+//                 .toString()
+//                 .padStart(2, "0")}`
+//             : "--";
+
+//           row[formattedDate] = `${statusText} (${punchIn}-${punchOut}-${totalHours})`;
+//         } else {
+//           row[formattedDate] = statusText;
+//         }
+//       });
+
+//       return row;
+//     });
+
+//     // Create Excel Sheet
+//     const worksheet = XLSX.utils.json_to_sheet(matrixRows);
+//     const colWidths = Object.keys(matrixRows[0]).map(() => ({ wch: 18 }));
+//     worksheet["!cols"] = colWidths;
+
+//     const workbook = XLSX.utils.book_new();
+//     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+
+//     XLSX.writeFile(workbook, `Attendance_Report_${targetMonth}.xlsx`);
+//   } catch (err) {
+//     console.error("Export Error:", err);
+//     alert("Excel export failed.");
+//   }
+// };

@@ -119,14 +119,25 @@ export default function MonthlyAttendance() {
     // console.log("punchout",punchout);
     switch ((dayData?.status || "")) {
     case "Present":
-  return <FaRegCheckCircle
+    case "Working":
+    return <FaRegCheckCircle
       className="text-green-500 inline text-lg"
       title={`Punch In: (${formatTime(punchIn)})
 Punch Out: (${punchout ? formatTime(punchout) : "--"})
 Total Hours: (${totalhrs ?? "--"})`}
     />
       case "Absent": return <ImCancelCircle className="text-red-500 inline text-lg" title="Absent" />;
-      case "late": return <MdOutlineAccessTime size={22} className="text-orange-500 inline" title="Late" />;
+    case "Late Come":
+case "Early Go":
+  return (
+    <MdOutlineAccessTime
+      size={22}
+      className="text-orange-500 inline"
+        title={`(Late/Early) Punch In: (${formatTime(punchIn)})
+Punch Out: (${punchout ? formatTime(punchout) : "--"})
+Total Hours: (${totalhrs ?? "--"})`}
+    />
+  );
       case "Holiday": return <CiStar size={22} className="text-yellow-500 inline" title="Holiday" />;
       case "leave": return <FaRegCalendarAlt className="text-orange-500 inline text-lg" title="Leave" />;
       case "ondrive": return <MdDriveEta size={20} className="text-blue-500 inline" title="OD" />;

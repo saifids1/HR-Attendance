@@ -5,7 +5,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { IoEnterOutline } from "react-icons/io5";
 import { useLocation } from "react-router-dom";
-
+import { BsCalendarWeek } from "react-icons/bs";
 import { IoExit } from "react-icons/io5";
 import { useEffect } from "react";
 
@@ -143,7 +143,8 @@ useEffect(() => {
         id: 4,
         title: "Weekly Hours",
         value: singleAttendance?.weekly?.total_hours ?? "--",
-        icon: <CheckCircleIcon />,
+
+        icon: <BsCalendarWeek />,
         bgColor: "#2563eb",
       },
     ];
@@ -181,7 +182,7 @@ useEffect(() => {
   if (!cardsToRender.length) return null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 bg-white px-4 py-3 rounded-xl">
       {cardsToRender.map((data) => (
         <div
           key={data.id}

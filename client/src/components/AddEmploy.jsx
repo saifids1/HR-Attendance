@@ -17,6 +17,8 @@ const AddEmployee = () => {
   const [profileImage, setProfileImage] = useState("");
   const [reporting, setReporting] = useState([]);
   const [empId, setEmpId] = useState("");
+  const [newEmpId,setNewEmpId] = useState("");
+  
 // const [empId, setEmpId] = useState(null);
   //  Controlled Personal State
   const [personalData, setPersonalData] = useState({
@@ -131,12 +133,14 @@ const AddEmployee = () => {
                   ID:
                   <input
                     type="text"
-                    value={empId}
+                    value={newEmpId}
                     onChange={(e) => {
-                      setEmpId(e.target.value);
+                      // setEmpId(e.target.value);
+                      setNewEmpId(e.target.value);
                       setPersonalData((prev) => ({
                         ...prev,
-                        emp_id: e.target.value,
+                        // emp_id: e.target.value,
+                        newEmpId:e.target.value
                       }));
                     }}
                     className="border rounded px-3 py-2 ml-2 text-sm bg-gray-100 focus:ring-2 focus:ring-[#222F7D]"
@@ -169,11 +173,28 @@ const AddEmployee = () => {
 
       {/* MAIN PROFILE FORM */}
       <div className="max-w-6xl mx-auto mt-5 rounded-xl min-h-[400px]">
-        {!empId ? (
+        {/* {!empId ? (
       <CreateEmployeeBasic onCreated={(id) => setEmpId(id)} />
     ) : (
-      <MainProfile empId={empId} />
-    )}
+    )} */}
+    <MainProfile
+            // organizationData={organizationData}
+            // personalData={personalData}
+            // educationData={educationData}
+            // experienceData={experienceData}
+            // contactData={contactsData}
+            // nomineeData={nomineeData}
+            // bankData={bankData}
+            // userRole={user?.role}
+            // isEditing={isEditing}
+            // setIsEditing={setIsEditing}
+            // onSave={handleDataRefresh} // Passing refresh function
+            empId={empId}
+            // isAddingNew={isAddingNew}
+            // setIsAddingNew={setIsAddingNew}
+          />
+
+    
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import LeavesTable from '../components/LeavesTable';
 import { FaCalendarCheck, FaCheckCircle, FaHourglassHalf, FaPlusCircle } from "react-icons/fa";
 import Modal from '../components/Modal';
 import axios from 'axios'; // Ensure axios is installed
+import PendingLeavesTable from '../components/PendingLeaves';
 
 const Employleaves = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,36 +23,38 @@ const Employleaves = () => {
       // 1. Fetch Leave Balance for Cards
 
 
-      const res = await axios.get(`http://localhost:5000/api/leaves/types/my-summary/${empId}`);
+      const res = await axios.get(`http://localhost:5000/api/leaves/types/balance/${empId}`);
       const data = res.data;
+
+      console.log("data balance",data);
 
       // 2. Transform the Object into the Array required by Leavecards
       const mappedCards = [
         {
           id: 1,
           title: "Total Allowed",
-          value: `${data.total_allowed} Days`,
+          value: `${data.summary.total} Days`,
           icon: <FaCalendarCheck />,
           bgColor: "#32a852" // Green
         },
         {
           id: 2,
           title: "Total Taken",
-          value: `${data.total_taken} Days`,
+          value: `${data.summary.used} Days`,
           icon: <FaCheckCircle />,
           bgColor: "#e8970c" // Orange
         },
         {
           id: 3,
           title: "Available Balance",
-          value: `${data.total_remaining} Days`,
+          value: `${data.summary.remaining} Days`,
           icon: <SlCalender />,
           bgColor: "#1a8755" // Dark Green
         },
         {
           id: 4,
           title: "Pending Requests",
-          value: data.pending_requests,
+          value: data.summary.pending,
           icon: <FaHourglassHalf />,
           bgColor: "#e60707" // Red
         }
@@ -68,6 +71,8 @@ const Employleaves = () => {
 
         console.log("endpoint",endpoint)
       const historyRes = await axios.get(endpoint);
+
+      console.log("histi")
       setLeaveTableData(historyRes.data);
     } catch (err) {
       console.error("Error fetching leave data:", err);
@@ -100,6 +105,11 @@ const Employleaves = () => {
        <h1 className='text-lg py-2'>Leave Management</h1>
 
         <Leavecards LeavecardData={leaveCardData}/>
+  
+      {/* Pending Leaves Status */}
+   
+          {/* <PendingLeavesTable/> */}
+
 
         <div className='bg-slate-50 w-full py-3 mb-4'>
           <div className='flex items-center justify-between w-full py-2'>
@@ -112,15 +122,17 @@ const Employleaves = () => {
             )}
           </div>
 
+        
+
           <Modal isOpen={isModalOpen} setisOpen={setIsModalOpen} refreshData={fetchLeaveData} />
-           
-          <LeavesTable 
+         
+          {/* <LeavesTable 
             leavesHeader={leavesTableHeader} 
             leavesBody={leaveTableData}
             adminLeavesHeader={adminLeavesHeader}
             adminLeavesBody={leaveTableData} // Same data source, filtered by backend
             refreshData={fetchLeaveData}
-          />
+          /> */}
         </div>
      </div>
   )
