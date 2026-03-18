@@ -6,7 +6,7 @@ const cron = require('node-cron');
 const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
 const path = require("path");
-const env = process.env.NODE_ENV ;
+const env = process.env.NODE_ENV;
 
 
 // Pick the correct file
@@ -156,7 +156,20 @@ exports.addEmployController = async (req, res) => {
 
   const client = await db.connect();
 
-  // console.log("addEmp", req.body)
+  console.log("addEmp", req.body)
+
+  // FrontendData
+  // addEmp {
+  //   name: 'john',
+  //   role: 'employee',
+  //   email: 'john@gmail.com',
+  //   emp_id: '12345',
+  //   profile_image: 'blob:http://localhost:5173/7aa33e42-9c92-4f86-b81b-febcf0485a54',
+  //   password: '123456',
+  //   current_address: 'xyz'
+  // }
+
+
   try {
     const {
       name,
@@ -168,26 +181,31 @@ exports.addEmployController = async (req, res) => {
       dob,
       gender,
       department,
+      designation,
       joining_date,
       maritalstatus,
       nominee,
       aadharnumber,
       bloodgroup,
       nationality,
+      employee_type,
       current_address,
-      is_active,
+      reporting_location,
+      is_active
     } = req.body;
 
 
-    // console.log(name,email,password,emp_id,department);
+    console.log(name, email, password, emp_id);
 
     // 1. Validation
-    if (!name || !email || !password || !emp_id || !department) {
+    if (!name || !email || !password || !emp_id) {
       return res.status(400).json({ message: "All essential fields required" });
     }
 
     // 2. Start Transaction
     await client.query("BEGIN");
+
+
 
     // 3. Hash Password
     const hashedPassword = await bcrypt.hash(String(password), 10);
@@ -208,7 +226,7 @@ exports.addEmployController = async (req, res) => {
         role || "employee",
         emp_id,
         is_active === undefined ? true : is_active,
-        shift_id || 1,
+        shift_id || 3,
         profile_image,
       ]
     );
@@ -219,23 +237,40 @@ exports.addEmployController = async (req, res) => {
     await client.query(
       `
       INSERT INTO personal 
-        (emp_id, dob, gender, department, joining_date, maritalstatus, nominee, aadharnumber, bloodgroup, nationality, current_address)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        (emp_id, department, designation, joining_date, employee_type, reporting_location, current_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       `,
       [
-        emp_id,
-        dob || null,
-        gender,
+        newUserId,
         department,
+        designation,
         joining_date || null,
-        maritalstatus,
-        nominee,
-        aadharnumber,
-        bloodgroup,
-        nationality,
+        employee_type,
+        reporting_location,
         current_address,
       ]
     );
+
+    // await client.query(
+    //   `
+    //   INSERT INTO personal 
+    //     (emp_id, dob, gender, department, joining_date, maritalstatus, nominee, aadharnumber, bloodgroup, nationality, current_address)
+    //   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    //   `,
+    //   [
+    //     newUserId,
+    //     dob || null,
+    //     gender,
+    //     department,
+    //     joining_date || null,
+    //     maritalstatus,
+    //     nominee,
+    //     aadharnumber,
+    //     bloodgroup,
+    //     nationality,
+    //     current_address,
+    //   ]
+    // );
 
 
 
@@ -243,12 +278,12 @@ exports.addEmployController = async (req, res) => {
     await client.query("COMMIT");
 
 
-    await sendEmail(email, "Welcome to the Company", "employee_creation", { name, emp_id, email });
+    // await sendEmail(email, "Welcome to the Company", "employee_creation", { name, emp_id, email });
 
 
     res.status(201).json({
       message: "Employee created successfully",
-      user: { id: newUserId, emp_id, name, email },
+      user: { id: newUserId, emp_id, name, email,role },
     });
 
   } catch (error) {
@@ -591,7 +626,7 @@ exports.processAndSendAttendanceReport = async (sendEmailToAdmin = false, req = 
   try {
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-console.log("env",env);
+    console.log("env", env);
     const query = `
                 WITH attendance_summary AS (
                   SELECT
@@ -687,17 +722,26 @@ console.log("env",env);
       const subject = `Attendance Report - ${mailDateFormat}`;
 
       // Fetch from DB
-      const emailResult = await db.query('SELECT production_email, local_email FROM "EmployeeEmail" LIMIT 1');
-      const row = emailResult.rows[0];
+      const type = process.env.NODE_ENV === "production" ? "production" : "local";
 
-      
-      const adminEmails = process.env.NODE_ENV == "production"
-        ? row.production_email
-        : row.local_email.split(",")[0];
+      const emailResult = await db.query(
+        `SELECT email FROM "EmployeeEmail" WHERE type = $1`,
+        [type]
+      );
 
-        // console.log("process.env.NODE_ENV",process.env.NODE_ENV)
+      // console.log(first)
+      const row = emailResult.rows;
 
-        // console.log("adminEmails",adminEmails);
+      // console.log("AdminEmail Row", row);
+
+      const adminEmails =  emailResult.rows.map(r => r.email?.trim())
+          .filter(Boolean)
+          .join(",")
+    
+
+      // console.log("process.env.NODE_ENV",process.env.NODE_ENV)
+
+      console.log("adminEmails",adminEmails);
 
       // Generate HTML rows for the email
 
@@ -772,7 +816,7 @@ console.log("env",env);
         })
         .replace(/\//g, '-');
 
-        // console.log("adminEmail Send Mail",adminEmails);
+      console.log("adminEmail Send Mail",adminEmails);
 
       // console.log(formattedDate);
       await sendEmail(
@@ -1038,45 +1082,7 @@ exports.getMyAttendance = async (req, res) => {
   try {
     const empId = req.user.emp_id;
 
-    // const { rows } = await db.query(`
-    //   WITH date_range AS (
-    //     SELECT generate_series(
-    //       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
-    //       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
-    //       '1 day'
-    //     )::date AS attendance_date
-    //   )
-
-    //   SELECT 
-    //     $1 AS emp_id,
-    //     u.name AS employee_name,
-    //     to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
-    //     da.punch_in,
-    //     da.punch_out,
-
-    //     CASE 
-    //       WHEN da.punch_in IS NULL THEN 0
-    //       WHEN da.punch_out IS NULL THEN 0
-    //       ELSE EXTRACT(EPOCH FROM (da.punch_out - da.punch_in))
-    //     END AS total_seconds,
-
-    //     CASE 
-    //       WHEN da.punch_in IS NULL THEN 'Absent'
-    //       WHEN da.punch_out IS NULL 
-    //            AND dr.attendance_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
-    //         THEN 'Working'
-    //       ELSE 'Present'
-    //     END AS status
-
-    //   FROM date_range dr
-    //   CROSS JOIN (SELECT name FROM users WHERE emp_id = $1) u
-    //   LEFT JOIN daily_attendance da 
-    //     ON da.emp_id = $1 
-    //    AND da.attendance_date = dr.attendance_date
-
-    //   ORDER BY dr.attendance_date DESC;
-    // `, [empId]);
-    const { rows } = await db.query(`
+   const { rows } = await db.query(`
 WITH date_range AS (
   SELECT generate_series(
     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
@@ -1171,7 +1177,7 @@ LEFT JOIN logs_summary ls
 ORDER BY dr.attendance_date DESC;
 `, [empId]);
 
-
+    // Main query with better punch out logic and activity_log fallback
     // const { rows } = await db.query(`
     // WITH date_range AS (
     //   SELECT generate_series(
@@ -1261,6 +1267,159 @@ ORDER BY dr.attendance_date DESC;
 
     // ORDER BY dr.attendance_date DESC;
     // `, [empId]);
+
+//     const { rows } = await db.query(`
+// WITH emp_data AS (
+//   SELECT 
+//     u.emp_id,
+//     u.name,
+//     s.start_time,
+//     s.end_time,
+//     s.name AS shift_name,
+//     ws.working_days,
+
+//     -- Detect Night Shift
+//     CASE 
+//       WHEN s.start_time > s.end_time THEN true
+//       ELSE false
+//     END AS is_night_shift
+
+    
+
+//   FROM users u
+//   LEFT JOIN shifts s ON u.shift_id = s.id
+//   LEFT JOIN weekly_schedules ws ON u.shift_id = ws.id
+//   WHERE u.emp_id = $1
+// ),
+
+// date_range AS (
+//   SELECT generate_series(
+//     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date - INTERVAL '30 days',
+//     (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date,
+//     '1 day'
+//   )::date AS attendance_date
+// ),
+
+// logs_with_shift_date AS (
+//   SELECT
+//     l.emp_id,
+
+//     --  FIXED attendance date
+//     CASE 
+//       WHEN ed.is_night_shift = true 
+//            AND l.punch_time::time < ed.end_time
+//       THEN (l.punch_time::date - INTERVAL '1 day')::date
+//       ELSE l.punch_time::date
+//     END AS attendance_date,
+
+//     l.punch_time
+
+//   FROM attendance_logs l
+//   JOIN emp_data ed ON ed.emp_id = l.emp_id
+//   WHERE l.emp_id = $1
+// ),
+
+// logs_summary AS (
+//   SELECT
+//     emp_id,
+//     attendance_date,
+//     MIN(punch_time) AS punch_in,
+//     CASE 
+//       WHEN COUNT(*) > 1 THEN MAX(punch_time)
+//       ELSE NULL
+//     END AS punch_out
+//   FROM logs_with_shift_date
+//   GROUP BY emp_id, attendance_date
+// )
+
+// SELECT 
+//   ed.emp_id,
+//   ed.name AS employee_name,
+//   to_char(dr.attendance_date, 'YYYY-MM-DD') AS attendance_date,
+
+//   ls.punch_in,
+//   ls.punch_out,
+
+//   ed.shift_name,
+
+//   -- Work seconds
+//   CASE 
+//     WHEN ls.punch_in IS NULL THEN 0
+//     WHEN ls.punch_out IS NULL THEN 0
+//     ELSE EXTRACT(EPOCH FROM (ls.punch_out - ls.punch_in))
+//   END AS total_seconds,
+// CASE 
+//   WHEN EXTRACT(DOW FROM dr.attendance_date) = 6 
+//   THEN 5 * 3600   -- Saturday
+
+//   WHEN EXTRACT(DOW FROM dr.attendance_date) = 0 
+//   THEN 0          -- Sunday (optional)
+
+//   ELSE 9 * 3600   -- Normal days
+// END AS required_seconds,
+
+//   -- Day Type
+//   CASE 
+//     WHEN EXTRACT(DOW FROM dr.attendance_date) = ANY(ed.working_days)
+//     THEN 'Working Day'
+//     ELSE 'Week Off'
+//   END AS day_type,
+
+//   -- FINAL STATUS
+//   CASE
+
+//     -- Week Off
+//     WHEN EXTRACT(DOW FROM dr.attendance_date) != ANY(ed.working_days)
+//          AND ls.punch_in IS NULL
+//     THEN 'Week Off'
+
+//     -- Week Off Worked
+//     WHEN EXTRACT(DOW FROM dr.attendance_date) != ANY(ed.working_days)
+//          AND ls.punch_in IS NOT NULL
+//     THEN 'Week Off Worked'
+
+//     -- Absent
+//     WHEN ls.punch_in IS NULL
+//     THEN 'Absent'
+
+//     -- Working (today)
+//     WHEN ls.punch_in IS NOT NULL
+//          AND ls.punch_out IS NULL
+//          AND dr.attendance_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+//     THEN 'Working'
+
+//     -- Late (shift-based)
+//     WHEN ls.punch_in::time > ed.start_time + INTERVAL '15 minutes'
+//     THEN 'Late Come'
+
+//     -- Early Go (IMPORTANT FIX for night shift)
+//     WHEN ls.punch_out IS NOT NULL AND (
+//       CASE 
+//         WHEN ed.is_night_shift = true
+//         THEN ls.punch_out::time < ed.end_time
+//         ELSE ls.punch_out::time < ed.end_time
+//       END
+//     )
+//     THEN 'Early Go'
+
+//     -- Present
+//     WHEN EXTRACT(EPOCH FROM (ls.punch_out - ls.punch_in)) >= (7 * 3600)
+//     THEN 'Present'
+
+//     ELSE 'Absent'
+
+//   END AS status
+
+// FROM date_range dr
+// CROSS JOIN emp_data ed
+
+// LEFT JOIN logs_summary ls
+//   ON ls.emp_id = ed.emp_id
+//  AND ls.attendance_date = dr.attendance_date
+
+// ORDER BY dr.attendance_date DESC;
+// `, [empId]);
+
     const attendance = rows.map(r => {
       let total_hours = null;
 
@@ -1281,6 +1440,11 @@ ORDER BY dr.attendance_date DESC;
       attendance
     });
 
+    // res.status(200).json({
+    //   success:true,
+    //   count:attendance.length,
+    //   attendance
+    // })
   } catch (err) {
     console.error("getMyAttendance error:", err);
     res.status(500).json({ message: "Server error" });

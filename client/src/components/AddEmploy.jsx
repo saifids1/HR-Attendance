@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "react-hot-toast";
 import MainProfile from "../profile/MainProfile";
 import { addEmploy } from "../../services/authServices";
@@ -7,195 +7,373 @@ import { Typography, Divider } from "@mui/material";
 import { MdOutlineEmail } from "react-icons/md";
 import { IoHomeSharp } from "react-icons/io5";
 import ReportingCard from "../components/ReportingCard";
-import CreateEmployeeBasic from "./CreateBasicEmp";
+import { useLocation } from "react-router-dom";
+import api from "../../api/axiosInstance";
 
 const AddEmployee = () => {
+
+  const location = useLocation();
+
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(true);
   const [isAddingNew, setIsAddingNew] = useState(true);
 
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("employee");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [password, setPassword] = useState("");
+
   const [profileImage, setProfileImage] = useState("");
   const [reporting, setReporting] = useState([]);
-  const [empId, setEmpId] = useState("");
-  const [newEmpId,setNewEmpId] = useState("");
-  
-// const [empId, setEmpId] = useState(null);
-  //  Controlled Personal State
-  const [personalData, setPersonalData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    emp_id: "",
-    role: "employee",
-    is_active: true,
-    shift_id: 3,
-    dob: "",
-    gender: "",
-    department: "",
-    joining_date: "",
-    maritalstatus: "",
-    nominee: "",
-    aadharnumber: "",
-    bloodgroup: "",
-    nationality: "",
-    current_address: "",
-    profile_image: null,
-  });
 
-  //  Profile Image Upload
+  const [employeeCreated, setEmployeeCreated] = useState(false);
+  const [employeeBasic, setEmployeeBasic] = useState(null);
+
+  const [empId, setEmpId] = useState("");
+
+  // Tabs Data
+  const [personal, setPersonal] = useState({});
+  const [contact, setContact] = useState([]);
+  const [education, setEducation] = useState([]);
+  const [experience, setExperience] = useState([]);
+  const [nominee, setNominee] = useState([]);
+  const [bank, setBank] = useState([]);
+  const [documents, setDocuments] = useState({});
+
+  const token = localStorage.getItem("token");
+
+  const isAddEmployee = location.pathname.includes("/add-emp");
+
+  // Profile Image Upload
   const handleProfileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    setPersonalData((prev) => ({
-      ...prev,
-      profile_image: file,
-    }));
-
-    setProfileImage(URL.createObjectURL(file));
+    setProfileImage(file);
   };
 
   // Create Employee
-  const handleCreateEmployee = async (data) => {
+  const handleCreateEmployee = async () => {
+
     try {
+
       setLoading(true);
 
       const formData = new FormData();
 
-      Object.keys(data).forEach((key) => {
-        if (data[key] !== null && data[key] !== undefined) {
-          formData.append(key, data[key]);
-        }
-      });
+      formData.append("name", name);
+      formData.append("role", role);
+      formData.append("email", email);
+      formData.append("emp_id", empId);
+      formData.append("password", password);
+      formData.append("current_address", address);
 
-      await addEmploy(formData);
+      if (profileImage) {
+        formData.append("profile_image", profileImage);
+      }
+
+      const resp = await addEmploy(formData);
+
+      console.log("resp Add Emp",resp);
+      setEmployeeBasic(resp.user);
+
+      setEmpId(resp.user.emp_id);
+
+      setEmployeeCreated(true);
+
       toast.success("Employee Created Successfully");
 
-      // optional reset
-      setPersonalData({});
-      setProfileImage("");
-      setEmpId("");
     } catch (err) {
+
+      console.log(err);
+
       toast.error(err.response?.data?.message || "Failed to create employee");
+
     } finally {
+
       setLoading(false);
+
     }
+
   };
+
+
+  // console.log("New Employee id",empId)
+  // Fetch All Tabs Data
+  const fetchAllData = useCallback(async () => {
+
+    if (!empId) return;
+
+    setLoading(true);
+
+    try {
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [pRes, cRes, eRes, exRes, bRes, dRes, nRes] =
+        await Promise.allSettled([
+          api.get(`employee/profile/personal/${empId}`, { headers }),
+          api.get(`employee/profile/contact/${empId}`, { headers }),
+          api.get(`employee/profile/education/${empId}`, { headers }),
+          api.get(`employee/profile/experience/${empId}`, { headers }),
+          api.get(`employee/profile/bank/${empId}`, { headers }),
+          api.get(`employee/profile/bank/doc/${empId}`, { headers }),
+          api.get(`employee/profile/nominee/${empId}`, { headers }),
+        ]);
+
+      if (pRes.status === "fulfilled") setPersonal(pRes.value.data || {});
+      if (cRes.status === "fulfilled") setContact(cRes.value.data?.contacts || []);
+      if (eRes.status === "fulfilled") setEducation(eRes.value.data?.education || []);
+      if (exRes.status === "fulfilled") setExperience(exRes.value.data?.experience || []);
+      if (nRes.status === "fulfilled") setNominee(nRes.value.data?.nominee || []);
+      if (bRes.status === "fulfilled") setBank(bRes.value.data?.bankDetails || []);
+
+      if (dRes.status === "fulfilled") {
+
+        const docObj = {};
+
+        (dRes.value.data?.documents || []).forEach((d) => {
+          docObj[d.file_type] = d.file_path;
+        });
+
+        setDocuments(docObj);
+      }
+
+    } catch (err) {
+
+      console.log(err);
+
+      toast.error("Error fetching employee data");
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }, [empId, token]);
+
+  useEffect(() => {
+
+    if (employeeCreated) {
+      fetchAllData();
+    }
+
+  }, [employeeCreated, fetchAllData]);
 
   return (
     <div className="min-h-screen p-6">
+
       <div className="max-w-6xl mx-auto rounded-xl">
+
         {/* HEADER */}
+
         <div className="sticky z-20 top-0 bg-[#222F7D] rounded-xl py-3 mb-6 shadow-lg flex justify-center items-center px-6">
+
           <Typography className="text-white text-xl sm:text-2xl font-bold">
             Add New Employee
           </Typography>
+
         </div>
 
-        {/* PROFILE SECTION */}
         <div className="mx-auto grid grid-cols-1 lg:grid-cols-[4fr_1.5fr] gap-6">
+
           {/* LEFT CARD */}
+
           <div className="bg-white rounded-xl shadow p-6">
+
             <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
-              
+
               {/* PROFILE IMAGE */}
+
               <div className="relative w-32 h-32">
+
                 <label htmlFor="profileUpload" className="cursor-pointer block w-full h-full">
+
                   <img
-                    src={profileImage || defaultProfile}
+                    src={profileImage ? URL.createObjectURL(profileImage) : defaultProfile}
                     alt="Profile"
                     className="w-full h-full rounded-full border-4 border-[#222F7D] object-cover"
                   />
-                  <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
-                    ✎
-                  </div>
+
+                  {!employeeCreated && (
+                    <div className="absolute bottom-1 right-1 bg-[#222F7D] text-white w-8 h-8 rounded-full flex items-center justify-center border-2 border-white">
+                      ✎
+                    </div>
+                  )}
+
                 </label>
 
-                <input
-                  id="profileUpload"
-                  type="file"
-                  className="hidden"
-                  onChange={handleProfileUpload}
-                />
+                {!employeeCreated && (
+                  <input
+                    id="profileUpload"
+                    type="file"
+                    className="hidden"
+                    onChange={handleProfileUpload}
+                  />
+                )}
+
               </div>
 
               {/* BASIC INFO */}
+
               <div className="w-full text-center md:text-left">
-                <h2 className="text-xl font-bold text-gray-800">
-                  {personalData.name || "Employee Name"}
-                </h2>
 
-                <p className="text-[#222F7D] font-bold text-xs tracking-wider uppercase">
-                  {personalData.role}
-                </p>
+             <div className={`${employeeCreated ?"w-full text-center md:text-left":"flex items-center gap-2 mb-2"}`}>
 
-                <p className="text-gray-500 text-sm mt-2">
-                  ID:
-                  <input
-                    type="text"
-                    value={newEmpId}
-                    onChange={(e) => {
-                      // setEmpId(e.target.value);
-                      setNewEmpId(e.target.value);
-                      setPersonalData((prev) => ({
-                        ...prev,
-                        // emp_id: e.target.value,
-                        newEmpId:e.target.value
-                      }));
-                    }}
-                    className="border rounded px-3 py-2 ml-2 text-sm bg-gray-100 focus:ring-2 focus:ring-[#222F7D]"
-                  />
-                </p>
+                  {!employeeCreated ? (
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter Employee Name"
+                      className="border rounded px-3 py-2 text-sm bg-gray-100"
+                    />
+                  ) : (
+                    <h2 className="text-xl font-bold text-gray-800">
+                      {/* {"Imran"} */}
+                      {employeeBasic?.name}
+                    </h2>
+                  )}
 
-                <div className="flex flex-col sm:flex-row gap-4 mt-4 text-gray-600 text-sm justify-center md:justify-start">
-                  <span className="flex items-center gap-2">
-                    <IoHomeSharp className="text-[#222F7D]" />
-                    {personalData.current_address || "Office Address"}
-                  </span>
+                  {!employeeCreated ? (
+                    <select
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      className="border rounded px-3 py-2 text-sm bg-gray-100"
+                    >
+                      <option value="employee">Employee</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  ) : (
+                    <p className="text-[#222F7D] font-bold text-xs uppercase">
+                      {/* {"Employee"} */}
+                      {employeeBasic?.role}
+                    </p>
+                  )}
 
-                  <span className="flex items-center gap-2">
-                    <MdOutlineEmail className="text-[#222F7D] text-lg" />
-                    {personalData.email || "Email"}
-                  </span>
                 </div>
+
+                <div className="flex mt-3 gap-2 flex-wrap">
+
+                  {!employeeCreated ? (
+                    <input
+                      type="text"
+                      value={empId}
+                      onChange={(e) => setEmpId(e.target.value)}
+                      placeholder="Enter Employee ID"
+                      className="border rounded px-3 py-2 text-sm bg-gray-100"
+                    />
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      ID: {employeeBasic?.emp_id} 
+                    </p>
+                  )}
+
+                  {!employeeCreated ? (
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Enter Address"
+                      className="border rounded px-3 py-2 text-sm bg-gray-100"
+                    />
+                  ) : (
+                    <span className="flex items-center gap-2 text-sm text-gray-600">
+                      <IoHomeSharp className="text-[#222F7D]" />
+                      {address} 
+                    </span>
+                  )}
+
+                </div>
+
+                {!employeeCreated ? (
+
+                  <div className="flex mt-3 gap-2 flex-wrap">
+
+                    <input
+                      type="text"
+                      placeholder="Enter Email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="border rounded px-3 py-2 text-sm bg-gray-100"
+                    />
+
+                    <input
+                      type="password"
+                      placeholder="Enter Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="border rounded px-3 py-2 text-sm bg-gray-100"
+                    />
+
+                  </div>
+
+                ) : (
+
+                  <span className="flex items-center gap-2 mt-3 text-sm text-gray-600">
+                    <MdOutlineEmail className="text-[#222F7D]" />
+                    {employeeBasic?.email} 
+                  </span>
+
+                )}
+
               </div>
+
             </div>
 
+            {!employeeCreated && (
+              <div className="w-full flex justify-end mt-3">
+                <button
+                  className="bg-[#222F7D] text-white py-2 px-4 rounded-md hover:bg-[#1a235d]"
+                  onClick={handleCreateEmployee}
+                >
+                  Add Employee
+                </button>
+              </div>
+            )}
+
             <Divider className="my-6" />
+
           </div>
 
-          {/* RIGHT SIDE REPORTING */}
+          {/* RIGHT SIDE */}
+
           <div className="bg-white rounded-xl shadow p-4">
             <ReportingCard reportingManagers={reporting} />
           </div>
+
         </div>
+
       </div>
 
-      {/* MAIN PROFILE FORM */}
-      <div className="max-w-6xl mx-auto mt-5 rounded-xl min-h-[400px]">
-        {/* {!empId ? (
-      <CreateEmployeeBasic onCreated={(id) => setEmpId(id)} />
-    ) : (
-    )} */}
-    <MainProfile
-            // organizationData={organizationData}
-            // personalData={personalData}
-            // educationData={educationData}
-            // experienceData={experienceData}
-            // contactData={contactsData}
-            // nomineeData={nomineeData}
-            // bankData={bankData}
-            // userRole={user?.role}
-            // isEditing={isEditing}
-            // setIsEditing={setIsEditing}
-            // onSave={handleDataRefresh} // Passing refresh function
+      {/* MAIN PROFILE TABS */}
+
+      {employeeCreated && (
+
+        <div className="max-w-6xl mx-auto mt-5 rounded-xl min-h-[400px]">
+
+          <MainProfile
             empId={empId}
-            // isAddingNew={isAddingNew}
-            // setIsAddingNew={setIsAddingNew}
+            personalData={personal}
+            educationData={education}
+            experienceData={experience}
+            nomineeData={nominee}
+            contactData={contact}
+            bankData={bank}
+            documents={documents}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+            onSave={fetchAllData}
+            isAddingNew={isAddingNew}
+            setIsAddingNew={setIsAddingNew}
           />
 
-    
-      </div>
+        </div>
+
+      )}
+
     </div>
   );
 };

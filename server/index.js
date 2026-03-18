@@ -33,7 +33,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Match your frontend port
+    origin: process.env.CLIENT_URL, 
     methods: ["GET", "POST"]
   }
 });
@@ -65,8 +65,9 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 
+
 app.use(cors({
-    origin: "http://localhost:5173",
+    origin: process.env.CLIENT_URL,
     methods: ["GET", "POST", "PUT","PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
   }));
@@ -104,7 +105,7 @@ app.use("/api/leaves/types",leavesRoutes);
 
 // Cron Schedule Route
 
-// app.use("/api/update-schedule",cronRoutes);
+app.use("/api/update-schedule",cronRoutes);
 
 app.listen(PORT,()=>{
 

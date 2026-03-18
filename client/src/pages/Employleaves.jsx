@@ -126,13 +126,13 @@ const Employleaves = () => {
 
           <Modal isOpen={isModalOpen} setisOpen={setIsModalOpen} refreshData={fetchLeaveData} />
          
-          {/* <LeavesTable 
+          <LeavesTable 
             leavesHeader={leavesTableHeader} 
             leavesBody={leaveTableData}
             adminLeavesHeader={adminLeavesHeader}
             adminLeavesBody={leaveTableData} // Same data source, filtered by backend
             refreshData={fetchLeaveData}
-          /> */}
+          />
         </div>
      </div>
   )

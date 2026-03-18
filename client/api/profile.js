@@ -33,13 +33,20 @@ export const getEducation = (emp_id) => {
   return api.get(`/employee/profile/education/${emp_id}`);
 }
 
-export const addEducations = (emp_id, formData) =>
-  api.post(`/employee/profile/education/${emp_id}`, formData,{headers: { "Content-Type": "multipart/form-data" },});
+export const addEducations = (emp_id, formData) =>{
 
-export const updateEducation = (emp_id, id, formData) =>
-  api.put(`/employee/profile/education/${emp_id}/${id}`, formData, {
+  console.log("Add Education",formData);
+
+  return api.post(`/employee/profile/education/${emp_id}`, formData,{headers: { "Content-Type": "multipart/form-data" },});
+}
+
+export const updateEducation = (emp_id, id, formData) =>{
+  console.log("UpdateEducation",formData);
+
+  return api.put(`/employee/profile/education/${emp_id}/${id}`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+}
 
 export const deleteEducation = (emp_id, id) =>{
   console.log("emp_id",emp_id)

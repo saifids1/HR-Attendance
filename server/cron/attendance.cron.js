@@ -15,7 +15,7 @@ cron.schedule(
   async () => {
     try {
       console.log("[CRON] Device attendance sync started");
-      await getDeviceAttendance();
+      // await getDeviceAttendance();
       await aggregateTodayAttendance(); 
       console.log(" [CRON] Device attendance sync completed");
     } catch (err) {

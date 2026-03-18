@@ -6,7 +6,7 @@ import { EmployContext } from "../../context/EmployContextProvider";
 import { AuthContext } from "../../context/AuthContextProvider";
 import { toast } from "react-hot-toast";
 import {
-  emptyOrganization,
+  // emptyOrganization,
   employeeTypeOptions,
   reportingToOptions,
   reportingLocationOptions,
@@ -15,7 +15,21 @@ import {
 const OrganizationTab = ({ organizationData,isEditing, cancelEdit ,empId}) => {
 
   // console.log("emptyOrganization",emptyOrganization)
-  const [org, setOrg] = useState(emptyOrganization);
+  // const [org, setOrg] = useState(emptyOrganization);
+   const [org, setOrg] = useState({
+  organization_name: "",
+  organization_code: "",
+  organization_location: "",
+  industry_type: "",
+  department: "",
+  designation: "",
+  employee_type: "",
+  joining_date: "",
+  leaving_date: "",
+  reportingTo: "",
+  reportingLocation: ""
+    
+   }); 
 
   // console.log("organizationData",organizationData)
 
@@ -111,10 +125,7 @@ useEffect(() => {
     getUserForReport()
   }, [])
 
-  //  useEffect(()=>{
-      
-  //   console.log("emptyOrganization",emptyOrganization);
-  //   },[emptyOrganization])
+
 
   const handleChange = (key, value) => {
     setOrg((prev) => ({ ...prev, [key]: value }));
@@ -179,7 +190,7 @@ const allowedIds = [
   "202000005"
 ];
 
-
+useEffect(()=>{console.log("errors",errors)},[errors])
    
   return (
     <>
@@ -190,7 +201,7 @@ const allowedIds = [
               {/* Organization Name */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Organization Name
+                  Organization Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -202,7 +213,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                 {errors.organization_name && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.organization_name}
                   </p>
                 )}
@@ -211,7 +222,7 @@ const allowedIds = [
               {/* Organization Code */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Organization Code
+                  Organization Code  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -223,7 +234,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                 {errors.organization_code && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.organization_code}
                   </p>
                 )}
@@ -231,7 +242,7 @@ const allowedIds = [
               {/* Organization Location */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Organization Location
+                  Organization Location  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -243,7 +254,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                  {errors.organization_location && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.organization_location}
                   </p>
                 )}
@@ -252,7 +263,7 @@ const allowedIds = [
               {/* Industry Type */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Industry Type
+                  Industry Type <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -262,7 +273,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                  {errors.industry_type && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.industry_type}
                   </p>
                 )}
@@ -270,7 +281,7 @@ const allowedIds = [
               {/* Department */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Department
+                  Department  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -280,7 +291,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                 {errors.department && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.department}
                   </p>
                 )}
@@ -290,7 +301,7 @@ const allowedIds = [
               {/* Designation */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Designation
+                  Designation  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -300,7 +311,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                   {errors.designation && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.designation}
                   </p>
                 )}
@@ -309,7 +320,7 @@ const allowedIds = [
               {/* Joining Date */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Joining Date
+                  Joining Date  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -319,7 +330,7 @@ const allowedIds = [
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${isEditing ? "" : "cursor-not-allowed"}`}
                 />
                  {errors.joining_date && (
-                  <p className="text-red-500 text-xs mt-1">
+                  <p className="text-red-500 text-xs mt-1 font-bold italic">
                     {errors.joining_date}
                   </p>
                 )}
@@ -346,7 +357,7 @@ const allowedIds = [
               {/* Employee Type */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Employee Type
+                  Employee Type  <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={org.employee_type}
@@ -367,7 +378,7 @@ const allowedIds = [
               {/* Reporting To */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Reporting To
+                  Reporting To 
                 </label>
                 <select
                   value={org.reportingTo}
@@ -389,7 +400,7 @@ const allowedIds = [
               {/* Reporting Location */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Reporting Location
+                  Reporting Location  <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={org.reportingLocation}

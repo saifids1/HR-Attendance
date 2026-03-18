@@ -113,6 +113,7 @@ useEffect(() => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Enter Nominee Name"
                   value={nomineeData?.nominee_name || ""}
                   onChange={(e) =>
                     handleChange("nominee_name", e.target.value)
@@ -128,6 +129,7 @@ useEffect(() => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Enter Nominee Relation"
                   value={nomineeData?.nominee_relation || ""}
                   onChange={(e) =>
                     handleChange("nominee_relation", e.target.value)
@@ -143,6 +145,7 @@ useEffect(() => {
                 </label>
                 <input
                   type="text"
+                  placeholder="Enter Nominee Contact"
                   value={nomineeData?.nominee_contact || ""}
                   onChange={(e) =>
                     handleChange("nominee_contact", e.target.value)

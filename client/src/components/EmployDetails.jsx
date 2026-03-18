@@ -12,6 +12,7 @@ import { IoHomeSharp } from "react-icons/io5";
 import ReportingCard from "../components/ReportingCard";
 
 import defaultProfile from "../assets/avatar.webp";
+import Loader from "./Loader";
 
 const EmployeeDetails = () => {
   // 1. Get emp_id from URL (for Admin view)
@@ -267,6 +268,7 @@ const EmployeeDetails = () => {
     onChange={handleProfileUpload}
   />
 </div>
+ 
 
               <div className="w-full text-center md:text-left">
                 <h2 className="text-xl font-bold text-gray-800">
@@ -305,7 +307,7 @@ const EmployeeDetails = () => {
       <div className="max-w-6xl mx-auto bg-transparent mt-5 rounded-xl shadow min-h-[400px]">
         {loading ? (
           <div className="flex justify-center items-center h-64 text-gray-500 italic">
-            Loading Profile Data...
+            <Loader/>
           </div>
         ) : (
           <MainProfile

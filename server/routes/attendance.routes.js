@@ -5,6 +5,7 @@ const auth = require("../middlewares/authMiddleware");
 const { addEmployController } = require("../controllers/attendance.controller");
 const { isAdmin } = require("../middlewares/roleMiddleware");
 const { db } = require("../db/connectDB");
+const uploadProfileImage = require("../middlewares/uploadProfileImage");
 
 // Admin
 
@@ -18,7 +19,7 @@ router.get("/today", controller.getTodayOrganizationAttendance);
 
 // Add Employ by Admin
 
-router.post("/add-employee", auth, isAdmin, addEmployController)
+router.post("/add-employee", auth, isAdmin, uploadProfileImage.single("profile"), addEmployController)
 
 // Admin Attendance 
 router.get("/history", auth, isAdmin, controller.getAdminMyAttendance)
@@ -36,8 +37,8 @@ router.patch('/:emp_id/status', auth, isAdmin, async (req, res) => {
   const { emp_id } = req.params;
   const { is_active } = req.body;
 
-  console.log("is_Active", is_active)
-  console.log("emp_id", emp_id);
+  // console.log("is_Active", is_active)
+  // console.log("emp_id", emp_id);
 
   try {
     await db.query(

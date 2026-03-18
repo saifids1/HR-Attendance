@@ -10,13 +10,13 @@ import { addPersonal, getPersonal, updatePersonal } from "../../../api/profile";
 import { EmployContext } from "../../context/EmployContextProvider";
 
 const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave,empId }) => {
-  const [draft, setDraft] = useState({ ...emptyPersonal });
+  const [draft, setDraft] = useState({ });
   const [errors, setErrors] = useState({});
 
  const {setPersonalAddress} =  useContext(EmployContext)
   useEffect(() => {
     if (personalData && Object.keys(personalData).length > 0) {
-      setDraft({ ...emptyPersonal, ...personalData });
+      setDraft({  ...personalData });
     }
   }, [personalData]);
   
@@ -41,7 +41,7 @@ const formatDOB = (dateStr) => {
       setDraft((prevData) => ({
         ...prevData,
         ...resp.data,
-        dob: formattedDob,   // 👈 FIX HERE
+        dob: formattedDob,   
       }));
 
       setPersonalAddress(resp.data);
@@ -116,12 +116,13 @@ const formatDOB = (dateStr) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
               {/* First Name */}
               <div className="flex flex-col">
-                <label className="text-sm text-gray-600 mb-1 font-medium">
-                  First Name
+                <label className="text-sm text-gray-600 mb-1 font-medium" placeholder={draft.first_name}>
+                  First Name  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                 value={draft.first_name ?? emptyPersonal.first_name}
+                  placeholder="Enter First Name"
+                 value={draft.first_name || ""}
                   onChange={(e) => handleChange("first_name", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -130,7 +131,7 @@ const formatDOB = (dateStr) => {
                 />
                 {isEditing && errors.first_name && (
                   <p className="text-red-500 text-[10px] mt-1 font-bold italic">
-                    * {errors.firstName}
+                    * {errors.first_name}
                   </p>
                 )}
               </div>
@@ -138,11 +139,12 @@ const formatDOB = (dateStr) => {
               {/* Last Name */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Last Name
+                  Last Name  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={draft.last_name ?? emptyPersonal.last_name}
+                  placeholder="Enter Last Name"
+                  value={draft.last_name || ""}
                   onChange={(e) => handleChange("last_name", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -158,11 +160,12 @@ const formatDOB = (dateStr) => {
               {/* Contact No */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Contact No
+                  Contact No  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={draft.contact ?? emptyPersonal.contact}
+                  placeholder="Enter Contact Number"
+                  value={draft.contact || ""}
                   onChange={(e) => handleChange("contact", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -178,11 +181,12 @@ const formatDOB = (dateStr) => {
               {/* Email */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Email
+                  Email  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={draft.email}
+                  value={draft.email || ""}
+                  placeholder="Enter Email Address"
                   onChange={(e) => handleChange("email", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -198,12 +202,12 @@ const formatDOB = (dateStr) => {
                 {/* Date of Birth */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Date of Birth
+                  Date of Birth  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
                   // placeholder={draft.dob}
-                  value={draft?.dob}
+                  value={draft?.dob || ""}
                   onChange={(e) => handleChange("dob", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -220,11 +224,12 @@ const formatDOB = (dateStr) => {
                 {/* Nationality */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Nationality
+                  Nationality  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={draft.nationality}
+                  placeholder="Enter Nationality"
+                  value={draft.nationality || ""}
                   onChange={(e) => handleChange("nationality", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -241,7 +246,7 @@ const formatDOB = (dateStr) => {
               {/* Gender */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Gender
+                  Gender  <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={draft.gender ?? emptyPersonal.gender}
@@ -263,7 +268,7 @@ const formatDOB = (dateStr) => {
               {/* Marital Status */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Marital Status
+                  Marital Status  <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={draft.maritalstatus}
@@ -287,7 +292,7 @@ const formatDOB = (dateStr) => {
               {/* Blood Group */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Blood Group
+                  Blood Group  <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={draft.bloodgroup ?? emptyPersonal.bloodgroup}
@@ -310,11 +315,12 @@ const formatDOB = (dateStr) => {
                 {/* Address */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Current Address
+                  Current Address  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={draft.current_address}
+                  placeholder="Enter Current Address"
+                  value={draft.current_address || ""}
                   onChange={(e) => handleChange("current_address", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${
@@ -330,11 +336,12 @@ const formatDOB = (dateStr) => {
                 {/* permanent Address */}
               <div className="flex flex-col">
                 <label className="text-sm text-gray-600 mb-1 font-medium">
-                  Permanent Address
+                  Permanent Address  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={draft.permanent_address}
+                  placeholder="Enter Permanent Address"
+                  value={draft.permanent_address || ""}
                   onChange={(e) => handleChange("permanent_address", e.target.value)}
                   disabled={!isEditing}
                   className={`border rounded px-3 py-2 text-sm transition-all duration-200 bg-gray-200 text-gray-600 border-gray-300 focus:outline-none focus:ring-2 ${

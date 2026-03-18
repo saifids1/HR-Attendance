@@ -19,7 +19,7 @@ const router = express.Router();
 router.get("/organization/employee", auth, async (req, res) => {
 
   try {
-    console.log("Reporting Route Called");
+    // console.log("Reporting Route Called");
 
     const query = `
       SELECT name, emp_id 

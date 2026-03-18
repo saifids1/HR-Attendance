@@ -79,27 +79,31 @@ exports.addOrganizationInfo = async (req, res) => {
     );
 
     // 2️⃣ Update Personal
-    const personalResult = await client.query(
-      `UPDATE personal
-       SET department = $1,
-           designation = $2,
-           joining_date = $3,
-           leaving_date = $4,
-           employee_type = $5,
-           reporting_location = $6
-       WHERE emp_id = $7
-       RETURNING *`,
-      [
-        department,
-        designation,
-        joining_date,
-        leaving_date || null,
-        employee_type,
-        reportingLocation,
-        emp_id,
-      ]
-    );
+   const personalResult = await client.query(
+  `INSERT INTO personal 
+  (emp_id, department, designation, joining_date, leaving_date, employee_type, reporting_location)
+  VALUES ($1,$2,$3,$4,$5,$6,$7)
 
+  ON CONFLICT (emp_id)
+  DO UPDATE SET
+    department = EXCLUDED.department,
+    designation = EXCLUDED.designation,
+    joining_date = EXCLUDED.joining_date,
+    leaving_date = EXCLUDED.leaving_date,
+    employee_type = EXCLUDED.employee_type,
+    reporting_location = EXCLUDED.reporting_location
+
+  RETURNING *`,
+  [
+    emp_id,
+    department,
+    designation,
+    joining_date,
+    leaving_date || null,
+    employee_type,
+    reportingLocation
+  ]
+);
     if (personalResult.rowCount === 0) {
       throw new Error("Employee not found in personal table");
     }
@@ -184,7 +188,7 @@ exports.updateOrganizationInfo = async (req, res) => {
   try {
     const {emp_id} = req.params
 
-    console.log("empId updateOrg",emp_id);
+    // console.log("empId updateOrg",emp_id);
     const {
       organization_name,
       organization_code,
@@ -199,7 +203,7 @@ exports.updateOrganizationInfo = async (req, res) => {
       reportingLocation
     } = req.body;
 
-    console.log("req.body update",req.body)
+    // console.log("req.body update",req.body)
     await client.query("BEGIN");
 
 
@@ -261,7 +265,7 @@ await client.query(
   [isActive, emp_id]
 );
 
-console.log("leavingDate updateOrg",leaving_date)
+// console.log("leavingDate updateOrg",leaving_date)
     // console.log("reportingTo",reportingTo)
     //  Update Reporting
     const reportingResult = await client.query(
@@ -561,7 +565,9 @@ exports.addEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    console.log("emp_id Add Education", emp_id)
+    // console.log("Education",req.body);
+    
+    // console.log("emp_id Add Education", emp_id)
 
     if(!emp_id){
       return res.status(400).json({message:"emp_id required"});
@@ -645,7 +651,7 @@ exports.getEducationInfo = async (req, res) => {
 
     const empIdInt = parseInt(emp_id);
 
-    console.log("empId getEducation",empIdInt);
+    // console.log("empId getEducation",empIdInt);
     const { rows } = await db.query(
       `
         SELECT
@@ -684,7 +690,7 @@ exports.updateEducationInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    console.log("empId update",emp_id);
+    // console.log("empId update",emp_id);
     const educationEntries = JSON.parse(req.body.education);
 
     await client.query('BEGIN');
@@ -1010,7 +1016,7 @@ exports.getContactInfo = async (req, res) => {
       [emp_id]
     );
 
-    console.log("result.rows",result.rows);
+    // console.log("result.rows",result.rows);
     res.status(200).json({
       contacts: result.rows
     });
@@ -1077,6 +1083,8 @@ exports.updateContactInfo = async (req, res) => {
   const { emp_id } = req.params;
   const contacts = req.body; // Expecting: [{contact_type: '...', phone: '...'}, {...}]
 
+  console.log("contacts api",contacts);
+
   if (!Array.isArray(contacts)) {
     return res.status(400).json({ message: "Invalid data format. Expected an array." });
   }
@@ -1124,6 +1132,9 @@ exports.updateContactInfo = async (req, res) => {
 exports.deleteContactInfo = async (req, res) => {
   // 1. Ensure these match your route definition: /contact/:emp_id/:id
   const { emp_id, id } = req.params;
+
+  console.log("emp_id",emp_id);
+  console.log("id",id);
 
   try {
 
@@ -1181,7 +1192,7 @@ exports.getNomineeInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
 
-    console.log("getNominee:", emp_id);
+    // console.log("getNominee:", emp_id);
 
     //  Ensure integer (important if column type integer hai)
     const empIdInt = parseInt(emp_id);
@@ -1202,7 +1213,7 @@ exports.getNomineeInfo = async (req, res) => {
       });
     }
 
-    console.log("Get Nominee",result.rows[0]);
+    // console.log("Get Nominee",result.rows[0]);
 
     res.status(200).json({
       success: true,
@@ -1222,10 +1233,10 @@ exports.addNomineeInfo = async (req, res) => {
 
     const empId = emp_id ? emp_id : req.user.emp_id;
 
-    console.log("empId:", empId);
-    console.log("Body:", req.body);
+    // console.log("empId:", empId);
+    // console.log("Body:", req.body);
 
-    // ✅ Validate input
+    //  Validate input
     if (!nominee_name || !nominee_relation || !nominee_contact) {
       return res.status(400).json({
         success: false,
@@ -1359,7 +1370,7 @@ exports.addBankInfo = async (req, res) => {
       ]
     );
 
-    console.log("result.rows[0]",result.rows[0])
+    // console.log("result.rows[0]",result.rows[0])
     // sendNotification(emp_id, "Bank", req.user.name);
     res.status(201).json({
       message: "Bank details saved successfully",
@@ -1392,7 +1403,7 @@ exports.getBankInfo = async (req, res) => {
 exports.updateBankInfo = async (req, res) => {
   try {
     const { emp_id } = req.params;
-    console.log("req.body bank update ",req.body);
+    // console.log("req.body bank update ",req.body);
     const {
       account_holder_name,
       bank_name,

@@ -27,10 +27,10 @@ const [draft, setDraft] = useState(null);
 
   /* ================= CHANGE ================= */
 
-  useEffect(()=>{
-    console.log("Education Data",educationData);
-console.log("empId",empId);
-  },[])
+//   useEffect(()=>{
+//     console.log("Education Data",educationData);
+// console.log("empId",empId);
+//   },[])
   
 useEffect(() => {
   if (!empId) return;
@@ -40,7 +40,7 @@ useEffect(() => {
       const resp = await getEducation(empId);
       const education = resp?.data?.education;
 
-      console.log("education data",education);
+      // console.log("education data",education);
 
       if (Array.isArray(education) && education.length > 0) {
         // setDraft(education);
@@ -109,39 +109,81 @@ const handleEdit = (education, index) => {
 
   /* ================= SAVE ================= */
 
-  const handleSave = async () => {
-    if (!draft) return;
+  // const handleSave = async () => {
+  //   if (!draft) return;
 
-    const toastId = toast.loading("Saving education details...");
+  //   const toastId = toast.loading("Saving education details...");
 
-    try {
-      const formData = new FormData();
-      formData.append("education", JSON.stringify([draft]));
+  //   console.log("draft", draft);
 
-      if (draft.marksheet_file) {
-        formData.append("file_0", draft.marksheet_file);
-      }
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("education", JSON.stringify([draft]));
 
-      if (draft.id) {
-        await updateEducation(empId, draft.id, formData);
-        toast.success("Education updated", { id: toastId });
-      } else {
-        await addEducations(empId, formData);
-        toast.success("New education added", { id: toastId });
+  //     if (draft.marksheet_file) {
+  //       formData.append("file_0", draft.marksheet_file);
+  //     }
+
+  //     if (draft.id) {
+  //       await updateEducation(empId, draft.id, formData);
+  //       toast.success("Education updated", { id: toastId });
+  //     } else {
+  //       await addEducations(empId, formData);
+  //       toast.success("New education added", { id: toastId });
+  //   }
+
+  //     setDraft(null);
+  //     setEditingIndex(null);
+  //     setIsAddingNew(false);
+
+  //     if (onSave) await onSave();
+  //   } catch (err) {
+  //     toast.error(err.response?.data?.message || "Save failed", {
+  //       id: toastId,
+  //     });
+  //   }
+  // };
+const handleSave = async () => {
+  if (!draft) return;
+
+  const toastId = toast.loading("Saving education details...");
+
+  try {
+    const formData = new FormData();
+
+    // ensure default degree
+    const educationPayload = {
+      ...draft,
+      degree: draft.degree || "B.Tech"
+    };
+
+    // console.log("educationPayload", educationPayload);
+
+    formData.append("education", JSON.stringify([educationPayload]));
+
+    if (draft.marksheet_file) {
+      formData.append("file_0", draft.marksheet_file);
     }
 
-      setDraft(null);
-      setEditingIndex(null);
-      setIsAddingNew(false);
-
-      if (onSave) await onSave();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Save failed", {
-        id: toastId,
-      });
+    if (draft.id) {
+      await updateEducation(empId, draft.id, formData);
+      toast.success("Education updated", { id: toastId });
+    } else {
+      await addEducations(empId, formData);
+      toast.success("New education added", { id: toastId });
     }
-  };
 
+    setDraft(null);
+    setEditingIndex(null);
+    setIsAddingNew(false);
+
+    if (onSave) await onSave();
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Save failed", {
+      id: toastId,
+    });
+  }
+};
   /* ================= DELETE ================= */
 
   const handleDelete = async (id) => {
@@ -166,6 +208,11 @@ const handleEdit = (education, index) => {
     }
   }, [isAddingNew]);
 
+
+  // useEffect(() => {
+  //   console.log("degreeOptions",degreeOptions);
+  // }, [degreeOptions]);
+
   /* ================= UI ================= */
 
   return (
@@ -189,7 +236,7 @@ const handleEdit = (education, index) => {
                 editingIndex === index ? (
                   <EditableRow
                     key={edu.id || index}
-                    draft={draft}
+                    draft={draft || " "}
                     onChange={handleChange}
                     onSave={handleSave}
                     onCancel={handleCancel}
@@ -231,7 +278,7 @@ const handleEdit = (education, index) => {
                 />
               )}
 
-              {(!draft || draft.length === 0) &&
+              {(!educationList || educationList.length === 0) &&
                 !isAddingNew && (
                   <tr>
                     <td colSpan="6" className="text-center py-8 text-sm text-gray-600 italic bg-gray-50">
@@ -251,19 +298,19 @@ const handleEdit = (education, index) => {
 
 const EditableRow = ({ draft, onChange, onSave, onCancel }) => (
   <tr className="bg-blue-50/30">
-    <td className="p-2 text-sm text-gray-600" style={{width:"200px"}}>
-      <select
-        className="w-full border px-2 py-1 text-sm rounded"
-        value={draft.degree || ""}
-        onChange={(e) => onChange("degree", e.target.value)}
-      >
-        {degreeOptions.map((deg) => (
-          <option key={deg} value={deg}>
-            {deg}
-          </option>
-        ))}
-      </select>
-    </td>
+   <td className="p-2 text-sm text-gray-600" style={{ width: "200px" }}>
+  <select
+    className="w-full border px-2 py-1 text-sm rounded"
+    value={draft?.degree || "B.Tech"}
+    onChange={(e) => onChange("degree", e.target.value)}
+  >
+    {degreeOptions.map((deg) => (
+      <option key={deg} value={deg}>
+        {deg}
+      </option>
+    ))}
+  </select>
+</td>
 
     <td className="p-2 text-sm text-gray-600" style={{width:"150px"}}>
       <input

@@ -58,31 +58,160 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
+// router.post('/', authMiddleware, async (req, res) => {
+//     const { slot_name, hour, minute, emails } = req.body;
+
+//     console.log("req body",req.body)
+//     const newPattern = `${parseInt(minute)} ${parseInt(hour)} * * *`;
+
+//     try {
+//         // await db.query(
+//         //     `UPDATE report_settings 
+//         //      SET cron_pattern = $1, emails = $2 
+//         //      WHERE slot_name = $3`,
+//         //     [newPattern, emails, slot_name]
+//         // );
+
+//         // await startAllSchedules();
+
+//         res.json({
+//             message: `${slot_name} schedule updated successfully!`,
+//             pattern: newPattern,
+//             emails
+//         });
+
+//     } catch (err) {
+//         console.error("Update Error:", err);
+//         res.status(500).json({ error: "DB Update Failed" });
+//     }
+// });
+
 router.post('/', authMiddleware, async (req, res) => {
-    const { slot_name, hour, minute, email } = req.body;
+  const { slot_name, hour, minute, email } = req.body;
 
-    const newPattern = `${parseInt(minute)} ${parseInt(hour)} * * *`;
+  const newPattern = `${parseInt(minute)} ${parseInt(hour)} * * *`;
 
-    try {
+  try {
+
+    const type = process.env.NODE_ENV === "production"
+      ? "production"
+      : "local";
+
+    console.log("type Cron", type);
+
+    // update cron pattern
+    await db.query(
+      `UPDATE report_settings 
+       SET cron_pattern = $1
+       WHERE slot_name = $2`,
+      [newPattern, slot_name]
+    );
+
+    // check if email already exists
+    const existingEmail = await db.query(
+      `SELECT * FROM "EmployeeEmail" WHERE email = $1`,
+      [email]
+    );
+
+    if (existingEmail.rowCount > 0) {
+      const row = existingEmail.rows[0];
+
+      // email same but type different → update type
+      if (row.type !== type) {
         await db.query(
-            `UPDATE report_settings 
-             SET cron_pattern = $1, email = $2 
-             WHERE slot_name = $3`,
-            [newPattern, email, slot_name]
+          `UPDATE "EmployeeEmail"
+           SET type = $1
+           WHERE email = $2`,
+          [type, email]
+        );
+      }
+
+    } else {
+
+      // email different → insert new row
+      await db.query(
+        `INSERT INTO "EmployeeEmail"(email, type)
+         VALUES ($1, $2)`,
+        [email, type]
+      );
+    }
+
+    await startAllSchedules();
+
+    res.json({
+      message: `${slot_name} schedule updated successfully!`,
+      pattern: newPattern,
+      email: email
+    });
+
+  } catch (err) {
+    console.error("Update Error:", err);
+    res.status(500).json({ error: "DB Update Failed" });
+  }
+});
+
+router.get('/emails', async (req, res) => {
+  try {
+
+// console.log("process.env.NODE_ENV raw:", JSON.stringify(process.env.NODE_ENV));
+
+   
+
+    const type = process.env.NODE_ENV.trim() === "production" ? "production" : "local";
+
+    console.log("type Fetch Cron", type);
+
+    const result = await db.query(
+      `SELECT id,email 
+       FROM "EmployeeEmail"
+       WHERE type=$1
+       ORDER BY id`,
+      [type]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    res.status(500).json({ error: "Fetch failed" });
+  }
+});
+
+
+// Add Emails
+router.post('/add-email', authMiddleware, async (req, res) => {
+  const { email } = req.body;
+    try {
+        const type = process.env.NODE_ENV === "production"
+            ? "production"
+            : "local";
+
+        await db.query(
+            `INSERT INTO "EmployeeEmail"(email, type)
+             VALUES ($1, $2)`,
+            [email, type]
         );
 
-        await startAllSchedules();
-
-        res.json({
-            message: `${slot_name} schedule updated successfully!`,
-            pattern: newPattern,
-            email
-        });
-
+        res.json({ message: "Email added successfully!" });
     } catch (err) {
-        console.error("Update Error:", err);
-        res.status(500).json({ error: "DB Update Failed" });
+        console.error("Add Email Error:", err);
+        res.status(500).json({ error: "Failed to add email" });
     }
 });
 
+
+router.delete('/emails/:id', authMiddleware, async (req, res) => {
+  const emailId = req.params.id;
+
+  console.log("emailId",emailId)
+    try {
+        await db.query(
+            `DELETE FROM "EmployeeEmail" WHERE id = $1`,
+            [emailId]
+        );
+        res.json({ message: "Email deleted successfully!" });
+    } catch (err) {
+        console.error("Delete Error:", err);
+        res.status(500).json({ error: "Failed to delete email" });
+    }   
+});
 module.exports = router;

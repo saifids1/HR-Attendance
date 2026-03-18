@@ -230,14 +230,14 @@ const ExperienceTab = ({
                   editingIndex === index ? (
                     <EditableRow
                       key={exp.id || index}
-                      draft={draft}
+                      draft={draft || " "}
                       onChange={handleChange}
                       onSave={handleSave}
                       onCancel={handleCancel}
                     />
                   ) : (
                     <tr key={exp.id || index} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-600">{exp.company_name}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{exp.company_name }</td>
                       <td className="px-4 py-2 text-sm text-gray-600">{exp.location}</td>
                       <td className="px-4 py-2 text-sm text-gray-600">{exp.designation}</td>
                       <td className="px-4 py-2 text-sm text-gray-600">

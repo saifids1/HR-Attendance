@@ -1,4 +1,11 @@
-export const degreeOptions = ["B.Tech", "M.Tech", "B.Sc", "M.Sc", "MBA", "MCA"];
+export const degreeOptions = [
+  "B.Sc",
+  "M.Sc",
+  "B.Tech",
+  "M.Tech",
+  "MBA",
+  "MCA"
+];
 
 export const emptyEducation = [{
   degree: "MCA",
@@ -85,25 +92,20 @@ export const reportingLocationOptions = [
   "Branch_Office"
 ];
 
-export const emptyOrganization = {
-  organization_name: "Techno",
-  organization_code: "TECH",
-  organization_location: "Pune",
-  industry_type: "IT",
-  department: "HR",
-  designation: "Intern",
-  employee_type: "Permanent",
-  status: "Active",
-  joining_date: "2022-08-20",
-  leaving_date: "2023-08-20",
-  reportingTo: "John Doe",
-  reportingLocation: "Registered_Office"
-};
-
-
-
-
-
+// export const emptyOrganization = {
+//   organization_name: "Techno",
+//   organization_code: "TECH",
+//   organization_location: "Pune",
+//   industry_type: "IT",
+//   department: "HR",
+//   designation: "Intern",
+//   employee_type: "Permanent",
+//   status: "Active",
+//   joining_date: "2022-08-20",
+//   leaving_date: "2023-08-20",
+//   reportingTo: "John Doe",
+//   reportingLocation: "Registered_Office"
+// };
 
 
 const documentTypes = [

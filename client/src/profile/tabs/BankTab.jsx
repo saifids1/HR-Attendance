@@ -230,47 +230,73 @@ const token = localStorage.getItem("token");
     if (token) fetchBank();
   }, [fetchBank, token]);
 
-  const handleSave = async () => {
-    let hasErrors = false;
-    const newErrors = [];
+const handleSave = async () => {
+  let hasErrors = false;
+  const newErrors = [];
 
-    // Validation
-    draft.forEach((bank, index) => {
-      const bankErrors = {};
-      Object.keys(emptyBank).forEach((key) => {
-        // Skip technical fields and optional UPI
-        if (key !== "id" && key !== "is_active" && key !== "upi_id") {
-          if (!bank[key] || bank[key].toString().trim() === "") {
-            bankErrors[key] = "REQUIRED";
+  draft.forEach((bank, index) => {
+    const bankErrors = {};
+
+    Object.keys(emptyBank).forEach((key) => {
+      if (key !== "id" && key !== "is_active" && key !== "upi_id") {
+        const value = bank[key];
+
+        if (!value || value.toString().trim() === "") {
+          //  Better error message
+          bankErrors[key] = `${key.replace(/_/g, " ")} is required`;
+          hasErrors = true;
+        }
+
+        // Extra validations (ERP level)
+        if (key === "account_number" && value) {
+          if (!/^\d+$/.test(value)) {
+            bankErrors[key] = "Account number must be numeric";
             hasErrors = true;
           }
         }
-      });
-      newErrors[index] = bankErrors;
+
+        // if (key === "ifsc_code" && value) {
+        //   if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(value)) {
+        //     bankErrors[key] = "Invalid IFSC code";
+        //     hasErrors = true;
+        //   }
+        // }
+      }
     });
 
-    if (hasErrors) {
-      setErrors(newErrors);
-      toast.error("Please fill all required fields");
-      return;
+    newErrors[index] = bankErrors;
+  });
+
+  if (hasErrors) {
+    setErrors(newErrors);
+    toast.error("Please fix errors before saving");
+
+    //  Scroll to first error (pro UX)
+    setTimeout(() => {
+      const el = document.querySelector(".error-field");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+
+    return;
+  }
+
+  try {
+    for (const bank of draft) {
+      if (bank.id) {
+        await updateBank(emp_id, bank.id, bank);
+      } else {
+        await addBank(emp_id, bank);
+      }
     }
 
-    try {
-      for (const bank of draft) {
-        if (bank.id) {
-          await updateBank(emp_id, bank.id, bank);
-        } else {
-          await addBank(emp_id, bank);
-        }
-      }
-      toast.success("Bank details saved successfully");
-      setIsEditing(false);
-      setErrors([]);
-      fetchBank(); // Refresh data to sync IDs
-    } catch (error) {
-      toast.error("Failed to save bank details");
-    }
-  };
+    toast.success("Bank details saved successfully");
+    setIsEditing(false);
+    setErrors([]);
+    fetchBank();
+  } catch (error) {
+    toast.error("Failed to save bank details");
+  }
+};
 
   const handleCancel = () => {
     fetchBank(); // Revert to database state
@@ -282,7 +308,7 @@ const token = localStorage.getItem("token");
     return <div className="p-10 text-center text-gray-500">Loading bank details...</div>;
   }
 
-  // console.log("draft",draft)
+  // console.log("Bank draft",draft)
   return (
     <div className="flex flex-col gap-6 w-full">
       {draft.map((bank, index) => (
@@ -318,7 +344,7 @@ const token = localStorage.getItem("token");
                   />
                   {isEditing && errors[index]?.[key] && (
                     <p className="text-red-500 text-[10px] font-bold mt-1 italic uppercase">
-                      * {errors[index][key]}
+                      * {errors[index][key]} 
                     </p>
                   )}
                 </div>

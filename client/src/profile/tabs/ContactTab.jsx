@@ -99,15 +99,16 @@ const ContactTab = ({
 
   useEffect(() => {
     if (isAddingNew) {
-      setDraft({ ...emptyContact });
+      setDraft({ contact_type: "Personal"});
     }
   }, [isAddingNew]);
 
   /* ================= DATA SOURCE ================= */
 
   const rows =
-    contactData && contactData.length > 0 ? contactData : [emptyContact];
+    contactData && contactData.length > 0 ? contactData : [];
 
+    // console.log("Contact - rows",rows)
   /* ================= UI ================= */
 
   return (
@@ -183,7 +184,13 @@ const ContactTab = ({
                   </tr>
                 ),
               )}
-
+              {rows.length === 0 && !isAddingNew && (
+                <tr>
+                  <td colSpan="6" className="text-center py-6 text-gray-400 text-sm">
+                    No contact information available
+                  </td>
+                </tr>
+              )}
               {isAddingNew && draft && !draft.id && (
                 <EditableRow
                   draft={draft}

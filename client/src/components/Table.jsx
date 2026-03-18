@@ -677,10 +677,11 @@ const StatusBadge = ({ status }) => {
   // console.log("status",status);
 
   const styles = {
-    Present: "bg-green-600 text-white",
-    Working: "bg-blue-600 text-white",
-    Late: "bg-yellow-500 text-white",
-    Absent: "bg-red-600 text-white",
+    "Present": "bg-green-600 text-white",
+    "Working": "bg-blue-600 text-white",
+     "Late Come": "bg-orange-500 text-white",
+    "Early Go": "bg-yellow-400 text-white", 
+    "Absent": "bg-red-600 text-white",
     "Half Day": "bg-orange-500 text-white",
   };
 

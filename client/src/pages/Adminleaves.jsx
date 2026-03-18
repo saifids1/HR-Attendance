@@ -111,7 +111,7 @@ const Adminleaves = () => {
           <span>History</span>
         </div>
       </div>
-   {/* <PendingLeavesTable/> */}
+   <PendingLeavesTable/>
       {/* Content */}
       <div className="mt-6">
         <LeavesTable
