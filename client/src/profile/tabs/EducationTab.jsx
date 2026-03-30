@@ -31,11 +31,7 @@ const [draft, setDraft] = useState(null);
 //     console.log("Education Data",educationData);
 // console.log("empId",empId);
 //   },[])
-  
-useEffect(() => {
-  if (!empId) return;
-
-  const fetchEducation = async () => {
+   const fetchEducation = async () => {
     try {
       const resp = await getEducation(empId);
       const education = resp?.data?.education;
@@ -56,7 +52,36 @@ useEffect(() => {
     }
   };
 
-  fetchEducation();
+useEffect(() => {
+  if (!empId) return;
+
+  let isMounted = true;
+
+  const loadEducation = async () => {
+    try {
+      const resp = await getEducation(empId);
+      const education = resp?.data?.education;
+
+      if (isMounted) {
+        if (Array.isArray(education) && education.length > 0) {
+          setEducationList(education);
+        } else {
+          setEducationList(emptyEducation);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching education:", error);
+      if (isMounted) {
+        setEducationList([]);
+      }
+    }
+  };
+
+  loadEducation();
+
+  return () => {
+    isMounted = false;
+  };
 }, [empId]);
 
 // console.log("educationList",educationList);
@@ -176,7 +201,7 @@ const handleSave = async () => {
     setDraft(null);
     setEditingIndex(null);
     setIsAddingNew(false);
-
+ 
     if (onSave) await onSave();
   } catch (err) {
     toast.error(err.response?.data?.message || "Save failed", {

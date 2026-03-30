@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../../api/axiosInstance";
 import axios from "axios";
 
-export default function PendingLeavesTable() {
+export default function PendingLeavesTable({handlePendingLeaves}) {
 
   const [pendingLeave, setPendingLeave] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +18,8 @@ export default function PendingLeavesTable() {
 
         console.log("Leave Pending",resp.data)
         setPendingLeave(resp.data);
+        handlePendingLeaves(resp.data);
+
       } catch (error) {
         console.log(error);
       } finally {
@@ -31,14 +33,23 @@ export default function PendingLeavesTable() {
      getPendingLeaves();
   }, []);
 
+  // useEffect(()=>{
+  //   console.log("pendingLeaves PendingComponent",pendingLeave)
+  // },[]);
+
   const handleApprove =async(id)=>{
 
-      setPendingLeave(prev => prev.filter(l => l.approval_id !== id));
+const updatedList = pendingLeave.filter(l => l.approval_id !== id);
+// setPendingLeave(prev => prev.filter(l => l.approval_id !== id));
+      setPendingLeave(updatedList);
+      
+      handlePendingLeaves(updatedList);
+      // console.log("Leave id",id)
     try {
-        const resp = await axios.put(`http://localhost:5000/api/leaves/types/approve/${id}`,{
+        const resp = await api.put(`leaves/types/approve/${id}`,{
         status: "approved",
-        remarks: "Approved by manager"
-});
+        remarks: "Approved by Admin"
+      });
         
         console.log(resp)
     } catch (error) {
@@ -46,7 +57,31 @@ export default function PendingLeavesTable() {
     }
 
   }
-const handleReject = ()=>{}
+
+  useEffect(()=>{
+    console.log("pendingLeave",pendingLeave)
+  },[pendingLeave]);
+
+
+const handleReject = async(id)=>{
+  // setPendingLeave(prev => prev.filter(l => l.approval_id !== id));
+    const updatedList = pendingLeave.filter(l => l.approval_id !== id);
+    setPendingLeave(updatedList);
+    
+    // 2. Notify the parent immediately
+    handlePendingLeaves(updatedList);
+      // console.log("Leave id",id)
+    try {
+        const resp = await api.put(`leaves/types/approve/${id}`,{
+        status: "rejected",
+        remarks: "Rejected by Admin"
+      });
+        
+        console.log(resp)
+    } catch (error) {
+        console.log(error)
+    }
+}
   return (
     <div className="bg-white shadow-md rounded-lg p-4">
       <h2 className="text-lg font-semibold mb-4">Pending Leave Requests</h2>
@@ -62,6 +97,7 @@ const handleReject = ()=>{}
             <th className="p-2 border">Reason</th>
             <th className="p-2 border">Approver Role</th>
               <th className="p-2 border">Actions</th>
+              <th>Remark</th>
           </tr>
         </thead>
 
@@ -101,6 +137,10 @@ const handleReject = ()=>{}
   >
     Reject
   </button>
+
+</td>
+
+<td  contenteditable="true" className="p-2 border">
 
 </td>
               </tr>

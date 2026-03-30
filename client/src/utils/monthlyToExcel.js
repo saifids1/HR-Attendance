@@ -70,7 +70,7 @@ export const exportMonthlyMatrixAttendance = (rawData, targetMonth) => {
                   .padStart(2, "0")}`
             : "--";
 
-        row[formattedDate] = `P\n (${punchIn} - ${punchOut} - ${totalHours})`;
+        row[formattedDate] = `P\n (In(${punchIn}) - Out(${punchOut}) - Whrs(${totalHours}))`;
 
     } else if (dayRecord.status === "Absent") {
 

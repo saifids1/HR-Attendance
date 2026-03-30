@@ -140,7 +140,14 @@ Total Hours: (${totalhrs ?? "--"})`}
   );
       case "Holiday": return <CiStar size={22} className="text-yellow-500 inline" title="Holiday" />;
       case "leave": return <FaRegCalendarAlt className="text-orange-500 inline text-lg" title="Leave" />;
-      case "ondrive": return <MdDriveEta size={20} className="text-blue-500 inline" title="OD" />;
+      case "ondrive": return <MdDriveEta size={18} className="text-blue-500 inline" title="OD" />;
+      
+      case "Punch Miss":return<FaRegCheckCircle className="text-red-500 text-lg"
+        title={`Punch In: (${formatTime(punchIn)})
+Punch Out: (${punchout ? formatTime(punchout) : "--"})
+Total Hours: (${totalhrs ?? "--"})`}
+      /> 
+              
       
 
       // <MdOutlineAccessTime className="text-yellow-500" />
@@ -264,13 +271,17 @@ Total Hours: (${totalhrs ?? "--"})`}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 sm:gap-4 items-center justify-center lg:justify-start">
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 shadow-sm lg:ms-16">
+                <div className="flex flex-wrap gap-3 sm:gap-4 items-center justify-center lg:justify-start max-w-full ">
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 shadow-sm ">
                     <FaRegCheckCircle className="text-green-500" /> <span className="text-xs font-medium text-gray-700">Present</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 shadow-sm ">
+                  <FaRegCheckCircle className="text-red-500" /> <span className="text-xs font-medium text-gray-700">Punch Miss</span>
                   </span>
                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 shadow-sm">
                     <ImCancelCircle className="text-red-500" /> <span className="text-xs font-medium text-gray-700">Absent</span>
                   </span>
+                  
                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200 shadow-sm">
                     <CiStar className="text-purple-500" /> <span className="text-xs font-medium text-gray-700">Holiday</span>
                   </span>
@@ -283,6 +294,8 @@ Total Hours: (${totalhrs ?? "--"})`}
                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 shadow-sm">
                     <MdDriveEta className="text-blue-500" /> <span className="text-xs font-medium text-gray-700">OD</span>
                   </span>
+                  
+                  
                 </div>
 
                 <div className="flex items-center justify-center lg:justify-end gap-3">

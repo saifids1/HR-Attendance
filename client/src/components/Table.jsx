@@ -679,7 +679,7 @@ const StatusBadge = ({ status }) => {
   const styles = {
     "Present": "bg-green-600 text-white",
     "Working": "bg-blue-600 text-white",
-     "Late Come": "bg-orange-500 text-white",
+    "Late Come": "bg-orange-500 text-white",
     "Early Go": "bg-yellow-400 text-white", 
     "Absent": "bg-red-600 text-white",
     "Half Day": "bg-orange-500 text-white",
@@ -863,7 +863,7 @@ const Table = () => {
                         {holidayMatch ? (
                           <span className="inline-block text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded border border-blue-200 text-[10px] uppercase">{holidayMatch.holiday_name}</span>
                         ) : isSunday ? (
-                          <span className="text-white font-bold px-2 py-0.5 rounded text-[10px] uppercase">Weekday Off</span>
+                          <span className="inline-block w-24 text-center text-white font-bold bg-orange-600 px-2 py-0.5 rounded text-[10px] uppercase">Week Off</span>
                         ) : (
                           <StatusBadge status={row.status} />
                         )}
@@ -884,7 +884,7 @@ const Table = () => {
                             {holidayMatch.holiday_name}
                           </span>
                        
-                       : isSunday ? <span className=" text-white font-bold">Weekday Off</span> : <StatusBadge status={row.status} />}</td>
+                       : isSunday ? <span className="text-white font-bold">Week Off</span> : <StatusBadge status={row.status} />}</td>
                       <td className="border-b px-4 py-2">{isAbsent || holidayMatch || isSunday ? "--" : formatTime(row.punch_in)}</td>
                       <td className="border-b px-4 py-2">{isAbsent || holidayMatch || isSunday ? "--" : row.punch_out ? formatTime(row.punch_out) : "Working..."}</td>
                       <td className="border-b px-4 py-2">{isAbsent || holidayMatch || isSunday ? "--" : formatInterval(row.total_hours)}</td>

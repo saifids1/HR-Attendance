@@ -158,7 +158,7 @@ const AdminSidebar = ({ open, setOpen }) => {
 
             <NavLink to="/admin/cron-manager" className={navClass}>
             <FaRegCalendarAlt size={18} className=" shrink-0" />
-            <span className="text-[15px] text-nowrap">Company Manage Reports</span>
+            <span className="text-[15px] text-wrap">Report Schedular</span>
           </NavLink>
 
 

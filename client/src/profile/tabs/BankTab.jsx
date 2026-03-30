@@ -189,6 +189,9 @@ const BankTab = ({ isEditing, setIsEditing,empId }) => {
   const finalEmpId = emp_id || empId;
 const token = localStorage.getItem("token");
 
+// console.log("empId props",empId);
+// console.log("finalEmpId",finalEmpId);
+
   // const { token } = useContext(AuthContext);
 
   // console.log("token",token);
@@ -283,9 +286,9 @@ const handleSave = async () => {
   try {
     for (const bank of draft) {
       if (bank.id) {
-        await updateBank(emp_id, bank.id, bank);
+        await updateBank(finalEmpId, bank);
       } else {
-        await addBank(emp_id, bank);
+        await addBank(finalEmpId, bank);
       }
     }
 

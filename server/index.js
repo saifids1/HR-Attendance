@@ -47,12 +47,13 @@ const userSockets = new Map();
 io.on("connection", (socket) => {
   const empId = socket.handshake.query.empId;
   if (empId) {
-    userSockets.set(empId, socket.id);
+  userSockets.set(empId.toString(), socket.id);
+
     console.log(` Socket: User ${empId} connected on ${socket.id}`);
   }
 
   socket.on("disconnect", () => {
-    userSockets.delete(empId);
+   userSockets.delete(empId?.toString());
     console.log(`Socket: User ${empId} disconnected`);
   });
 });

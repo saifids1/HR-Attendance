@@ -75,7 +75,7 @@ const MainProfile = ({
           ))}
         </div>
         {canShowEditButton &&
-          (["Education", "Experience", "Contacts", "Documents"].includes(
+          (["Education", "Experience", "Contacts", "Documents","Nominees"].includes(
             activeTab,
           ) ? (
             <button
@@ -113,6 +113,7 @@ const MainProfile = ({
             setIsEditing={setIsEditing}
             onSave={onSave}
             empId={empId}
+          
           />
         )}
 
@@ -159,6 +160,7 @@ const MainProfile = ({
             setIsEditing={setIsEditing}
             empId={empId}
             onSave={onSave}
+            
           />
         )}
 
@@ -179,6 +181,8 @@ const MainProfile = ({
             empId={empId}
             onSave={onSave}
             nomineData={nomineeData}
+            isAddingNew={isAddingNew}
+             setIsAddingNew={setIsAddingNew}
           />
         )}
       </div>

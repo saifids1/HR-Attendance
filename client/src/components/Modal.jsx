@@ -36,7 +36,7 @@ const Modal = ({ isOpen, setisOpen, onSave }) => {
 
         // 2. Calculate Total Days (Inclusive)
         const diffTime = end - start;
-        const total_days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        // const total_days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
         setLoading(true);
 
@@ -52,11 +52,14 @@ const Modal = ({ isOpen, setisOpen, onSave }) => {
                 leave_type_id: parseInt(formData.leave_type_id),
                 start_date: formData.start_date,
                 end_date: formData.end_date,
-                total_days,
+                // total_days,
                 reason: formData.reason,
             };
 
-            await api.post("/leaves/types/apply", payload);
+            // console.log("payload",payload);
+            
+
+            // await api.post("/leaves/types/apply", payload);
             
             alert("Leave application submitted successfully!");
             setisOpen(false);

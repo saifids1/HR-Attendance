@@ -28,8 +28,13 @@ const ExperienceTab = ({
   const formatDate = (date) => {
     if (!date) return "";
     const d = new Date(date);
+    const dd = d.getDay().toString().padStart(2, "0");
+    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
+    const yyyy = d.getFullYear();
     if (isNaN(d)) return date;
-    return d.toLocaleDateString("en-GB");
+    return `${dd}-${mm}-${yyyy}`;
+
+  
   };
 
   const toInputDate = (date) => {
@@ -244,7 +249,9 @@ const ExperienceTab = ({
                         {formatDate(exp.start_date)}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-600">{formatDate(exp.end_date)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{exp.total_years} yrs</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">
+                       {Number(exp.total_years).toFixed(1)} yrs
+                        </td>
                       <td className="px-4 py-2 text-sm text-gray-600 text-center">
                         <div className="flex justify-center gap-4">
                           <button

@@ -3,6 +3,8 @@ import { toast } from "react-hot-toast";
 import { AuthContext } from "../../context/AuthContextProvider";
 import api from "../../../api/axiosInstance";
 import { FaPencilAlt, FaCheck, FaTimes, FaFileAlt } from "react-icons/fa";
+import { FaCloudUploadAlt } from "react-icons/fa";
+
 import { MdDelete } from "react-icons/md";
 
 const documentTypes = [
@@ -83,38 +85,43 @@ const DocumentTab = ({
 
   useEffect(() => {
     if (documents.length === 0) {
-      setDraft({ ...emptyDocument });
+      // setDraft({ });
       setEditingIndex("new"); // show as normal row first
     }
   }, [documents]);
 
   useEffect(() => {
     if (isAddingNew) {
-      setDraft({ ...emptyDocument });
+      setDraft({ });
       setEditingIndex("new-edit"); // directly editable row
     }
   }, [isAddingNew]);
   /* ================= EDIT EXISTING ================= */
 
-  const handleEdit = (doc, index) => {
-
-
+const handleEdit = (doc, index) => {
+  // 1. Toggle off if clicking the same row again
   if (editingIndex === index) {
     handleCancel();
     return;
   }
 
-  // Switch to new row 
+  // 2. Set the editing index to the current row
   setEditingIndex(index);
 
+  // 3. Populate draft with ALL necessary data
   setDraft({
+    id: doc.id,
     documentType: doc.document_type,
     documentNumber: doc.document_number || "",
-    file: null,
-    id: doc.id,
+    // 'file' represents a NEW selection (starts as null)
+    file: null, 
+    // Store existing info for the UI to display "Prev: filename"
+    existingFileName: doc.file_name || "",
+    existingUrl: doc.fullUrl || "",
   });
 
-  
+  // 4. Ensure "Add New" state is closed if it was open
+  setIsAddingNew(false);
 };
 
 
@@ -208,6 +215,7 @@ const DocumentTab = ({
   const handleCancel = () => {
     if (editingIndex === "new-edit") {
       setEditingIndex("new"); // go back to draft view
+      setDraft(null);
     } else {
       setDraft(null);
       setEditingIndex(null);
@@ -216,6 +224,11 @@ const DocumentTab = ({
     setIsAddingNew(false);
     setIsEditing(false);
   };
+
+  useEffect(()=>{
+    console.log("fileRef",fileRef.file)
+
+  },[fileRef])
 
   /* ================= UI ================= */
 
@@ -242,84 +255,64 @@ const DocumentTab = ({
             </thead>
 
             <tbody className="bg-white divide-y divide-gray-200">
-              {documents.map((doc, index) =>
-                editingIndex === index ? (
-                  <EditableRow
-                    key={doc.id}
-                    draft={draft}
-                    setDraft={setDraft}
-                    onSave={handleSave}
-                    onCancel={handleCancel}
-                    fileRef={fileRef}
-                    handleFileChange={handleFileChange}
-                  />
-                ) : (
-                  <tr key={doc.id}>
-                    <td className="px-4 py-2 text-sm text-gray-600">{doc.document_type}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
-                      {doc.document_number || "-"}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-600 underline cursor-pointer">
-                      <span onClick={() => window.open(doc.fullUrl, "_blank")}>
-                        {doc.file_name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-600 text-center">
-                      <div className="flex gap-4 justify-center">
-                        <button
-                          onClick={() => handleEdit(doc, index)}
-                          className="text-blue-500"
-                        >
-                          <FaPencilAlt />
-                        </button>
+  {documents.map((doc, index) =>
+    editingIndex === index ? (
+      <EditableRow
+        key={doc.id || index}
+        draft={draft}
+        setDraft={setDraft}
+        onSave={handleSave}
+        onCancel={handleCancel}
+        fileRef={fileRef}
+        handleFileChange={handleFileChange}
+      />
+    ) : (
+      <tr key={doc.id || index}>
+        <td className="px-4 py-2 text-sm text-gray-600">{doc.document_type}</td>
+        <td className="px-4 py-2 text-sm text-gray-600">{doc.document_number || "-"}</td>
+        <td className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer">
+          <span onClick={() => window.open(doc.fullUrl, "_blank")}>
+            {doc.file_name || "View Document"}
+          </span>
+        </td>
+        <td className="px-4 py-2 text-center">
+          <div className="flex gap-4 justify-center">
+            <button onClick={() => handleEdit(doc, index)} className="text-blue-500">
+              <FaPencilAlt />
+            </button>
+            <button onClick={() => handleDelete(doc.id)} className="text-red-500">
+              <MdDelete size={20} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    )
+  )}
 
-                        <button
-                          onClick={() => handleDelete(doc.id)}
-                          className="text-red-500"
-                        >
-                          <MdDelete size={20} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-
-              {/* Draft row normal view */}
-              {draft && editingIndex === "new" && (
-                <tr>
-                  <td className="px-4 py-2 text-sm text-gray-600">
-                    {draft.documentType}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-600">
-                    {draft.documentNumber || "-"}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-600">
-                    {draft.file ? draft.file : "-"}
-                  </td>
-                  <td className="px-4 py-2 text-center text-sm text-gray-600">
-                    <button
-                      onClick={() => setEditingIndex("new-edit")}
-                      className="text-blue-500"
-                    >
-                      <FaPencilAlt />
-                    </button>
-                  </td>
-                </tr>
-              )}
-
-              {/* Draft editable */}
-              {editingIndex === "new-edit" && draft && (
-                <EditableRow
-                  draft={draft}
-                  setDraft={setDraft}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
-                  fileRef={fileRef}
-                  handleFileChange={handleFileChange}
-                />
-              )}
-            </tbody>
+  {/* Logic for Adding a Brand New Row */}
+  {isAddingNew && (
+    editingIndex === "new-edit" ? (
+      <EditableRow
+        draft={draft}
+        setDraft={setDraft}
+        onSave={handleSave}
+        onCancel={handleCancel}
+        fileRef={fileRef}
+        handleFileChange={handleFileChange}
+      />
+    ) : (
+      <tr className="bg-blue-50">
+        <td className="px-4 py-2 text-sm italic text-gray-500">New Document...</td>
+        <td colSpan="2"></td>
+        <td className="px-4 py-2 text-center">
+          <button onClick={() => setEditingIndex("new-edit")} className="text-blue-500">
+            <FaPencilAlt />
+          </button>
+        </td>
+      </tr>
+    )
+  )}
+</tbody>
           </table>
         </div>
       </div>
@@ -329,6 +322,8 @@ const DocumentTab = ({
 
 /* ================= EDITABLE ROW ================= */
 
+
+
 const EditableRow = ({
   draft,
   setDraft,
@@ -337,25 +332,36 @@ const EditableRow = ({
   fileRef,
   handleFileChange,
 }) => {
+  // useEffect(()=>{
+  //   console.log("draft document",draft.file?.name);
+  // },[draft])
   return (
     <tr className="bg-blue-50/30">
       <td className="p-2 text-sm text-gray-600">
-        <select
-          className="w-full border px-2 py-1 text-sm rounded"
-          value={draft?.documentType || ""}
-          onChange={(e) =>
-            setDraft((prev) => ({
-              ...prev,
-              documentType: e.target.value,
-            }))
-          }
-        >
-          {documentTypes.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
+      <select
+  className={`w-full border px-2 py-1 text-sm rounded ${
+    !draft?.documentType ? "text-gray-400" : "text-black"
+  }`}
+  value={draft?.documentType || ""}
+  onChange={(e) =>
+    setDraft((prev) => ({
+      ...prev,
+      documentType: e.target.value,
+    }))
+  }
+>
+  {/* The Placeholder Option */}
+  <option value="" disabled>
+    Select Document Type
+  </option>
+
+  {/* The Actual Data Options */}
+  {documentTypes.map((type) => (
+    <option key={type} value={type} className="text-black">
+      {type}
+    </option>
+  ))}
+</select>
       </td>
 
       <td className="p-2 text-sm text-gray-600">
@@ -372,28 +378,39 @@ const EditableRow = ({
         />
       </td>
 
-      <td className="p-2 text-left text-sm text-gray-600">
-        <input
-          type="file"
-          ref={fileRef}
-          accept=".jpg,.jpeg,.pdf"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+    <td className="px-4 py-2">
+  <div className="flex items-center gap-2">
+    {/* Hidden File Input */}
+    <input
+      type="file"
+      ref={fileRef}
+      className="hidden"
+      onChange={handleFileChange}
+    />
+    
+    {/* Upload Trigger Icon */}
+    <button
+      type="button"
+      onClick={() => fileRef.current?.click()}
+      className="p-1 hover:bg-gray-100 rounded border"
+    >
+      <FaCloudUploadAlt className="text-blue-500" size={25} />
+    </button>
 
-        {draft.file ? (
-          <span className="text-sm text-gray-600 ms-4">
-            {draft.file.name}
-          </span>
-        ) : (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="text-gray-600 ms-4 mt-1"
-          >
-            <FaFileAlt size={18} />
-          </button>
-        )}
-      </td>
+    {/* Dynamic Filename Display */}
+    <div className="text-[10px] truncate max-w-[120px]">
+      {draft.file ? (
+        // Show new file name in green if they just picked one
+        <span className="text-green-600 font-bold">{draft.file.name}</span>
+      ) : (
+        // Show the name from the DB if they haven't picked a new one yet
+        <span className="text-gray-500 italic">
+          {draft.existingFileName || "No file uploaded"}
+        </span>
+      )}
+    </div>
+  </div>
+</td>
 
       <td className="p-2 text-center text-sm text-gray-600">
         <div className="flex gap-4 justify-center">

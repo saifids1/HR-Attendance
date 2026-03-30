@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const auth = require("../middlewares/authMiddleware");
 const { db } = require("../db/connectDB");
-const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPersonInfo, addEducationInfo, getEducationInfo, getPersonalInfo, updatePersonalInfo, updateEducationInfo, deleteEducationInfo, addExperienceInfo, updateExperienceInfo, deleteExperienceInfo, getExperienceInfo, getContactInfo, updateContactInfo, addBankInfo, getBankInfo, updateBankInfo, addBankDocInfo, getAllBankDoc, addProfileImage, getProfileImage,deleteContactInfo,addContactInfo, getNomineeInfo, addNomineeInfo, updateNomineeInfo, deleteDocument } = require("../controllers/profile.controller");
+const { getOrganizationInfo, addOrganizationInfo, updateOrganizationInfo, addPersonInfo, addEducationInfo, getEducationInfo, getPersonalInfo, updatePersonalInfo, updateEducationInfo, deleteEducationInfo, addExperienceInfo, updateExperienceInfo, deleteExperienceInfo, getExperienceInfo, getContactInfo, updateContactInfo, addBankInfo, getBankInfo, updateBankInfo, addBankDocInfo, getAllBankDoc, addProfileImage, getProfileImage,deleteContactInfo,addContactInfo, getNomineeInfo, addNomineeInfo, updateNomineeInfo, deleteDocument, deleteNomineeInfo } = require("../controllers/profile.controller");
 const { isAdmin } = require("../middlewares/roleMiddleware");
 const uploadBankDoc = require("../middlewares/uploadBankDoc");
 const uploadProfileImage = require("../middlewares/uploadProfileImage");
@@ -110,7 +110,7 @@ router.delete("/contact/:emp_id/:id",auth,deleteContactInfo)
 router.get("/nominee/:emp_id",auth,getNomineeInfo)
 router.post("/nominee/:emp_id",auth,addNomineeInfo);
 router.put("/nominee/:emp_id/:id",auth,updateNomineeInfo);
-
+router.delete("/nominee/:emp_id/:id",auth,deleteNomineeInfo);
 
 
 // BANK API

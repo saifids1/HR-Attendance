@@ -24,13 +24,22 @@ const AdminActivityLog = () => {
             setLoading(true);
             const token = localStorage.getItem("token");
             
-            // Build the base URL
-            let url = `admin/attendance/activity-log?page=${page}&limit=${limit}`;
+            // 1. Build Query Params using URLSearchParams (Cleanest way)
+            const params = new URLSearchParams({
+                page: page,
+                limit: limit
+            });
 
-            // Access keys defined in Filters.jsx config: actStart, actEnd, activitySearch
-            if (filters.actStart) url += `&from=${filters.actStart}`;
-            if (filters.actEnd) url += `&to=${filters.actEnd}`;
-            if (filters.activitySearch) url += `&emp_id=${filters.activitySearch.trim()}`;
+            if (filters.actStart) params.append("from", filters.actStart);
+            if (filters.actEnd) params.append("to", filters.actEnd);
+            
+            if (filters.activitySearch) {
+                const searchTerm = filters.activitySearch.trim();
+                // We send it as 'search' so the backend detects the ':' for time-based search
+                params.append("search", searchTerm);
+            }
+
+            const url = `admin/attendance/activity-log?${params.toString()}`;
 
             const res = await api.get(url, {
                 headers: { Authorization: `Bearer ${token}` }

@@ -26,6 +26,8 @@ const Filters = () => {
 
   } = useContext(EmployContext);
 
+  // console.log("WeekTime",weekTime)
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const role = user?.role?.toLowerCase();
   const todayPlaceholder = new Date();
@@ -63,6 +65,7 @@ const Filters = () => {
         startKey: "actStart",
         endKey: "actEnd",
         label: "Activity",
+        weekTime: "",   
         isActivityPage: true
       };
     }

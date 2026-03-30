@@ -8,36 +8,58 @@ const router = express.Router();
 const runningJobs = {};
 
 const startAllSchedules = async () => {
+
+
     try {
-       
-        const res = await db.query('SELECT * FROM report_settings WHERE is_enabled = true');
-        
-        // Stop any existing jobs
+        console.log("Synchronizing report schedules...");
+
+        // 2. Stop and clear ALL existing jobs FIRST
+        // This ensures a clean slate every time you call this function
         Object.keys(runningJobs).forEach(key => {
-            runningJobs[key].stop();
+            if (runningJobs[key]) {
+                runningJobs[key].stop();
+                console.log(`Stopped existing job: ${key}`);
+            }
             delete runningJobs[key];
         });
 
+        // 3. Fetch only ENABLED jobs
+        const res = await db.query('SELECT * FROM report_settings WHERE is_enabled = true');
+        
+        if (res.rows.length === 0) {
+            console.log("No enabled schedules found in DB.");
+            return;
+        }
+
         res.rows.forEach(row => {
-           
-            runningJobs[row.slot_name] = cron.schedule(row.cron_pattern, async () => {
-                console.log(`[${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}] Executing ${row.slot_name}`);
+            console.log(`Scheduling ${row.slot_name} for pattern: ${row.cron_pattern}`);
+
+            // 4. Create and store the job
+            const task = cron.schedule(row.cron_pattern, async () => {
+                const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+                console.log(`[${now}] Triggering task: ${row.slot_name}`);
                 
                 try {
                     await runAttendanceTask(); 
-                    console.log(`Email sent for ${row.slot_name}`);
+                    console.log(`Successfully executed task for ${row.slot_name}`);
                 } catch (emailErr) {
-                    console.error(`Email failed for ${row.slot_name}:`, emailErr);
+                    console.error(`Task execution failed for ${row.slot_name}:`, emailErr);
                 }
             }, {
-                scheduled: true,
+                scheduled: true, // This starts it automatically
                 timezone: "Asia/Kolkata" 
             });
+
+            // 5. Explicitly call start() just to be safe
+            task.start();
+            
+            // Save reference to global object
+            runningJobs[row.slot_name] = task;
         });
 
-        console.log("All report schedules synchronized and active.");
+        console.log(`Successfully activated ${res.rows.length} schedules.`);
     } catch (err) {
-        console.error("Error starting schedules:", err);
+        console.error("CRITICAL: Error starting schedules:", err);
     }
 };
 
@@ -51,7 +73,7 @@ const startAllSchedules = async () => {
 
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const result = await db.query('SELECT slot_name, cron_pattern FROM report_settings ORDER BY id');
+        const result = await db.query('SELECT slot_name, cron_pattern,is_enabled,id FROM report_settings ORDER BY id');
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch schedules" });
@@ -87,66 +109,132 @@ router.get('/', authMiddleware, async (req, res) => {
 // });
 
 router.post('/', authMiddleware, async (req, res) => {
-  const { slot_name, hour, minute, email } = req.body;
+  const { slot_name, hour, minute, email, status } = req.body;
+
+  // Validation
+  if (!slot_name || hour === undefined || minute === undefined) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
 
   const newPattern = `${parseInt(minute)} ${parseInt(hour)} * * *`;
+  const type = process.env.NODE_ENV === "production" ? "production" : "local";
+  
+  // Ensure we treat status as a proper boolean
+  const isEnabled = status === true || status === 'true';
 
   try {
+    await db.query('BEGIN');
 
-    const type = process.env.NODE_ENV === "production"
-      ? "production"
-      : "local";
-
-    console.log("type Cron", type);
-
-    // update cron pattern
-    await db.query(
-      `UPDATE report_settings 
-       SET cron_pattern = $1
-       WHERE slot_name = $2`,
+    // 1. Check if the TIME is already taken by ANOTHER slot
+    const timeConflict = await db.query(
+      `SELECT slot_name FROM report_settings WHERE cron_pattern = $1 AND slot_name != $2`,
       [newPattern, slot_name]
     );
 
-    // check if email already exists
-    const existingEmail = await db.query(
-      `SELECT * FROM "EmployeeEmail" WHERE email = $1`,
-      [email]
+    if (timeConflict.rowCount > 0) {
+      await db.query('ROLLBACK');
+      return res.status(400).json({ 
+        error: `Time conflict: ${hour}:${minute} is already used by "${timeConflict.rows[0].slot_name}"` 
+      });
+    }
+
+    // 2. Upsert using cron_pattern as the unique anchor
+    await db.query(
+      `INSERT INTO report_settings (slot_name, cron_pattern, is_enabled)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (cron_pattern) 
+       DO UPDATE SET 
+          slot_name = EXCLUDED.slot_name,
+          is_enabled = EXCLUDED.is_enabled`,
+      [slot_name, newPattern, isEnabled]
     );
 
-    if (existingEmail.rowCount > 0) {
-      const row = existingEmail.rows[0];
-
-      // email same but type different → update type
-      if (row.type !== type) {
-        await db.query(
-          `UPDATE "EmployeeEmail"
-           SET type = $1
-           WHERE email = $2`,
-          [type, email]
-        );
-      }
-
-    } else {
-
-      // email different → insert new row
+    // 3. Email Logic
+    if (email) {
       await db.query(
-        `INSERT INTO "EmployeeEmail"(email, type)
-         VALUES ($1, $2)`,
+        `INSERT INTO "EmployeeEmail" (email, type)
+         VALUES ($1, $2)
+         ON CONFLICT (email) DO UPDATE SET type = EXCLUDED.type`,
         [email, type]
       );
     }
 
-    await startAllSchedules();
+    await db.query('COMMIT');
 
-    res.json({
-      message: `${slot_name} schedule updated successfully!`,
-      pattern: newPattern,
-      email: email
+    // --- CONDITION ADDED HERE ---
+    // Only refresh the cron engine if the schedule is being enabled
+    // Note: If you want to STOP a job when it's disabled, 
+    // you should actually run startAllSchedules() regardless.
+    if (isEnabled) {
+      console.log(`Refreshing scheduler for active slot: ${slot_name}`);
+      await startAllSchedules(); 
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Schedule "${slot_name}" saved. Status: ${isEnabled ? 'Active' : 'Disabled'}` 
     });
 
   } catch (err) {
+    await db.query('ROLLBACK');
     console.error("Update Error:", err);
-    res.status(500).json({ error: "DB Update Failed" });
+    res.status(500).json({ error: "Server Database Error" });
+  }
+});
+router.delete('/:pattern', authMiddleware, async (req, res) => {
+  const { pattern } = req.params;
+
+  try {
+    await db.query(
+      `DELETE FROM report_settings WHERE cron_pattern = $1`,
+      [pattern]
+    );
+    res.json({ message: "Slot deleted successfully!" });
+  } catch (err) {
+    console.error("Delete Error:", err);
+    res.status(500).json({ error: "Failed to delete slot" });
+  }
+});
+
+router.put('/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params; // Get name from URL
+  const { slot_name, hour, minute, status } = req.body;
+  const newPattern = `${parseInt(minute)} ${parseInt(hour)} * * *`;
+
+  try {
+    await db.query('BEGIN');
+
+    // 1. Check if the NEW pattern is already used by a DIFFERENT slot
+    const conflict = await db.query(
+      `SELECT slot_name FROM report_settings WHERE cron_pattern = $1 AND id != $2`,
+      [newPattern, id]
+    );
+
+    if (conflict.rowCount > 0) {
+      await db.query('ROLLBACK');
+      return res.status(400).json({ error: `Time already used by ${conflict.rows[0].slot_name}` });
+    }
+
+    // 2. Perform Update
+    const result = await db.query(
+      `UPDATE report_settings 
+       SET slot_name = $1, cron_pattern = $2, is_enabled = $3 
+       WHERE id = $4`,
+      [slot_name, newPattern, status, id]
+    );
+
+    if (result.rowCount === 0) {
+      await db.query('ROLLBACK');
+      return res.status(404).json({ error: "Slot not found" });
+    }
+
+    await db.query('COMMIT');
+    await startAllSchedules(); // Refresh the cron engine
+
+    res.json({ success: true, message: "Updated successfully" });
+  } catch (err) {
+    await db.query('ROLLBACK');
+    res.status(500).json({ error: "Update failed" });
   }
 });
 
@@ -154,8 +242,6 @@ router.get('/emails', async (req, res) => {
   try {
 
 // console.log("process.env.NODE_ENV raw:", JSON.stringify(process.env.NODE_ENV));
-
-   
 
     const type = process.env.NODE_ENV.trim() === "production" ? "production" : "local";
 

@@ -22,9 +22,32 @@ const ContactTab = ({
 
   /* ================= HANDLE CHANGE ================= */
 
-  const handleChange = (key, value) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-  };
+ const handleChange = (key, value) => {
+  setDraft((prev) => {
+    let newValue = value;
+
+    // 1. Phone Validation: Only digits, max 10
+    if (key === "phone") {
+      if (!/^\d*$/.test(value) || value.length > 10) {
+        return prev; // Reject the change
+      }
+    }
+
+    // 2. Email Validation: Auto-lowercase for uniqueness
+    if (key === "email") {
+      newValue = value.toLowerCase().trim();
+    }
+
+    // 3. Primary Contact Logic: 
+    // If setting this row to Primary, we return the new state.
+    // (The actual "unchecking" of other rows happens in handleSave 
+    // to avoid mutating the main 'rows' list prematurely).
+    return { 
+      ...prev, 
+      [key]: newValue 
+    };
+  });
+};
 
   /* ================= EDIT ================= */
 
@@ -47,39 +70,54 @@ const ContactTab = ({
   };
   /* ================= SAVE ================= */
 
-  const handleSave = async () => {
-    if (!draft) return;
+const handleSave = async () => {
+  if (!draft) return;
 
-    const payload = {
-      contact_type: draft.contact_type,
-      phone: draft.phone,
-      email: draft.email,
-      relation: draft.relation,
-      is_primary: draft.is_primary ?? false,
-    };
+  // --- 1. Validations (Phone/Email) ---
+  if (draft.phone.length !== 10) return toast.error("Phone must be 10 digits");
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(draft.email)) return toast.error("Invalid email");
 
-    try {
-      if (draft.id) {
-        const updatedList = contactData.map((c) =>
-          c.id === draft.id ? { ...c, ...payload } : c,
-        );
-        await updateContact(empId, updatedList);
-        toast.success("Contact updated");
-      } else {
-        await addContact(empId, [payload]);
-        toast.success("New contact added");
+  // --- 2. The "Primary Swap" Logic ---
+  let finalArray;
+
+  if (draft.id) {
+    // UPDATING an existing row
+    finalArray = contactData.map((item) => {
+      if (item.id === draft.id) {
+        return { ...draft }; // Save the current edit
       }
+      // If the current draft is Primary, force all OTHER rows to false
+      return draft.is_primary ? { ...item, is_primary: false } : item;
+    });
+  } else {
+    // ADDING a new row
+    const newEntry = { ...draft };
+    
+    // If new entry is Primary, map through existing data to remove their Primary status
+    const existingDataAdjusted = draft.is_primary 
+      ? contactData.map(item => ({ ...item, is_primary: false }))
+      : [...contactData];
 
-      setDraft(null);
-      setEditingIndex(null);
-      setIsAddingNew(false);
+    finalArray = [...existingDataAdjusted, newEntry];
+  }
 
-      if (onSave) await onSave();
-    } catch (err) {
-      toast.error("Save failed");
-    }
-  };
-
+  // --- 3. API Call ---
+  try {
+    // Send the whole array to updateContactInfo
+    await updateContact(empId, finalArray);
+    
+    toast.success(draft.is_primary ? "Primary contact updated" : "Contact saved");
+    
+    // Reset UI
+    setDraft(null);
+    setEditingIndex(null);
+    setIsAddingNew(false);
+    if (onSave) await onSave(); 
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Save failed");
+  }
+};
   /* ================= DELETE ================= */
 
   const handleDelete = async (id) => {

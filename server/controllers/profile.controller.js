@@ -1081,30 +1081,66 @@ exports.addContactInfo = async (req, res) => {
 };
 exports.updateContactInfo = async (req, res) => {
   const { emp_id } = req.params;
-  const contacts = req.body; // Expecting: [{contact_type: '...', phone: '...'}, {...}]
-
-  console.log("contacts api",contacts);
+  const contacts = req.body; 
 
   if (!Array.isArray(contacts)) {
-    return res.status(400).json({ message: "Invalid data format. Expected an array." });
+    return res.status(400).json({ success: false, message: "Invalid data format. Expected an array." });
   }
 
   try {
+    // --- 1. Single Primary Validation ---
+    // Count how many contacts in the incoming array are marked as primary
+    const primaryContacts = contacts.filter(c => c.is_primary === true).length;
+    
+    if (primaryContacts.length > 1) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Only one contact can be marked as primary." 
+      });
+    }
+
+    // --- 2. Internal Duplicate Check (Incoming array) ---
+    const emailsInRequest = contacts.map(c => c.email?.toLowerCase()).filter(Boolean);
+    const uniqueEmails = new Set(emailsInRequest);
+    
+    if (uniqueEmails.size !== emailsInRequest.length) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Duplicate emails found in your contact list." 
+      });
+    }
+
+    // --- 3. Global Unique Email Check (Other employees) ---
+    if (emailsInRequest.length > 0) {
+      const globalCheck = await db.query(
+        `SELECT email FROM contact WHERE email = ANY($1) AND emp_id != $2`,
+        [emailsInRequest, emp_id]
+      );
+
+      if (globalCheck.rowCount > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `The email ${globalCheck.rows[0].email} is already used by another employee.`
+        });
+      }
+    }
+
     await db.query('BEGIN');
 
-    // 1. Wipe existing contacts for this employee
+    // --- 4. Wipe existing contacts ---
     await db.query(`DELETE FROM contact WHERE emp_id = $1`, [emp_id]);
 
-    // 2. Perform Bulk Insert (Optimization)
+    // --- 5. Bulk Insert ---
     if (contacts.length > 0) {
       const values = [];
       const placeholders = contacts.map((contact, i) => {
-        const offset = i * 6; // 6 columns per contact
+        const offset = i * 6; 
+        
         values.push(
           emp_id,
           contact.contact_type || null,
           contact.phone || null,
-          contact.email || null,
+          contact.email?.toLowerCase() || null,
           contact.relation || null,
           contact.is_primary ?? false
         );
@@ -1121,11 +1157,12 @@ exports.updateContactInfo = async (req, res) => {
     }
 
     await db.query('COMMIT');
-    res.status(200).json({ message: "All contacts updated successfully" });
+    res.status(200).json({ success: true, message: "Contacts updated successfully" });
+
   } catch (err) {
     await db.query('ROLLBACK');
     console.error("Bulk Contact Error:", err);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -1201,7 +1238,7 @@ exports.getNomineeInfo = async (req, res) => {
       SELECT *
       FROM nominee
       WHERE emp_id = $1
-      LIMIT 1
+      
     `;
 
     const result = await db.query(query, [empIdInt]);
@@ -1217,7 +1254,7 @@ exports.getNomineeInfo = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      nominee: result.rows[0]
+      nominee: result.rows
     });
 
   } catch (error) {
@@ -1226,94 +1263,295 @@ exports.getNomineeInfo = async (req, res) => {
   }
 };
 
+// exports.addNomineeInfo = async (req, res) => {
+//   try {
+//     const { nominee_name, nominee_relation, nominee_contact } = req.body;
+//     const { emp_id } = req.params;
+
+//     const empId = emp_id ? emp_id : req.user.emp_id;
+
+//     // console.log("empId:", empId);
+//     // console.log("Body:", req.body);
+
+//     //  Validate input
+//     if (!nominee_name || !nominee_relation || !nominee_contact) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "All fields are required",
+//       });
+//     }
+
+//     const query = `
+//       INSERT INTO nominee 
+//       (emp_id, nominee_name, nominee_relation, nominee_contact)
+//       VALUES ($1, $2, $3, $4)
+//       RETURNING *
+//     `;
+
+//     const result = await db.query(query, [
+//       empId,
+//       nominee_name,
+//       nominee_relation,
+//       nominee_contact,
+//     ]);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Nominee added successfully",
+//       data: result.rows[0],
+//     });
+
+//   } catch (error) {
+//     console.error("Add Nominee Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error",
+//     });
+//   }
+// };
 exports.addNomineeInfo = async (req, res) => {
   try {
-    const { nominee_name, nominee_relation, nominee_contact } = req.body;
+    const { nominees } = req.body;
     const { emp_id } = req.params;
+    const empId = emp_id || req.user.emp_id;
 
-    const empId = emp_id ? emp_id : req.user.emp_id;
+    // 1. Basic Validation
+    if (!nominees || !Array.isArray(nominees) || nominees.length === 0) {
+      return res.status(400).json({ success: false, message: "Nominees array is required" });
+    }
 
-    // console.log("empId:", empId);
-    // console.log("Body:", req.body);
+    // 2. Fetch Existing Total Percentage from DB
+    const percentageCheck = await db.query(
+      `SELECT SUM(nominee_percentage) as total_pct FROM nominee WHERE emp_id = $1`,
+      [empId]
+    );
+    const existingTotal = Number(percentageCheck.rows[0].total_pct || 0);
 
-    //  Validate input
-    if (!nominee_name || !nominee_relation || !nominee_contact) {
+    if (existingTotal >= 100) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: `Total percentage is already 100%. Cannot add more nominees.`,
       });
     }
 
-    const query = `
-      INSERT INTO nominee 
-      (emp_id, nominee_name, nominee_relation, nominee_contact)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `;
+    // 3. Validate Each New Nominee & Calculate Incoming Total
+    let incomingTotal = 0;
+    for (const nominee of nominees) {
+      const { nominee_name, nominee_relation, nominee_contact, nominee_percentage } = nominee;
 
-    const result = await db.query(query, [
-      empId,
-      nominee_name,
-      nominee_relation,
-      nominee_contact,
-    ]);
+      if (!nominee_name || !nominee_relation || !nominee_contact || nominee_percentage === undefined) {
+        return res.status(400).json({ success: false, message: "All nominee fields are required" });
+      }
+
+      if (!/^[0-9]{10}$/.test(nominee_contact.toString())) {
+        return res.status(400).json({ success: false, message: "Contact number must be 10 digits" });
+      }
+
+      const pct = Number(nominee_percentage);
+      if (pct <= 0 || pct > 100) {
+        return res.status(400).json({ success: false, message: "Percentage must be between 1 and 100" });
+      }
+      incomingTotal += pct;
+    }
+
+    // 4. Final Percentage Cap Check
+    if (existingTotal + incomingTotal > 100) {
+      return res.status(400).json({
+        success: false,
+        message: `Remaining allowed: ${100 - existingTotal}%`,
+      });
+    }
+
+    // 5. Duplicate Contact Check
+    const contacts = nominees.map(n => n.nominee_contact.toString());
+    const existingContact = await db.query(
+      `SELECT nominee_contact FROM nominee WHERE emp_id = $1 AND nominee_contact = ANY($2)`,
+      [empId, contacts]
+    );
+
+    if (existingContact.rows.length > 0) {
+      return res.status(400).json({ success: false, message: "Nominee with this contact already exists" });
+    }
+
+    // 6. Bulk Insert
+    const values = [];
+    const placeholders = nominees.map((nominee, index) => {
+      const base = index * 5;
+      values.push(empId, nominee.nominee_name, nominee.nominee_relation, nominee.nominee_contact.toString(), nominee.nominee_percentage);
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
+    });
+
+    const query = `
+      INSERT INTO nominee (emp_id, nominee_name, nominee_relation, nominee_contact, nominee_percentage)
+      VALUES ${placeholders.join(", ")} RETURNING *`;
+
+    const result = await db.query(query, values);
 
     return res.status(200).json({
       success: true,
-      message: "Nominee added successfully",
-      data: result.rows[0],
+      message: "Nominees added successfully",
+      data: result.rows,
     });
-
   } catch (error) {
     console.error("Add Nominee Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
+// exports.updateNomineeInfo = async (req, res) => {
+//   try {
+//     const { nominee_name, nominee_relation, nominee_contact } = req.body;
+//     const emp_id = req.user.emp_id;
 
+//     if (!nominee_name || !nominee_relation || !nominee_contact) {
+//       return res.status(400).json({ message: "All fields are required" });
+//     }
+
+//     const query = `
+//       UPDATE nominee
+//       SET 
+//         nominee_name = $1,
+//         nominee_relation = $2,
+//         nominee_contact = $3
+//       WHERE emp_id = $4
+//       RETURNING *;
+//     `;
+
+//     const result = await db.query(query, [
+//       nominee_name,
+//       nominee_relation,
+//       nominee_contact,
+//       emp_id
+//     ]);
+
+//     if (result.rowCount === 0) {
+//       return res.status(404).json({ message: "Nominee not found for this employee" });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Nominee info updated successfully",
+//       data: result.rows[0]
+//     });
+
+//   } catch (error) {
+//     console.error("Update Nominee Error:", error);
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// };
 exports.updateNomineeInfo = async (req, res) => {
   try {
-    const { nominee_name, nominee_relation, nominee_contact } = req.body;
+    const { id } = req.params; 
+    const { nominee_name, nominee_relation, nominee_contact, nominee_percentage } = req.body;
     const emp_id = req.user.emp_id;
+    const newPercentage = Number(nominee_percentage);
 
-    if (!nominee_name || !nominee_relation || !nominee_contact) {
-      return res.status(400).json({ message: "All fields are required" });
+    // 1. Basic Validation
+    if (!nominee_name || !nominee_relation || !nominee_contact || nominee_percentage === undefined) {
+      return res.status(400).json({ success: false, message: "All fields are required" });
     }
 
+    // 2. Contact Validation (10 digits)
+    const contactStr = nominee_contact.toString();
+    if (!/^[0-9]{10}$/.test(contactStr)) {
+      return res.status(400).json({ success: false, message: "Contact number must be exactly 10 digits" });
+    }
+
+    // 3. Percentage Calculation Logic
+    // We fetch all nominees for this employee EXCEPT the one we are currently updating
+    const otherNominees = await db.query(
+      `SELECT nominee_percentage FROM nominee WHERE emp_id = $1 AND id != $2`,
+      [emp_id, id]
+    );
+
+    const existingTotal = otherNominees.rows.reduce(
+      (sum, n) => sum + Number(n.nominee_percentage),
+      0
+    );
+
+    const projectedTotal = existingTotal + newPercentage;
+
+    if (projectedTotal > 100) {
+      return res.status(400).json({
+        success: false,
+        message: `You only have ${100 - existingTotal}% remaining.`,
+      });
+    }
+
+    // 4. Perform Update
     const query = `
       UPDATE nominee
       SET 
         nominee_name = $1,
         nominee_relation = $2,
-        nominee_contact = $3
-      WHERE emp_id = $4
+        nominee_contact = $3,
+        nominee_percentage = $4
+      WHERE id = $5 AND emp_id = $6
       RETURNING *;
     `;
 
     const result = await db.query(query, [
       nominee_name,
       nominee_relation,
-      nominee_contact,
+      contactStr, // Stored as string to avoid "Integer out of range"
+      newPercentage,
+      id,
       emp_id
     ]);
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Nominee not found for this employee" });
+      return res.status(404).json({
+        success: false,
+        message: "Nominee not found or not authorized",
+      });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Nominee info updated successfully",
-      data: result.rows[0]
+      message: "Nominee updated successfully",
+      data: result.rows[0],
     });
 
   } catch (error) {
     console.error("Update Nominee Error:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+
+
+exports.deleteNomineeInfo = async (req, res) => {
+  try {
+
+    console.log("req.params",req.params);
+
+    const {emp_id,id } = req.params; 
+    // const emp_id = req.user.emp_id; 
+
+    console.log("Delete id",id);
+    console.log("Delete emp_id",emp_id);
+
+    const query = `
+      DELETE FROM nominee
+      WHERE id = $1 AND emp_id = $2
+      RETURNING *;
+    `;
+
+    const result = await db.query(query, [id, emp_id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Nominee not found or not authorized" });
+    }
+
+    res.status(200).json({
+      message: "Nominee deleted successfully",
+      data: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error("Delete Nominee Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 exports.addBankInfo = async (req, res) => {
   try {
@@ -1416,10 +1654,6 @@ exports.updateBankInfo = async (req, res) => {
       is_active
     } = req.body;
 
-
-
-
-    // Basic validation
     if (
       !account_holder_name ||
       !bank_name ||
@@ -1432,6 +1666,22 @@ exports.updateBankInfo = async (req, res) => {
         message: "Required bank fields are missing"
       });
     }
+
+
+const recordCheck = await db.query(
+      `SELECT id FROM bank_accounts WHERE employee_id = $1`, 
+      [emp_id]
+    ); 
+
+    if (recordCheck.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No bank details found for this employee. Use the 'Add' feature instead of 'Update'."
+      });
+    }
+
+    // Basic validation
+    
 
     const result = await db.query(
       `

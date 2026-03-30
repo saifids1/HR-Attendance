@@ -3,32 +3,50 @@ import axios from 'axios';
 import api from '../../api/axiosInstance';
 import toast from 'react-hot-toast';
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
+// const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 
 
 // console.log("API_BASE",API_BASE); // http://localhost:5000/api
+import { FaPencilAlt, FaCheck, FaTimes, FaPlus, FaUpload } from 'react-icons/fa';
+import { MdDelete } from 'react-icons/md';
+// Assuming 'api' is imported from your config
+
 const CronManager = () => {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(null);
   const [status, setStatus] = useState({ type: '', msg: '' });
-  const [empEmail,setEmpEmail] = useState([]);
-  const[email,setEmail]=useState("");
-  
+  const [empEmail, setEmpEmail] = useState([]);
+  const [email, setEmail] = useState("");
+
+  // States for Table Editing
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [draft, setDraft] = useState(null);
+
+  // --- Helpers ---
+  const formatToAMPM = (time) => {
+    if (!time) return "--:--";
+    let [hours, minutes] = time.split(':');
+    let ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes.padStart(2, '0')} ${ampm}`;
+  };
+
   const fetchSchedules = async () => {
     try {
       setLoading(true);
       const { data } = await api.get(`/update-schedule`);
       const formatted = data.map(s => {
         const parts = s.cron_pattern.split(' ');
-        return { 
-          ...s, 
-          timeValue: `${parts[1].padStart(2, '0')}:${parts[0].padStart(2, '0')}` 
+        return {
+          ...s,
+          // Cron: "min hour * * *" -> HH:mm
+          timeValue: `${parts[1].padStart(2, '0')}:${parts[0].padStart(2, '0')}`
         };
       });
       setSchedules(formatted);
     } catch (err) {
-      setStatus({ type: 'error', msg: 'Failed to load data.' });
+      toast.error("Failed to load schedules");
     } finally {
       setLoading(false);
     }
@@ -38,326 +56,227 @@ const CronManager = () => {
     try {
       const { data } = await api.get(`/update-schedule/emails`);
       setEmpEmail(data);
-      console.log("Emails",data);
     } catch (err) {
-      console.error("Failed to fetch emails",err);
+      console.error("Failed to fetch emails", err);
     }
   };
 
+  useEffect(() => {
+    fetchSchedules();
+    fetchEmails();
+  }, []);
 
-  useEffect(() => { fetchSchedules(); fetchEmails()}, []);
+  // --- Table Actions ---
+  const startEdit = (slot, index) => {
+    setEditingIndex(index);
+    setDraft({ ...slot });
+  };
 
-  const handleUpdate = async (slot) => {
-    setUpdating(slot.slot_name);
-    const [hour, minute] = slot.timeValue.split(':');
-    try {
-      const resp = await api.post(`/update-schedule`, {
-        slot_name: slot.slot_name,
-        hour: parseInt(hour, 10),
-        minute: parseInt(minute, 10),
-        is_enabled: slot.is_enabled,
-        email: email
-      });
+  const addNewSlot = () => {
+    if (editingIndex !== null) return toast.error("Please save current changes first");
+    const newSlot = { slot_name: "", timeValue: "09:00", is_enabled: true, isNew: true };
+    setSchedules([...schedules, newSlot]);
+    setEditingIndex(schedules.length);
+    setDraft(newSlot);
+  };
 
-      console.log("Resp Cron",resp);
+ const handleSave = async (index) => {
+  if (!draft.slot_name.trim()) return toast.error("Slot name is required");
 
-      setStatus({ type: 'success', msg: 'Changes saved successfully.' });
-      setTimeout(() => setStatus({ type: '', msg: '' }), 3000);
-    } catch (err) {
-      setStatus({ type: 'error', msg: 'Error saving changes.' });
-    } finally {
-      setUpdating(null);
+  // Get the actual Database ID from the schedule item
+  const scheduleId = schedules[index].id; 
+  const isNew = schedules[index].isNew; 
+
+  console.log("schedules",schedules)
+  console.log("scheduleId",scheduleId)
+
+  const [hour, minute] = draft.timeValue.split(':');
+  const payload = {
+    slot_name: draft.slot_name,
+    hour: parseInt(hour, 10),
+    minute: parseInt(minute, 10),
+    status: draft.is_enabled,
+  };
+
+  try {
+    if (isNew) {
+      await api.post(`/update-schedule`, payload);
+    } else {
+      // Use scheduleId here, NOT index
+      await api.put(`/update-schedule/${scheduleId}`, payload);
+    }
+
+    // Refresh local state
+    const newSchedules = [...schedules];
+    newSchedules[index] = { ...draft, isNew: false };
+    setSchedules(newSchedules);
+    setEditingIndex(null);
+    toast.success("Saved successfully");
+  } catch (err) {
+    toast.error(err.response?.data?.error || "Error saving");
+  }
+};
+
+  const handleDeleteSchedule = async (slot, index) => {
+    if (window.confirm(`Are you sure you want to delete ${slot.slot_name}?`)) {
+      try {
+        // If your backend doesn't have a specific delete, you might just disable it
+        // Or if you have a delete endpoint:
+        await api.delete(`/update-schedule/${slot.cron_pattern}`);
+        setSchedules(schedules.filter((_, i) => i !== index));
+        toast.success("Schedule deleted");
+      } catch (err) {
+        toast.error("Delete failed");
+      }
     }
   };
 
+  // --- Email Actions ---
   const handleAddEmail = async () => {
-    if (!email) return;
+    if (!email || !email.includes('@')) return toast.error("Enter a valid email");
     try {
       await api.post(`/update-schedule/add-email`, { email });
-      setEmpEmail(prev => [...prev, { email }]);
+      fetchEmails(); // Refresh to get the ID from DB
       setEmail("");
-      toast.success("Email added successfully");
+      toast.success("Email added");
     } catch (err) {
-      console.error("Failed to add email", err);
-    } 
-  };
-
-  const handleDeleteEmail = async (index) => {
-    // const emailToDelete = empEmail[index].email;
-    try {
-      await api.delete(`/update-schedule/emails/${index}`);
-      const filtered = empEmail.filter((item, i) => item.id !== index);
-      setEmpEmail(filtered);
-      toast.success("Email deleted successfully");
-    } catch (err) {
-      console.error("Failed to delete email", err);
+      toast.error("Failed to add email");
     }
   };
 
+  const handleDeleteEmail = async (id) => {
+    try {
+      await api.delete(`/update-schedule/emails/${id}`);
+      setEmpEmail(empEmail.filter(item => item.id !== id));
+      toast.success("Email removed");
+    } catch (err) {
+      toast.error("Failed to delete email");
+    }
+  };
 
-
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>;
+  if (loading) return <div className="p-10 text-center">Loading Schedules...</div>;
 
   return (
-    // <div style={{ maxWidth: '600px', margin: '40px auto', fontFamily: 'sans-serif', color: '#333' }}>
-      
-    //   {/* Header */}
-    //   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-    //     <h2 style={{ margin: 0 }}>Report Scheduling</h2>
-    //     <button onClick={fetchSchedules} className="cursor-pointer text-[12px] bg-[#212e7d] text-white p-2 rounded-md">Refresh</button>
-    //   </div>
+    <div className="max-w-5xl mx-auto p-6 text-gray-700">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-semibold text-[#212e7d]">Report Scheduler</h1>
+        <button onClick={fetchSchedules} className="bg-[#212e7d] text-white px-4 py-2 rounded-md text-sm">Refresh</button>
+      </div>
 
-    //   <div>
-    //     <label htmlFor="">Email To Add</label>
-    //     <input type="text" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-
-    //   {/* Message Box */}
-    //   {status.msg && (
-    //     <div style={{ 
-    //       padding: '10px', 
-    //       marginBottom: '20px', 
-    //       borderRadius: '4px',
-    //       backgroundColor: status.type === 'success' ? '#e6fffa' : '#fff5f5',
-    //       color: status.type === 'success' ? '#2c7a7b' : '#c53030',
-    //       border: `1px solid ${status.type === 'success' ? '#b2f5ea' : '#feb2b2'}`,
-    //       fontSize: '14px'
-    //     }}>
-    //       {status.msg}
-    //     </div>
-    //   )}
-
-    //   {/* List of Slots */}
-    //   <div style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-    //     {schedules.map((slot, index) => (
-    //       <div key={slot.slot_name} style={{ 
-    //         padding: '20px', 
-    //         borderBottom: index !== schedules.length - 1 ? '1px solid #eee' : 'none',
-    //         backgroundColor: slot.is_enabled ? '#fff' : '#fafafa'
-    //       }}>
-    //         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-    //           <span style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{slot.slot_name} Report</span>
-    //           <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px' }}>
-    //             <input 
-    //               type="checkbox" 
-    //               checked={slot.is_enabled}
-    //               onChange={() => {
-    //                 const updated = schedules.map(s => 
-    //                   s.slot_name === slot.slot_name ? { ...s, is_enabled: !s.is_enabled } : s
-    //                 );
-    //                 setSchedules(updated);
-    //               }}
-    //               style={{ marginRight: '8px' }}
-    //             />
-    //             Enabled
-    //           </label>
-    //         </div>
-
-    //         <div style={{ display: 'flex', gap: '10px' }}>
-    //           <input 
-    //             type="time" 
-    //             value={slot.timeValue}
-    //             disabled={!slot.is_enabled}
-    //             onChange={(e) => {
-    //               const newSchedules = schedules.map(s => 
-    //                 s.slot_name === slot.slot_name ? { ...s, timeValue: e.target.value } : s
-    //               );
-    //               setSchedules(newSchedules);
-    //             }}
-    //             style={{ 
-    //               padding: '8px', 
-    //               flex: 1, 
-    //               border: '1px solid #ccc', 
-    //               borderRadius: '4px',
-    //               opacity: slot.is_enabled ? 1 : 0.5 
-    //             }}
-    //           />
-    //           <button 
-    //             onClick={() => handleUpdate(slot)}
-    //             disabled={updating === slot.slot_name}
-    //             style={{ 
-    //               padding: '8px 20px', 
-    //               backgroundColor: '#212e7d', 
-    //               color: 'white', 
-    //               border: 'none', 
-    //               borderRadius: '4px', 
-    //               cursor: updating === slot.slot_name ? 'not-allowed' : 'pointer',
-    //               fontSize: '14px'
-    //             }}
-    //           >
-    //             {updating === slot.slot_name ? '' : 'Save'}
-    //           </button>
-    //         </div>
-    //       </div>
-    //     ))}
-    //   </div>
-
-    //   {/* Note */}
-    //   {/* <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f7fafc', borderRadius: '4px', fontSize: '12px', color: '#718096' }}>
-    //     <strong>Note:</strong> Times are based on Asia/Kolkata (IST). Changes update the server cron jobs immediately.
-    //   </div> */}
-    // </div>
-   <div className="max-w-5xl mx-auto p-6 text-gray-700">
-
-  {/* Header */}
-  <div className="flex justify-between items-center mb-8">
-    <h1 className="text-2xl font-semibold text-[#212e7d]">
-      Report Scheduler
-    </h1>
-
-    <button
-      onClick={fetchSchedules}
-      className="bg-[#212e7d] text-white px-4 py-2 rounded-md text-sm hover:bg-[#1a2563]"
-    >
-      Refresh
-    </button>
-  </div>
-
-  {/* EMAIL MANAGEMENT CARD */}
-  <div className="bg-white border rounded-lg shadow-sm p-6 mb-6">
-
-    <h3 className="text-lg font-semibold mb-4 text-gray-800">
-      Email Recipients
-    </h3>
-
-    {/* Email Input */}
-    <div className="flex gap-3 mb-4">
-      <input
-        type="text"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Enter email address"
-        className="flex-1 border rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-[#212e7d] focus:outline-none"
-      />
-
-      <button
-        onClick={handleAddEmail}
-        className="bg-[#212e7d] text-white px-5 py-2 rounded-md text-sm hover:bg-[#1a2563]"
-      >
-        Add
-      </button>
-    </div>
-
-    {/* Email Chips */}
-    <div className="flex flex-wrap gap-2">
-      {empEmail.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-center gap-2 bg-gray-100 border px-3 py-1 rounded-full text-sm"
-        >
-          {item.email}
-
-          <button
-            onClick={() => handleDeleteEmail(item.id)}
-            className="text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
+      {/* Email Recipients Card */}
+      <div className="bg-white border rounded-lg shadow-sm p-6 mb-6">
+        <h3 className="text-lg font-semibold mb-4">Email Recipients</h3>
+        <div className="flex gap-3 mb-4">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Enter recipient email"
+            className="flex-1 border rounded-md px-3 py-2 text-sm"
+          />
+          <button onClick={handleAddEmail} className="bg-[#212e7d] text-white px-5 py-2 rounded-md text-sm">Add</button>
         </div>
-      ))}
-    </div>
-  </div>
+        <div className="flex flex-wrap gap-2">
+          {empEmail.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 bg-gray-100 border px-3 py-1 rounded-full text-sm">
+              {item.email}
+              <button onClick={() => handleDeleteEmail(item.id)} className="text-red-500 font-bold">✕</button>
+            </div>
+          ))}
+        </div>
+      </div>
 
-
-  {/* STATUS MESSAGE */}
-  {status.msg && (
-    <div
-      className={`mb-6 px-4 py-3 rounded-md text-sm
-      ${
-        status.type === "success"
-          ? "bg-green-50 text-green-700 border border-green-200"
-          : "bg-red-50 text-red-700 border border-red-200"
-      }`}
-    >
-      {status.msg}
-    </div>
-  )}
-
-
-  {/* SCHEDULE SETTINGS CARD */}
-  <div className="bg-white border rounded-lg shadow-sm">
-
-    <div className="border-b px-6 py-4">
-      <h3 className="text-lg font-semibold text-gray-800">
-        Schedule Settings
-      </h3>
-    </div>
-
-    <div className="divide-y">
-
-      {schedules.map((slot) => (
-        <div
-          key={slot.slot_name}
-          className="flex items-center justify-between px-6 py-4"
-        >
-
-          {/* Slot Name */}
-          <div className="w-1/3 font-medium capitalize">
-            {slot.slot_name} Report
-          </div>
-
-
-          {/* Enable Toggle */}
-          <div className="flex items-center gap-2 w-1/4">
-            <input
-              type="checkbox"
-              checked={slot.is_enabled}
-              onChange={() => {
-                const updated = schedules.map((s) =>
-                  s.slot_name === slot.slot_name
-                    ? { ...s, is_enabled: !s.is_enabled }
-                    : s
-                );
-                setSchedules(updated);
-              }}
-              className="accent-[#212e7d]"
-            />
-            <span className="text-sm">Enabled</span>
-          </div>
-
-
-          {/* Time */}
-          <div className="w-1/4">
-            <input
-              type="time"
-              value={slot.timeValue}
-              disabled={!slot.is_enabled}
-              onChange={(e) => {
-                const newSchedules = schedules.map((s) =>
-                  s.slot_name === slot.slot_name
-                    ? { ...s, timeValue: e.target.value }
-                    : s
-                );
-                setSchedules(newSchedules);
-              }}
-              className={`border rounded-md px-3 py-2 text-sm
-              ${!slot.is_enabled ? "opacity-50" : ""}`}
-            />
-          </div>
-
-
-          {/* Save */}
-          <div>
-            <button
-              onClick={() => handleUpdate(slot)}
-              disabled={updating === slot.slot_name}
-              className={`px-4 py-2 rounded-md text-sm text-white
-                ${
-                  updating === slot.slot_name
-                    ? "bg-gray-400"
-                    : "bg-[#212e7d] hover:bg-[#1a2563]"
-                }`}
-            >
-              {updating === slot.slot_name ? "Saving..." : "Save"}
+      {/* Schedule Settings Table */}
+      <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
+        <div className="border-b px-6 py-4 bg-gray-50 flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Schedule Settings</h3>
+          <div className="p-4 bg-gray-50 border-t">
+            <button onClick={addNewSlot} className="bg-[#212e7d] text-white px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 ">
+              <FaPlus size={12} /> Add More Scheduler
             </button>
           </div>
-
         </div>
-      ))}
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Slot Name</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 ">Time (am/pm)</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {schedules.map((slot, index) => (
+              <tr key={index} className="hover:bg-gray-50 transition-colors">
+                {editingIndex === index ? (
+                  <>
+                    <td className="px-6 py-4">
+                      <select
+                        className="border rounded px-2 py-1 text-sm w-full outline-none focus:ring-1 focus:ring-blue-400 bg-white cursor-pointer"
+                        value={draft.slot_name}
+                        onChange={(e) => setDraft({ ...draft, slot_name: e.target.value })}
+                      >
+                        <option value="" disabled>Select a Slot</option>
+                        <option value="Morning ">Morning </option>
+                        <option value="Afternoon ">Afternoon </option>
+                        <option value="Night ">Night </option>
+                        {/* <option value="General Shift">General Shift</option> */}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4">
+                      <input
+                        type="time"
+                        className="border rounded px-2 py-1 text-sm"
+                        value={draft.timeValue}
+                        onChange={(e) => setDraft({ ...draft, timeValue: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <select
+                        className="border rounded px-2 py-1 text-sm"
+                        value={draft.is_enabled}
+                        onChange={(e) => setDraft({ ...draft, is_enabled: e.target.value === "true" })}
+                      >
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center gap-3">
+                        <button onClick={() => handleSave(index)} className="text-green-600 hover:scale-110 transition-transform">
+                          <FaCheck size={18} />
+                        </button>
+                        <button onClick={() => { setEditingIndex(null); if (slot.isNew) fetchSchedules(); }} className="text-red-700">
+                          <FaTimes size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 capitalize">{slot.slot_name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{formatToAMPM(slot.timeValue)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${slot.is_enabled ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                        }`}>
+                        {slot.is_enabled ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex justify-center gap-4">
+                        <button onClick={() => startEdit(slot, index)} className="text-blue-500"><FaPencilAlt size={14} /></button>
+                        <button onClick={() => handleDeleteSchedule(slot, index)} className="text-red-500"><MdDelete size={18} /></button>
+                      </div>
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
+      </div>
     </div>
-  </div>
-
-</div>
   );
 };
 

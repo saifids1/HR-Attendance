@@ -13,7 +13,9 @@ const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave,empId }) =>
   const [draft, setDraft] = useState({ });
   const [errors, setErrors] = useState({});
 
- const {setPersonalAddress} =  useContext(EmployContext)
+ const {setPersonalAddress} =  useContext(EmployContext);
+
+ 
   useEffect(() => {
     if (personalData && Object.keys(personalData).length > 0) {
       setDraft({  ...personalData });
@@ -57,56 +59,87 @@ const formatDOB = (dateStr) => {
   // console.log(draft.dob);
 
   const handleChange = (key, value) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-
-    if (errors[key]) {
-      setErrors((prev) => {
-        const updated = { ...prev };
-        delete updated[key];
-        return updated;
-      });
+  // --- 10-Digit Validation Logic ---
+  if (key === "contact") {
+    // Only allow numbers and limit length to 10
+    if (!/^\d*$/.test(value) || value.length > 10) {
+      return; // Stop the function here so the state never updates
     }
-  };
+  }
 
-  const handleSave = async(e) => {
-    e.preventDefault();
-    console.log("Personal Form Data:", draft);
+  // Update the draft state
+  setDraft((prev) => ({ ...prev, [key]: value }));
 
-    const newErrors = {};
-    Object.keys(emptyPersonal).forEach((key) => {
-      if (!draft[key] || draft[key].toString().trim() === "") {
-        newErrors[key] = `${key.replace(/_/g, " ").toUpperCase()} IS REQUIRED`;
-      }
+  // Clear errors when the user starts typing again
+  if (errors[key]) {
+    setErrors((prev) => {
+      const updated = { ...prev };
+      delete updated[key];
+      return updated;
     });
+  }
+};
 
-    if (Object.keys(newErrors).length > 0) {
+ const handleSave = async (e) => {
+  e.preventDefault();
+  
+  const newErrors = {};
 
-      console.log("newErrros Personal",newErrors);
-      setErrors(newErrors);
-      toast.error("Please fix the errors below");
-      return;
+  // 1. Check for empty required fields first
+  Object.keys(emptyPersonal).forEach((key) => {
+    // Check if value exists and isn't just whitespace
+    if (!draft[key] || draft[key].toString().trim() === "") {
+      newErrors[key] = `${key.replace(/_/g, " ").toUpperCase()} IS REQUIRED`;
     }
+  });
 
-    if(draft.emp_id){
-      await updatePersonal(empId,draft);
-      toast.success("Personal updated successfully");
-    }else{
-      await addPersonal(empId,draft);
-      toast.success("Personal added successfully");
+  // 2. Specific Validation: Contact Number
+  // Only check length/format if the field isn't already marked as empty
+  if (!newErrors.contact) {
+    const contactStr = draft.contact?.toString() || "";
+    if (contactStr.length !== 10) {
+      newErrors.contact = "CONTACT NUMBER MUST BE EXACTLY 10 DIGITS";
+    } else if (!/^\d+$/.test(contactStr)) {
+      newErrors.contact = "CONTACT NUMBER MUST CONTAIN ONLY DIGITS";
     }
-    // toast.success("Personal data logged in console");
+  }
+
+  // 3. If any errors exist, stop and show toast
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    toast.error("Please fix the errors below");
+    console.log("Validation Errors:", newErrors);
+    return;
+  }
+
+  // 4. API Call Logic
+  try {
+    if (draft.emp_id) {
+      await updatePersonal(empId, draft);
+      toast.success("Personal details updated successfully");
+    } else {
+      await addPersonal(empId, draft);
+      toast.success("Personal details added successfully");
+    }
 
     if (onSave) onSave(draft);
     setIsEditing(false);
-
-    // else setIsEditing(false);
-  };
+    setErrors({}); // Clear errors on success
+  } catch (error) {
+    console.error("API Error:", error);
+    toast.error(error.response?.data?.message || "Failed to save personal details");
+  }
+};
 
   const handleCancel = () => {
     setDraft({ ...emptyPersonal, ...personalData });
     setErrors({});
     setIsEditing(false);
   };
+  useEffect(()=>{
+
+    console.log("draft",draft)
+  },[draft])
 
   return (
     <>

@@ -1,75 +1,97 @@
 import React, { useEffect } from "react";
 import api from "../../api/axiosInstance";
 
-const SortIcon = () => (
-  <svg
-    stroke="currentColor"
-    fill="currentColor"
-    strokeWidth="0"
-    viewBox="0 0 320 512"
-    height="0.9em"
-    width="0.9em"
-    className="text-gray-400"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M41 288h238c21.4 0 32.1 25.9 17 41L177 448c-9.4 9.4-24.6 9.4-33.9 0L24 329c-15.1-15.1-4.4-41 17-41zm255-105L177 64c-9.4-9.4-24.6-9.4-33.9 0L24 183c-15.1 15.1-4.4 41 17 41h238c21.4 0 32.1-25.9 17-41z" />
-  </svg>
-);
+const LeavesTable = ({
+  leavesHeader,
+  leavesBody,
+  adminLeavesHeader,
+  adminLeavesBody,
+  refreshData,
+  isManager
+}) => {
 
-const LeavesTable = ({ leavesHeader, leavesBody, adminLeavesHeader, adminLeavesBody, refreshData }) => {
-  const role = localStorage.getItem("role") || "employee";
+  const user = JSON.parse(localStorage.getItem("user"));
+  const role = user?.role || "employee";
+  const empId = user?.emp_id;
+  
+  
+  // console.log("isManager Leaves Table",isManager);
+
+  
 
   const handleAction = async (approvalId, status) => {
     const remarks = prompt(`Enter remarks for ${status}:`);
     try {
       await api.put(`/leaves/types/approve/${approvalId}`, {
         status,
-        remarks
+        remarks,
       });
-      alert(`Request ${status} successfully`);
-      refreshData(); // Trigger list refresh
+      // alert(`Request ${status} successfully`);
+      refreshData();
     } catch (err) {
       alert(err.response?.data?.message || "Action failed");
     }
   };
 
-  const formattedDate = (dateStr)=>{
+  // useEffect(() => {
+  //   console.log("Leaves Table Data Updated:", {
+  //     leavesBody,
+  //     adminLeavesBody,
+  //   });
+  // }, [leavesBody, adminLeavesBody]);
+
+  const formattedDate = (dateStr) => {
     const date = new Date(dateStr);
-    const dd = date.getDate().toString().padStart(2,"0");
-    const mm = (date.getMonth()+1).toString().padStart(2,"0");
-    const yy = date.getFullYear().toString().padStart(2,"0");
+    const dd = date.getDate().toString().padStart(2, "0");
+    const mm = (date.getMonth() + 1).toString().padStart(2, "0");
+    const yy = date.getFullYear();
+    return `${dd}-${mm}-${yy}`;
+  };
 
-    return `${dd}-${mm}-${yy}`
-  }
+ 
+  //  EMPLOYEE VIEW
 
-
-  useEffect(()=>{
-    console.log(leavesBody,"leavesBody,")
-  },[])
-  if (role === "employee") {
+  if (!isManager) {
     return (
       <table className="min-w-full border-collapse text-sm">
         <thead className="bg-gray-100">
           <tr>
             {leavesHeader?.map((data, index) => (
-              <th key={index} className="border px-4 py-3 font-semibold text-left"><div className="flex items-center gap-1">{data}<SortIcon /></div></th>
+              <th key={index} className="border px-4 py-3 text-left">
+                {data}
+              </th>
             ))}
           </tr>
         </thead>
+
         <tbody>
           {leavesBody?.map((data, i) => (
-            <tr key={i} className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}>
-              <td className="border px-4 py-3">{formattedDate(data.applied_at)}</td>
-              <td className="border px-4 py-3">{`${formattedDate(data.start_date)} - ${formattedDate(data.end_date)}`}</td>
+            <tr key={i} className="hover:bg-gray-100">
+              <td className="border px-4 py-3">
+                {formattedDate(data.applied_at)}
+              </td>
+              <td className="border px-4 py-3">
+                {formattedDate(data.start_date)} -{" "}
+                {formattedDate(data.end_date)}
+              </td>
               <td className="border px-4 py-3">{data.total_days}</td>
               <td className="border px-4 py-3">{data.leaves_type}</td>
               <td className="border px-4 py-3">
-                <span className={`px-2 py-1 rounded text-xs font-bold ${data.status === 'approved' ? 'bg-green-100 text-green-700' : data.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                <span
+                  className={`px-2 py-1 rounded text-xs font-bold ${
+                    data.status === "approved"
+                      ? "bg-green-100 text-green-700"
+                      : data.status === "pending"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
                   {data.status}
                 </span>
               </td>
-              <td className="border px-4 py-3">{data.approver_remarks || data.reason}</td>
-              {/* <td className="border px-4 py-3">{data.approver_role} ({data.level_status})</td> */}
+              <td className="border px-4 py-3">
+                {data.approver_remarks || data.reason}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -77,33 +99,120 @@ const LeavesTable = ({ leavesHeader, leavesBody, adminLeavesHeader, adminLeavesB
     );
   }
 
-  // Admin / Manager View
+  if(isManager){
+     return (
+      <table className="min-w-full border-collapse text-sm">
+        <thead className="bg-gray-100">
+          <tr>
+            {adminLeavesHeader?.map((data, index) => (
+              <th key={index} className="border px-4 py-3 text-left">
+                {data}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody>
+          {leavesBody?.map((data, i) => (
+            <tr key={i} className="hover:bg-gray-100">
+              <td className="border px-4 py-3">
+                {formattedDate(data.applied_at)}
+              </td>
+              <td className="border px-4 py-3">
+                {data.start_date} -{" "}
+                {data.end_date}
+              </td>
+              <td className="border px-4 py-3">{data.total_days}</td>
+              <td className="border px-4 py-3">{data.leave_type}</td>
+              <td className="border px-4 py-3">
+                <span
+                  className={`px-2 py-1 rounded text-xs font-bold ${
+                    data.status === "approved"
+                      ? "bg-green-100 text-green-700"
+                      : data.status === "pending"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {data.status}
+                </span>
+              </td>
+              <td className="border px-4 py-3">
+                {data.approver_remarks || data.reason}
+              </td>
+               <td className="border px-4 py-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() =>
+                    handleAction(data.approval_id, "approved")
+                  }
+                  className="px-3 py-1 text-xs bg-green-500 text-white rounded"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() =>
+                    handleAction(data.approval_id, "rejected")
+                  }
+                  className="px-3 py-1 text-xs bg-red-500 text-white rounded"
+                >
+                  Reject
+                </button>
+              </div>
+            </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+     )
+  }
+  
+  //  TEAM LEAD VIEW
+ 
   return (
     <table className="min-w-full border-collapse text-sm">
       <thead className="bg-gray-100">
         <tr>
-          {adminLeavesHeader.map((data, index) => (
-            <th key={index} className="border px-4 py-3 font-semibold text-left"><div className="flex items-center gap-1">{data}<SortIcon /></div></th>
+          {adminLeavesHeader?.map((data, index) => (
+            <th key={index} className="border px-4 py-3 text-left">
+              {data}
+            </th>
           ))}
         </tr>
       </thead>
+
       <tbody>
-        {adminLeavesBody.map((data, i) => (
-          <tr key={data.approval_id || i} className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-gray-100`}>
+        {adminLeavesBody?.map((data, i) => (
+          <tr key={data.approval_id || i} className="hover:bg-gray-100">
             <td className="border px-4 py-3">{data.applicant_name}</td>
-            <td className="border px-4 py-3">{`${new Date(data.start_date).toLocaleDateString()} - ${new Date(data.end_date).toLocaleDateString()}`}</td>
+            <td className="border px-4 py-3">
+              {formattedDate(data.start_date)} -{" "}
+              {formattedDate(data.end_date)}
+            </td>
             <td className="border px-4 py-3">{data.total_days}</td>
             <td className="border px-4 py-3">{data.leave_type}</td>
             <td className="border px-4 py-3">{data.reason}</td>
-            <td className="border px-4 py-3">Level {data.approval_level}</td>
+            <td className="border px-4 py-3">
+              Level {data.approval_level}
+            </td>
             <td className="border px-4 py-3">
               <div className="flex gap-2">
-                <button 
-                  onClick={() => handleAction(data.approval_id, 'approved')}
-                  className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded">Accept</button>
-                <button 
-                  onClick={() => handleAction(data.approval_id, 'rejected')}
-                  className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded">Reject</button>
+                <button
+                  onClick={() =>
+                    handleAction(data.approval_id, "approved")
+                  }
+                  className="px-3 py-1 text-xs bg-green-500 text-white rounded"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() =>
+                    handleAction(data.approval_id, "rejected")
+                  }
+                  className="px-3 py-1 text-xs bg-red-500 text-white rounded"
+                >
+                  Reject
+                </button>
               </div>
             </td>
           </tr>

@@ -109,6 +109,7 @@ export const addBank = (emp_id, data) => {
 export const updateBank = (emp_id, data) => {
 
   console.log("Data update",data);
+  console.log("Bank EmpID",emp_id);
 return api.put(`/employee/profile/bank/${emp_id}`, data);
 }
 

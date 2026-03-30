@@ -1,8 +1,14 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 const Leavecards = ({ LeavecardData = [] }) => {
   const role = localStorage.getItem("role") || "employee";
 
+
+  useEffect(()=>{
+    console.log("LeavecardData",LeavecardData);
+    
+
+  },[LeavecardData])
   /* ======================
         ADMIN VIEW
      ====================== */
