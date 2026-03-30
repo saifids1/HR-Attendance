@@ -8,11 +8,13 @@ import {
 import { toast } from "react-hot-toast";
 import { addPersonal, getPersonal, updatePersonal } from "../../../api/profile";
 import { EmployContext } from "../../context/EmployContextProvider";
+import Loader from "../../components/Loader";
+import { set } from "date-fns";
 
 const PersonalTab = ({ personalData, isEditing, setIsEditing, onSave,empId }) => {
   const [draft, setDraft] = useState({ });
   const [errors, setErrors] = useState({});
-
+const [isLoading, setIsLoading] = useState(true);
  const {setPersonalAddress} =  useContext(EmployContext);
 
  
@@ -33,28 +35,31 @@ const formatDOB = (dateStr) => {
 
  useEffect(() => {
   const getPersonalData = async () => {
+    // Start loading when the effect runs (especially if empId changes)
+    setIsLoading(true); 
     try {
       const resp = await getPersonal(empId);
-
-      console.log("resp", resp.data);
-
       const formattedDob = formatDOB(resp.data.dob);
 
       setDraft((prevData) => ({
         ...prevData,
         ...resp.data,
-        dob: formattedDob,   
+        dob: formattedDob,
       }));
 
       setPersonalAddress(resp.data);
-
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching personal data:", error);
+    } finally {
+      // finally blocks run whether the try succeeds or fails
+      setIsLoading(false);
     }
   };
 
-  getPersonalData();
-}, []);
+  if (empId) {
+    getPersonalData();
+  }
+}, [empId]);
 
   // console.log(draft.dob);
 
@@ -140,6 +145,13 @@ const formatDOB = (dateStr) => {
 
     console.log("draft",draft)
   },[draft])
+
+  if(isLoading){
+       <div className="py-20 flex flex-col items-center justify-center gap-4">
+      <Loader />
+      <p className="text-gray-400 animate-pulse text-sm">Retrieving Personal Data...</p>
+    </div>
+  }
 
   return (
     <>
