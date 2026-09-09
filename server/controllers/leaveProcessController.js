@@ -6,6 +6,34 @@ const { successResponse, errorResponse, paginatedResponse, handleDbError } = req
 const { getPaginationParams } = require("../utils/pagination");
 
 const CARRY_FORWARD_PERCENTAGE = 0.50;
+const formatDateTime = (value) => {
+            if (!value) {
+                return "-";
+            }
+
+            const date = new Date(value);
+
+            const day = String(
+                date.getDate()
+            ).padStart(2, "0");
+
+            const month = String(
+                date.getMonth() + 1
+            ).padStart(2, "0");
+
+            const year =
+                date.getFullYear();
+
+            const hours = String(
+                date.getHours()
+            ).padStart(2, "0");
+
+            const minutes = String(
+                date.getMinutes()
+            ).padStart(2, "0");
+
+            return `${day}-${month}-${year}:${hours}:${minutes}`;
+        };
 
 function getLoggedInPrId(req) {
     const prId = req.user?.pr_id ?? req.user?.Pr_Id ?? req.user?.user_id ?? req.user?.id;
@@ -2511,12 +2539,10 @@ exports.approveLeave = async (req, res) => {
                             "Approved",
 
                         applied_at:
-                        formatDateTime(
-                            formattedAppliedAt),
+                            formattedAppliedAt,
 
                         approved_at:
-                        formatDateTime(
-                            formattedApprovedAt),
+                            formattedApprovedAt,
 
                         approver_remark:
                             result.request.lr_approver_remark ||
