@@ -2570,7 +2570,7 @@ exports.approveLeave = async (req, res) => {
                         : "-";
 
                 await sendEmail(
-                    result.employee.email,
+                    result.employee.or_official_email,
                     `Leave Request Approved - ${request.request_id || request.request_id}`,
                     "leave_approved",
                     {
