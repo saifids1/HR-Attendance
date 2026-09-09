@@ -59,8 +59,6 @@ function isValidDate(dateString) {
     return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === dateString;
 }
 
-
-
 function validateYear(year) {
     const parsedYear = Number(year);
     if (!Number.isInteger(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
@@ -369,6 +367,7 @@ exports.getMyLeaveSummary = async (req, res) => {
                 $1::integer AS pr_id,
                 $2::integer AS leave_year,
 
+                -- PL QUOTA
                 COALESCE(q.total_allocated_days, 0)
                     AS total_allocated_days,
 
@@ -389,6 +388,7 @@ exports.getMyLeaveSummary = async (req, res) => {
                     0
                 ) AS remaining_days,
 
+                -- LEAVE REQUEST COUNTS
                 COALESCE(r.total_requests, 0)
                     AS total_requests,
 
@@ -404,39 +404,48 @@ exports.getMyLeaveSummary = async (req, res) => {
                 COALESCE(r.cancelled_requests, 0)
                     AS cancelled_requests,
 
+                -- LWP
                 COALESCE(u.total_unpaid_leave_days, 0)
-                    AS total_unpaid_leave_days,
-
-                COALESCE(u.total_unpaid_leave_requests, 0)
-                    AS total_unpaid_leave_requests
+                    AS total_unpaid_leave_days
 
             FROM
             (
+                -- PL QUOTA
                 SELECT
+                    lq.lq_leave_year AS leave_year,
+
                     SUM(
-                        COALESCE(lq_allocated_days, 0)
+                        COALESCE(lq.lq_allocated_days, 0)
                     ) AS total_allocated_days,
 
                     SUM(
-                        COALESCE(lq_carry_forward_days, 0)
+                        COALESCE(lq.lq_carry_forward_days, 0)
                     ) AS total_carry_forward_days,
 
                     SUM(
-                        COALESCE(lq_pending_days, 0)
+                        COALESCE(lq.lq_pending_days, 0)
                     ) AS total_pending_days,
 
                     SUM(
-                        COALESCE(lq_used_days, 0)
+                        COALESCE(lq.lq_used_days, 0)
                     ) AS total_used_days
 
-                FROM public.leave_quota
+                FROM public.leave_quota lq
 
-                WHERE lq_pr_id = $1
-                  AND lq_leave_year = $2
+                INNER JOIN public.leave_types lt
+                    ON lt.lt_leave_type_id =
+                       lq.lq_leave_type_id
+
+                WHERE lq.lq_pr_id = $1
+                  AND lq.lq_leave_year = $2
+                  AND lt.lt_leave_type_code = 'PL'
+
+                GROUP BY lq.lq_leave_year
             ) q
 
             CROSS JOIN
             (
+                -- LEAVE REQUEST COUNTS
                 SELECT
                     COUNT(*) AS total_requests,
 
@@ -478,41 +487,21 @@ exports.getMyLeaveSummary = async (req, res) => {
 
             CROSS JOIN
             (
+                -- LWP FROM LEAVE QUOTA
                 SELECT
-                    COALESCE(
-                        SUM(lr.lr_total_days),
-                        0
-                    ) AS total_unpaid_leave_days,
+                    SUM(
+                        COALESCE(lq.lq_used_days, 0)
+                    ) AS total_unpaid_leave_days
 
-                    COUNT(*) AS total_unpaid_leave_requests
-
-                FROM public.leave_requests lr
+                FROM public.leave_quota lq
 
                 INNER JOIN public.leave_types lt
                     ON lt.lt_leave_type_id =
-                       lr.lr_leave_type_id
+                       lq.lq_leave_type_id
 
-                INNER JOIN public.leave_status ls
-                    ON ls.ls_leave_status_id =
-                       lr.lr_status_id
-
-                WHERE lr.lr_pr_id = $1
-
-                  AND COALESCE(
-                        lt.lt_is_paid,
-                        FALSE
-                      ) = FALSE
-
-                  AND EXTRACT(
-                        YEAR FROM lr.lr_from_date
-                      ) = $2
-
-                  AND LOWER(
-                        ls.ls_leave_status_name
-                      ) IN (
-                        'pending',
-                        'approved'
-                      )
+                WHERE lq.lq_pr_id = $1
+                  AND lq.lq_leave_year = $2
+                  AND lt.lt_leave_type_code = 'LWP'
             ) u
             `,
             [prId, year]
@@ -3668,6 +3657,7 @@ exports.getMyLeaveRequests = async (req, res) => {
         const result = await db.query(
             `SELECT
                 lr.lr_leave_request_id,
+                lr.request_id,
                 lr.lr_pr_id,
                 lr.lr_leave_type_id,
                 lt.lt_leave_type_code,
