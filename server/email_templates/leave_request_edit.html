@@ -1,180 +1,472 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <title>Leave Request Updated</title>
 
-<style>
-    .container {
-        font-family: 'Segoe UI', Arial, sans-serif;
-        color: #333;
-        margin: 0 auto;
-        padding: 15px;
-        max-width: 650px;
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f5f6f8;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #1e293b;
+    }
+
+    table {
+      border-spacing: 0;
+      border-collapse: collapse;
+    }
+
+    img {
+      border: 0;
+      display: block;
+    }
+
+    .email-wrapper {
+      width: 100%;
+      background-color: #f5f6f8;
+      padding: 40px 15px;
+    }
+
+    .email-container {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .header {
+      padding: 28px 35px;
+      background-color: #ffffff;
+    }
+
+    .logo {
+      width: 135px;
+      max-width: 135px;
+      height: auto;
+    }
+
+    .system-name {
+      color: #336298;
+      font-size: 20px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .header-divider {
+      height: 2px;
+      background-color: #336298;
+      line-height: 2px;
+      font-size: 0;
+    }
+
+    .content {
+      padding: 38px 45px 42px 45px;
+    }
+
+    .title {
+      margin: 0;
+      color: #336298;
+      font-size: 30px;
+      line-height: 40px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .title-line {
+      width: 115px;
+      height: 3px;
+      background-color: #336298;
+      margin: 20px auto 35px auto;
+    }
+
+    .hello {
+      margin: 0 0 22px 0;
+      font-size: 18px;
+      line-height: 28px;
+      color: #1e293b;
+    }
+
+    .message {
+      margin: 0 0 25px 0;
+      font-size: 16px;
+      line-height: 27px;
+      color: #334155;
     }
 
     .card {
-        background-color: #f9f9f9;
-        border: 1px solid #eeeeee;
-        border-radius: 8px;
-        padding: 20px;
-        margin-top: 15px;
+      margin: 22px 0;
+      padding: 22px;
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+    }
+
+    .card-title {
+      margin: 0 0 15px 0;
+      color: #336298;
+      font-size: 18px;
+      line-height: 25px;
+      font-weight: 700;
     }
 
     .summary-table {
-        width: 100%;
-        margin-top: 10px;
-        border-collapse: collapse;
+      width: 100%;
+      border-collapse: collapse;
     }
 
     .summary-table td {
-        padding: 9px 0;
-        border-bottom: 1px solid #eee;
-    }
-
-    .label {
-        color: #666;
-        font-size: 14px;
-        width: 45%;
-    }
-
-    .value {
-        font-weight: 600;
-        text-align: right;
-    }
-
-    .status {
-        font-weight: 600;
-    }
-
-    .footer {
-        margin-top: 25px;
-        color: #888;
-        font-size: 13px;
+      padding: 10px 0;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 14px;
+      line-height: 20px;
     }
 
     .summary-table tr:last-child td {
-        border-bottom: none !important;
+      border-bottom: none;
     }
-</style>
 
+    .label {
+      width: 42%;
+      color: #64748b;
+      font-weight: 400;
+      vertical-align: top;
+    }
+
+    .value {
+      width: 58%;
+      color: #1e293b;
+      font-weight: 600;
+      text-align: right;
+      vertical-align: top;
+      word-break: break-word;
+    }
+
+    .action-message {
+      margin: 28px 0 0 0;
+      font-size: 15px;
+      line-height: 25px;
+      color: #334155;
+    }
+
+    .footer {
+      background-color: #336298;
+      padding: 30px 35px;
+      text-align: center;
+    }
+
+    .footer-divider {
+      height: 1px;
+      background-color: rgba(255, 255, 255, 0.4);
+      margin: 22px 0;
+    }
+
+    .footer-title {
+      margin: 0;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .footer-text {
+      margin: 8px 0 0 0;
+      color: #dbeafe;
+      font-size: 13px;
+      line-height: 20px;
+    }
+
+    .footer-copy {
+      margin: 0;
+      color: #ffffff;
+      font-size: 14px;
+      line-height: 22px;
+    }
+
+    @media only screen and (max-width: 600px) {
+      .email-wrapper {
+        padding: 20px 10px !important;
+      }
+
+      .header {
+        padding: 22px 20px !important;
+      }
+
+      .content {
+        padding: 30px 25px 35px 25px !important;
+      }
+
+      .title {
+        font-size: 27px !important;
+        line-height: 35px !important;
+      }
+
+      .system-name {
+        font-size: 15px !important;
+      }
+
+      .logo {
+        width: 105px !important;
+        max-width: 105px !important;
+      }
+
+      .card {
+        padding: 18px !important;
+      }
+
+      .summary-table td {
+        font-size: 13px !important;
+      }
+
+      .footer {
+        padding: 25px 20px !important;
+      }
+    }
+  </style>
 
 </head>
 
 <body>
 
-<div class="container">
+  <table
+    role="presentation"
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    class="email-wrapper"
+  >
+    <tr>
+      <td align="center">
 
 
-<h2>Hello {{manager_name}},</h2>
+    <table
+      role="presentation"
+      width="600"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      class="email-container"
+    >
 
-<p>
-    An employee has edited an existing leave request.
-    Please review the updated leave request details.
-</p>
+      <tr>
+        <td class="header">
 
-<!-- <div class="card">
+          <table
+            role="presentation"
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+          >
+            <tr>
 
-    <h3>Company Details</h3>
+              <td
+                align="left"
+                valign="middle"
+                width="50%"
+              >
+                <img
+                  src="https://www.i-diligence.com/images/logo/new%20ids18.png"
+                  alt="IDS - I-Diligence Solution"
+                  class="logo"
+                />
+              </td>
 
-    <table class="summary-table">
+              <td
+                align="right"
+                valign="middle"
+                width="50%"
+                class="system-name"
+              >
+                HR-Management System
+              </td>
 
-        <tr>
-            <td class="label">Company Name</td>
-            <td class="value">{{company_name}}</td>
-        </tr>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+
+      <tr>
+        <td class="header-divider">
+          &nbsp;
+        </td>
+      </tr>
+
+      <tr>
+        <td class="content">
+
+          <h1 class="title">
+            Leave Request Updated
+          </h1>
+
+          <div class="title-line"></div>
+
+          <p class="hello">
+            Hello <strong>{{employee_name}}</strong>,
+          </p>
+
+          <p class="message">
+            An employee has updated an existing leave request.
+            Please review the updated leave request details below.
+          </p>
+
+          <div class="card">
+
+            <h3 class="card-title">
+              Employee Details
+            </h3>
+
+            <table class="summary-table">
+
+              <tr>
+                <td class="label">
+                  Employee Name
+                </td>
+                <td class="value">
+                  {{employee_name}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  Employee ID
+                </td>
+                <td class="value">
+                  {{employee_id}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  Employee Email
+                </td>
+                <td class="value">
+                  {{employee_email}}
+                </td>
+              </tr>
+
+            </table>
+
+          </div>
+
+          <div class="card">
+
+            <h3 class="card-title">
+              Updated Leave Request Details
+            </h3>
+
+            <table class="summary-table">
+
+              <tr>
+                <td class="label">
+                  Request ID
+                </td>
+                <td class="value">
+                  {{request_id}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  Applied At
+                </td>
+                <td class="value">
+                  {{applied_at}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  Leave Type
+                </td>
+                <td class="value">
+                  {{leave_type}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  From Date
+                </td>
+                <td class="value">
+                  {{from_date}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  To Date
+                </td>
+                <td class="value">
+                  {{to_date}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  Total Days
+                </td>
+                <td class="value">
+                  {{total_days}}
+                </td>
+              </tr>
+
+              <tr>
+                <td class="label">
+                  Reason
+                </td>
+                <td class="value">
+                  {{reason}}
+                </td>
+              </tr>
+
+            </table>
+
+          </div>
+
+          <p class="action-message">
+            Please review the updated leave request and take the
+            appropriate action.
+          </p>
+
+        </td>
+      </tr>
+
+      <tr>
+        <td class="footer">
+
+          <p class="footer-title">
+            HR-Management System
+          </p>
+
+          <div class="footer-divider"></div>
+
+          <p class="footer-copy">
+            &copy; iDiligence Solution. All rights reserved.
+          </p>
+
+          <p class="footer-text">
+            This is an automated email. Please do not reply directly to this message..
+          </p>
+
+        </td>
+      </tr>
 
     </table>
 
-</div> -->
-
-<div class="card">
-
-    <h3>Employee Details</h3>
-
-    <table class="summary-table">
-
-        <tr>
-            <td class="label">Employee Name</td>
-            <td class="value">{{employee_name}}</td>
-        </tr>
-
-        <tr>
-            <td class="label">Employee ID</td>
-            <td class="value">{{employee_id}}</td>
-        </tr>
-
-        <tr>
-            <td class="label">Employee Email</td>
-            <td class="value">{{employee_email}}</td>
-        </tr>
-
-    </table>
-
-</div>
-
-<div class="card">
-
-    <h3>Updated Leave Request Details</h3>
-
-    <table class="summary-table">
-
-        <tr>
-            <td class="label">Request ID</td>
-            <td class="value">{{request_id}}</td>
-        </tr>
-<tr>
-            <td class="label">Applied At</td>
-            <td class="value">{{applied_at}}</td>
-        </tr>
-        <tr>
-            <td class="label">Leave Type</td>
-            <td class="value">{{leave_type}}</td>
-        </tr>
+  </td>
+</tr>
 
 
-        <tr>
-            <td class="label">From Date</td>
-            <td class="value">{{from_date}}</td>
-        </tr>
-
-        <tr>
-            <td class="label">To Date</td>
-            <td class="value">{{to_date}}</td>
-        </tr>
-
-        <tr>
-            <td class="label">Total Days</td>
-            <td class="value">{{total_days}}</td>
-        </tr>
-
-        <tr>
-            <td class="label">Reason</td>
-            <td class="value">{{reason}}</td>
-        </tr>
-
-        
-
-    </table>
-
-</div>
-
-<p>
-    Please review the updated leave request and take the
-    appropriate action.
-</p>
-
-<p class="footer">
-    Thanks,<br>
-    <strong>HR Technical</strong><br>
-    <span style="font-size: 11px;">
-        This is an automated system notification.
-    </span>
-</p>
-
-
-</div>
+  </table>
 
 </body>
 </html>

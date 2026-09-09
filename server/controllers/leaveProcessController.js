@@ -6,6 +6,34 @@ const { successResponse, errorResponse, paginatedResponse, handleDbError } = req
 const { getPaginationParams } = require("../utils/pagination");
 
 const CARRY_FORWARD_PERCENTAGE = 0.50;
+const formatDateTime = (value) => {
+            if (!value) {
+                return "-";
+            }
+
+            const date = new Date(value);
+
+            const day = String(
+                date.getDate()
+            ).padStart(2, "0");
+
+            const month = String(
+                date.getMonth() + 1
+            ).padStart(2, "0");
+
+            const year =
+                date.getFullYear();
+
+            const hours = String(
+                date.getHours()
+            ).padStart(2, "0");
+
+            const minutes = String(
+                date.getMinutes()
+            ).padStart(2, "0");
+
+            return `${day}-${month}-${year}:${hours}:${minutes}`;
+        };
 
 function getLoggedInPrId(req) {
     const prId = req.user?.pr_id ?? req.user?.Pr_Id ?? req.user?.user_id ?? req.user?.id;
@@ -1680,6 +1708,14 @@ exports.cancelLeave = async (req, res) => {
             );
         }
 
+        if (!prId) {
+            return errorResponse(
+                res,
+                "Unable to identify logged-in employee.",
+                401
+            );
+        }
+
         const result = await withTransaction(async (client) => {
             const cancelledStatusId =
                 await getLeaveStatusId(client, "Cancelled");
@@ -1823,6 +1859,15 @@ exports.cancelLeave = async (req, res) => {
                 leaveRequest.lr_total_days || 0
             );
 
+            if (requestedDays <= 0) {
+                const error = new Error(
+                    "Invalid leave request days."
+                );
+
+                error.statusCode = 400;
+                throw error;
+            }
+
             const pendingBefore = Number(
                 quota.lq_pending_days || 0
             );
@@ -1916,6 +1961,18 @@ exports.cancelLeave = async (req, res) => {
                 .join(" ")
                 .trim();
 
+            const employeeEmail =
+                leaveRequest.employee_official_email ||
+                leaveRequest.employee_organization_email ||
+                leaveRequest.employee_personal_email ||
+                null;
+
+            const managerEmail =
+                leaveRequest.manager_official_email ||
+                leaveRequest.manager_organization_email ||
+                leaveRequest.manager_personal_email ||
+                null;
+
             return {
                 request: updateResult.rows[0],
 
@@ -1929,8 +1986,7 @@ exports.cancelLeave = async (req, res) => {
                         leaveRequest.employee_emp_id,
 
                     email:
-                        leaveRequest.employee_official_email ||
-                        null
+                        employeeEmail
                 },
 
                 manager: {
@@ -1943,8 +1999,7 @@ exports.cancelLeave = async (req, res) => {
                         leaveRequest.manager_emp_id,
 
                     email:
-                        leaveRequest.manager_official_email ||
-                        null
+                        managerEmail
                 },
 
                 leave_type: {
@@ -1984,6 +2039,10 @@ exports.cancelLeave = async (req, res) => {
 
             const date = new Date(value);
 
+            if (Number.isNaN(date.getTime())) {
+                return "-";
+            }
+
             const day = String(
                 date.getDate()
             ).padStart(2, "0");
@@ -2016,7 +2075,8 @@ exports.cancelLeave = async (req, res) => {
                 result.employee.emp_id,
 
             leave_request_id:
-                request.request_id,
+                request.request_id ||
+                request.lr_leave_request_id,
 
             leave_type:
                 result.leave_type.name,
@@ -2025,7 +2085,7 @@ exports.cancelLeave = async (req, res) => {
                 result.leave_type.code || "-",
 
             from_date:
-            formatDateTime(
+                formatDateTime(
                     request.lr_from_date
                 ),
 
@@ -2068,24 +2128,27 @@ exports.cancelLeave = async (req, res) => {
                 result.quota.used_days_after,
 
             manager_name:
-                result.manager.pr_first_name
+                result.manager.name,
+
+            manager_id:
+                result.manager.emp_id
         };
 
         if (result.employee.email) {
             try {
                 await sendEmail(
                     result.employee.email,
-                    `Leave Request Cancelled - ${request.request_id}`,
+                    `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
                     "leave_cancelled",
                     emailData
                 );
 
                 console.log(
-                    `[LEAVE CANCELLATION EMAIL SENT] Request=${request.request_id} To=${result.employee.email}`
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.email}`
                 );
             } catch (emailError) {
                 console.error(
-                    `[LEAVE CANCELLATION EMAIL ERROR] Request=${request.request_id} To=${result.employee.email}`,
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.email}`,
                     emailError
                 );
             }
@@ -2095,17 +2158,17 @@ exports.cancelLeave = async (req, res) => {
             try {
                 await sendEmail(
                     result.manager.email,
-                    `Leave Request Cancelled - ${request.request_id}`,
-                    "leave_cancelled",
+                    `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
+                    "leave_cancelled_manager",
                     emailData
                 );
 
                 console.log(
-                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id} To=${result.manager.email}`
+                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.email}`
                 );
             } catch (emailError) {
                 console.error(
-                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id} To=${result.manager.email}`,
+                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.email}`,
                     emailError
                 );
             }
@@ -2511,12 +2574,10 @@ exports.approveLeave = async (req, res) => {
                             "Approved",
 
                         applied_at:
-                        formatDateTime(
-                            formattedAppliedAt),
+                            formattedAppliedAt,
 
                         approved_at:
-                        formatDateTime(
-                            formattedApprovedAt),
+                            formattedApprovedAt,
 
                         approver_remark:
                             result.request.lr_approver_remark ||
