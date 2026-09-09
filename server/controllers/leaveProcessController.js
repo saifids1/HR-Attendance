@@ -525,10 +525,41 @@ exports.getAllEmployeesLeaveSummary = async (req, res) => {
             validateYear(req.query.year) ||
             new Date().getFullYear();
 
-        const page = Math.max(Number(req.query.page) || 1, 1);
-        const limit = Math.max(Number(req.query.limit) || 10, 1);
+        const page = Math.max(
+            Number(req.query.page) || 1,
+            1
+        );
+
+        const limit = Math.max(
+            Number(req.query.limit) || 10,
+            1
+        );
+
         const offset = (page - 1) * limit;
 
+        /*
+         * Get total active employees first
+         */
+        const countResult = await db.query(
+            `
+            SELECT
+                COUNT(*)::integer AS total
+            FROM public.organizations
+            WHERE or_is_active = TRUE
+            `
+        );
+
+        const total = Number(
+            countResult.rows[0]?.total || 0
+        );
+
+        const totalPages = Math.ceil(
+            total / limit
+        );
+
+        /*
+         * Get employee leave summary
+         */
         const result = await db.query(
             `
             WITH employee_data AS (
@@ -577,33 +608,58 @@ exports.getAllEmployeesLeaveSummary = async (req, res) => {
             ),
 
             quota_summary AS (
+                /*
+                 * PL QUOTA ONLY
+                 */
                 SELECT
-                    lq_pr_id AS pr_id,
+                    lq.lq_pr_id AS pr_id,
 
                     SUM(
-                        COALESCE(lq_allocated_days, 0)
+                        COALESCE(
+                            lq.lq_allocated_days,
+                            0
+                        )
                     ) AS total_allocated_days,
 
                     SUM(
-                        COALESCE(lq_carry_forward_days, 0)
+                        COALESCE(
+                            lq.lq_carry_forward_days,
+                            0
+                        )
                     ) AS total_carry_forward_days,
 
                     SUM(
-                        COALESCE(lq_pending_days, 0)
+                        COALESCE(
+                            lq.lq_pending_days,
+                            0
+                        )
                     ) AS total_pending_days,
 
                     SUM(
-                        COALESCE(lq_used_days, 0)
+                        COALESCE(
+                            lq.lq_used_days,
+                            0
+                        )
                     ) AS total_used_days
 
-                FROM public.leave_quota
+                FROM public.leave_quota lq
 
-                WHERE lq_leave_year = $1
+                INNER JOIN public.leave_types lt
+                    ON lt.lt_leave_type_id =
+                       lq.lq_leave_type_id
 
-                GROUP BY lq_pr_id
+                WHERE lq.lq_leave_year = $1
+
+                  AND lt.lt_leave_type_code = 'PL'
+
+                GROUP BY
+                    lq.lq_pr_id
             ),
 
             request_summary AS (
+                /*
+                 * ALL LEAVE REQUESTS
+                 */
                 SELECT
                     lr.lr_pr_id AS pr_id,
 
@@ -636,58 +692,53 @@ exports.getAllEmployeesLeaveSummary = async (req, res) => {
                 FROM public.leave_requests lr
 
                 INNER JOIN public.leave_status ls
-                    ON ls.ls_leave_status_id = lr.lr_status_id
+                    ON ls.ls_leave_status_id =
+                       lr.lr_status_id
 
                 WHERE EXTRACT(
                     YEAR FROM lr.lr_from_date
                 ) = $1
 
-                GROUP BY lr.lr_pr_id
+                GROUP BY
+                    lr.lr_pr_id
             ),
 
             unpaid_summary AS (
+                /*
+                 * LWP / UNPAID LEAVE
+                 *
+                 * Calculated from leave_quota
+                 */
                 SELECT
-                    lr.lr_pr_id AS pr_id,
+                    lq.lq_pr_id AS pr_id,
 
-                    COALESCE(
-                        SUM(lr.lr_total_days),
-                        0
-                    ) AS total_unpaid_leave_days,
+                    SUM(
+                        COALESCE(
+                            lq.lq_used_days,
+                            0
+                        )
+                    ) AS total_unpaid_leave_days
 
-                    COUNT(*) AS total_unpaid_leave_requests
-
-                FROM public.leave_requests lr
+                FROM public.leave_quota lq
 
                 INNER JOIN public.leave_types lt
                     ON lt.lt_leave_type_id =
-                       lr.lr_leave_type_id
+                       lq.lq_leave_type_id
 
-                INNER JOIN public.leave_status ls
-                    ON ls.ls_leave_status_id =
-                       lr.lr_status_id
+                WHERE lq.lq_leave_year = $1
 
-                WHERE COALESCE(
-                    lt.lt_is_paid,
-                    FALSE
-                ) = FALSE
+                  AND lt.lt_leave_type_code = 'LWP'
 
-                AND EXTRACT(
-                    YEAR FROM lr.lr_from_date
-                ) = $1
-
-                AND LOWER(
-                    ls.ls_leave_status_name
-                ) IN (
-                    'pending',
-                    'approved'
-                )
-
-                GROUP BY lr.lr_pr_id
+                GROUP BY
+                    lq.lq_pr_id
             )
 
             SELECT
                 e.*,
 
+                /*
+                 * PL QUOTA
+                 */
                 COALESCE(
                     q.total_allocated_days,
                     0
@@ -731,6 +782,9 @@ exports.getAllEmployeesLeaveSummary = async (req, res) => {
                     0
                 ) AS remaining_days,
 
+                /*
+                 * LEAVE REQUEST COUNTS
+                 */
                 COALESCE(
                     r.total_requests,
                     0
@@ -756,15 +810,13 @@ exports.getAllEmployeesLeaveSummary = async (req, res) => {
                     0
                 ) AS cancelled_requests,
 
+                /*
+                 * LWP
+                 */
                 COALESCE(
                     u.total_unpaid_leave_days,
                     0
-                ) AS total_unpaid_leave_days,
-
-                COALESCE(
-                    u.total_unpaid_leave_requests,
-                    0
-                ) AS total_unpaid_leave_requests
+                ) AS total_unpaid_leave_days
 
             FROM employee_data e
 
@@ -786,30 +838,24 @@ exports.getAllEmployeesLeaveSummary = async (req, res) => {
             [year, limit, offset]
         );
 
-        const countResult = await db.query(
-            `
-            SELECT COUNT(*) AS total
-            FROM public.organizations
-            WHERE or_is_active = TRUE
-            `
-        );
-
-        const total = Number(countResult.rows[0].total);
-        const totalPages = Math.ceil(total / limit);
-
         return successResponse(
             res,
             200,
             {
                 year,
                 employees: result.rows,
+
                 pagination: {
                     page,
                     limit,
                     total,
                     total_pages: totalPages,
-                    has_next_page: page < totalPages,
-                    has_previous_page: page > 1
+
+                    has_next_page:
+                        page < totalPages,
+
+                    has_previous_page:
+                        page > 1
                 }
             },
             "Employees leave summary fetched successfully."
