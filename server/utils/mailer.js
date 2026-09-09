@@ -32,7 +32,7 @@ const sendEmail = async (to, subject, templateName, templateData) => {
     }
 
     await transporter.sendMail({
-      from: `"I-Diligence Solution" <${process.env.MAILNAME}>`,
+      from: `"iDiligence Solution" <${process.env.MAILNAME}>`,
       to,
       subject,
       html,

@@ -155,7 +155,7 @@ const sendPasswordResetOtp = async (req, res) => {
     // --------------------------------------------------
     await sendEmail(
       organization.or_official_email,
-      "Password Reset OTP - I-Diligence Solution",
+      "Password Reset OTP - iDiligence Solution",
       "password_reset_otp",
       {
         name: userName,
@@ -374,7 +374,7 @@ const resetPassword = async (req, res) => {
     try {
       await sendEmail(
         user.or_official_email,
-        "Password Reset Successful - I-Diligence Solution",
+        "Password Reset Successful - iDiligence Solution",
         "password_reset_success",
         {
           // Full name from personal table
