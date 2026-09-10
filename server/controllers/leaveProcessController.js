@@ -1203,7 +1203,7 @@ exports.applyLeave = async (req, res) => {
                     overlapResult.rows[0];
 
                 const error = new Error(
-                    `Leave already exists from ${formatDateTime(existing.lr_from_date)} to ${formatDateTime(existing.lr_to_date)}.`
+                    `Leave already exists from ${formatDDMMYYYY(existing.lr_from_date)} to ${formatDDMMYYYY(existing.lr_to_date)}.`
                 );
 
                 error.statusCode = 409;
@@ -1372,7 +1372,7 @@ const month = String(currentDate.getMonth() + 1).padStart(2, "0");
 const currentYear = currentDate.getFullYear();
 
 const requestId =
-    `${day}${month}${currentYear}${String(nextRequestId).padStart(3, "0")}`;
+    `IHR-${day}${month}${currentYear}-${String(nextRequestId).padStart(3, "0")}`;
 
            const insertResult =
     await client.query(
@@ -1658,6 +1658,12 @@ const requestId =
         );
     }
 };
+
+function formatDDMMYYYY(dateStr) {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}-${month}-${year}`;
+}
 
 exports.getMyLeaveRequests = async (req, res) => {
     try {
@@ -3710,8 +3716,8 @@ exports.getMyLeaveRequests = async (req, res) => {
                 lt.lt_leave_type_name,
                 lt.lt_total_days_per_year,
                 lt.lt_is_paid,
-                lr.lr_from_date,
-                lr.lr_to_date,
+                TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,
+                TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,
                 lr.lr_total_days,
                 lr.lr_reason,
                 lr.lr_status_id,
@@ -4181,7 +4187,7 @@ exports.getAllLeaveRequests = async (req, res) => {
         );
         const total = Number(countResult.rows[0].total || 0);
         const result = await db.query(
-            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, employee.or_emp_id AS employee_id, employee.or_organization_name AS employee_name, employee.or_department_id AS department_id, employee.or_designation_id AS designation_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, lr.lr_from_date, lr.lr_to_date, lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason, lr.lr_created_at, lr.lr_updated_at FROM public.leave_requests lr INNER JOIN public.organizations employee ON employee.pr_id = lr.lr_pr_id INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, employee.or_emp_id AS employee_id, employee.or_organization_name AS employee_name, employee.or_department_id AS department_id, employee.or_designation_id AS designation_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date, lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason, lr.lr_created_at, lr.lr_updated_at FROM public.leave_requests lr INNER JOIN public.organizations employee ON employee.pr_id = lr.lr_pr_id INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
             [...values, limit, offset]
         );
         return paginatedResponse(res, result.rows, page, limit, total);
@@ -4388,8 +4394,8 @@ exports.getManagerLeaveRequests = async (req, res) => {
                 lt.lt_total_days_per_year,
                 lt.lt_is_paid,
 
-                lr.lr_from_date,
-                lr.lr_to_date,
+                TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,
+                TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,
                 lr.lr_total_days,
                 lr.lr_reason,
 
