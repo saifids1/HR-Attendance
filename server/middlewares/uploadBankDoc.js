@@ -41,7 +41,7 @@ const storage = multer.diskStorage({
       .toLowerCase();
 
     const uniqueName =
-      `Emp_${employeeId}_${Date.now()}${ext}`;
+      `${file.originalname}`;
 
     cb(null, uniqueName);
 
