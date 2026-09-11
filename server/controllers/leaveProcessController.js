@@ -1110,6 +1110,11 @@ exports.applyLeave = async (req, res) => {
                 .join(" ")
                 .trim();
 
+            const employeeEmail =
+                employeeDetails.or_official_email ||
+                employeeDetails.pr_email ||
+                null;
+
             const leaveType =
                 await getApplicableLeaveType(
                     client,
@@ -1334,7 +1339,7 @@ exports.applyLeave = async (req, res) => {
                 ) {
                     const error =
                         new Error(
-                            `PL leave limit exceeded. Available: ${remainingEarnedPLDays} day(s), Requested: ${requestedDays} day(s).`
+                            `PL leave limit exceeded. Available: ${remainingEarnedPLDays} day(s), Requested: ${totalDays} day(s).`
                         );
 
                     error.statusCode = 400;
@@ -1356,75 +1361,75 @@ exports.applyLeave = async (req, res) => {
             }
 
             const maxReIdResult = await client.query(
-    `
-    SELECT COALESCE(COUNT(*), 0) + 1 AS next_request_id
-    FROM public.leave_requests where lr_created_at::date = CURRENT_DATE;
-    `
-);
+                    `
+                    SELECT COALESCE(COUNT(*), 0) + 1 AS next_request_id 
+                    FROM public.leave_requests where lr_created_at::date = CURRENT_DATE;
+                    `
+                );
 
-const nextRequestId =
-    Number(maxReIdResult.rows[0].next_request_id);
+            const nextRequestId =
+                Number(maxReIdResult.rows[0].next_request_id);
 
-const currentDate = new Date();
+            const currentDate = new Date();
 
-const day = String(currentDate.getDate()).padStart(2, "0");
-const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-const currentYear = currentDate.getFullYear();
+            const day = String(currentDate.getDate()).padStart(2, "0");
+            const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+            const currentYear = currentDate.getFullYear();
 
-const requestId =
-    `IHR-${day}${month}${currentYear}-${String(nextRequestId).padStart(3, "0")}`;
+            const requestId =
+                `IHR-${day}${month}${currentYear}-${String(nextRequestId).padStart(3, "0")}`;
 
-           const insertResult =
-    await client.query(
-        `
-        INSERT INTO public.leave_requests
-        (
-            lr_pr_id,
-            lr_leave_type_id,
-            lr_from_date,
-            lr_to_date,
-            lr_total_days,
-            lr_reason,
-            lr_status_id,
-            lr_reporting_to,
-            lr_ismailfromrequester,
-            lr_ismailfromapprover,
-            lr_applied_at,
-            lr_created_at,
-            lr_created_by,
-            request_id
-        )
-        VALUES
-        (
-            $1,
-            $2,
-            $3,
-            $4,
-            $5,
-            $6,
-            $7,
-            $8,
-            FALSE,
-            FALSE,
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP,
-            $1,
-            $9
-        )
-        RETURNING *
-        `,
-        [
-            prId,
-            leaveTypeId,
-            from_date,
-            to_date,
-            totalDays,
-            reason || null,
-            pendingStatusId,
-            reportingTo,
-            requestId
-        ]
-    );
+            const insertResult =
+                await client.query(
+                    `
+                    INSERT INTO public.leave_requests
+                    (
+                        lr_pr_id,
+                        lr_leave_type_id,
+                        lr_from_date,
+                        lr_to_date,
+                        lr_total_days,
+                        lr_reason,
+                        lr_status_id,
+                        lr_reporting_to,
+                        lr_ismailfromrequester,
+                        lr_ismailfromapprover,
+                        lr_applied_at,
+                        lr_created_at,
+                        lr_created_by,
+                        request_id
+                    )
+                    VALUES
+                    (
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        $7,
+                        $8,
+                        FALSE,
+                        FALSE,
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP,
+                        $1,
+                        $9
+                    )
+                    RETURNING *
+                    `,
+                    [
+                        prId,
+                        leaveTypeId,
+                        from_date,
+                        to_date,
+                        totalDays,
+                        reason || null,
+                        pendingStatusId,
+                        reportingTo,
+                        requestId
+                    ]
+                );
 
             await client.query(
                 `
@@ -1452,7 +1457,7 @@ const requestId =
 
                 employee: {
                     pr_id:
-                        employeeDetails.or_pr_id,
+                        employeeDetails.pr_id,
 
                     emp_id:
                         employeeDetails.or_emp_id,
@@ -1463,14 +1468,12 @@ const requestId =
                         "Employee",
 
                     email:
-                        employeeDetails.or_official_email ||
-                        employeeDetails.pr_email ||
-                        null
+                        employeeEmail
                 },
 
                 reporting_manager: {
                     pr_id:
-                        manager.or_pr_id,
+                        manager.pr_id,
 
                     emp_id:
                         manager.or_emp_id,
@@ -1529,97 +1532,120 @@ const requestId =
                 );
             }
 
+            const appliedAt = (() => {
+                const date =
+                    new Date(
+                        request.lr_applied_at
+                    );
+
+                const day =
+                    String(
+                        date.getDate()
+                    ).padStart(2, "0");
+
+                const month =
+                    String(
+                        date.getMonth() + 1
+                    ).padStart(2, "0");
+
+                const year =
+                    date.getFullYear();
+
+                let hours =
+                    date.getHours();
+
+                const minutes =
+                    String(
+                        date.getMinutes()
+                    ).padStart(2, "0");
+
+                const amPm =
+                    hours >= 12
+                        ? "PM"
+                        : "AM";
+
+                hours =
+                    hours % 12;
+
+                hours =
+                    hours || 12;
+
+                hours =
+                    String(hours)
+                        .padStart(2, "0");
+
+                return `${day}-${month}-${year} ${hours}:${minutes} ${amPm}`;
+            })();
+
+            const emailData = {
+                manager_name:
+                    manager.name || "Manager",
+
+                manager_id:
+                    manager.emp_id ||
+                    manager.pr_id,
+
+                employee_name:
+                    employee.name ||
+                    "Employee",
+
+                employee_id:
+                    employee.emp_id ||
+                    employee.pr_id,
+
+                employee_email:
+                    employee.email || "-",
+
+                leave_request_id:
+                    request.request_id,
+
+                leave_type:
+                    result.leave_type
+                        .lt_leave_type_name,
+
+                leave_type_code:
+                    result.leave_type
+                        .lt_leave_type_code || "-",
+
+                from_date:
+                    formatDateTime(
+                        request.lr_from_date
+                    ),
+
+                to_date:
+                    formatDateTime(
+                        request.lr_to_date
+                    ),
+
+                total_days:
+                    result.total_days,
+
+                reason:
+                    request.lr_reason ||
+                    "No reason provided",
+
+                status:
+                    "Pending",
+
+                applied_at:
+                    appliedAt
+            };
+
             await sendEmail(
                 manager.email,
                 `Leave Request - ${request.request_id || employee.emp_id}`,
                 "leave_request",
-                {
-                    manager_name:
-                        manager.name || "Manager",
-
-                    manager_id:
-                        manager.emp_id || manager.pr_id,
-
-                    employee_name:
-                        employee.name || "Employee",
-
-                    employee_id:
-                        employee.emp_id || employee.pr_id,
-
-                    employee_email:
-                        employee.email || "-",
-
-                    leave_request_id:
-                        request.request_id,
-
-                    leave_type:
-                        result.leave_type.lt_leave_type_name,
-
-                    leave_type_code:
-                        result.leave_type.lt_leave_type_code || "-",
-
-                    from_date:
-                    formatDateTime(request.lr_from_date),
-
-                    to_date:
-                    formatDateTime(request.lr_to_date),
-
-                    total_days:
-                        result.total_days,
-
-                    reason:
-                        request.lr_reason ||
-                        "No reason provided",
-
-                    status:
-                        "Pending",
-
-                    applied_at: (() => {
-                        const date =
-                            new Date(
-                                request.lr_applied_at
-                            );
-
-                        const day =
-                            String(
-                                date.getDate()
-                            ).padStart(2, "0");
-
-                        const month =
-                            String(
-                                date.getMonth() + 1
-                            ).padStart(2, "0");
-
-                        const year =
-                            date.getFullYear();
-
-                        let hours =
-                            date.getHours();
-
-                        const minutes =
-                            String(
-                                date.getMinutes()
-                            ).padStart(2, "0");
-
-                        const amPm =
-                            hours >= 12
-                                ? "PM"
-                                : "AM";
-
-                        hours =
-                            hours % 12;
-
-                        hours =
-                            hours || 12;
-
-                        hours =
-                            String(hours)
-                                .padStart(2, "0");
-
-                        return `${day}-${month}-${year} ${hours}:${minutes} ${amPm}`;
-                    })()
-                }
+                emailData
             );
+
+            if (employee.email) {
+                await sendEmail(
+                    employee.email,
+                    `Leave Request Submitted - ${request.request_id || employee.emp_id}`,
+                    "leave_request_employee",
+                    emailData
+                );
+            }
 
             await db.query(
                 `
@@ -1634,7 +1660,7 @@ const requestId =
             );
 
             console.log(
-                `[LEAVE EMAIL SENT] Request=${request.request_id} To=${manager.email}`
+                `[LEAVE EMAIL SENT] Request=${request.request_id} Manager=${manager.email} Employee=${employee.email || "N/A"}`
             );
 
         } catch (emailError) {
