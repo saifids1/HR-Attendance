@@ -2305,6 +2305,9 @@ exports.approveLeave = async (req, res) => {
                     lr.*,
                     ls.ls_leave_status_name,
 
+                    /* =========================
+                       EMPLOYEE DETAILS
+                    ========================= */
                     employee.or_id AS employee_or_id,
                     employee.pr_id AS employee_pr_id,
                     employee.or_emp_id AS employee_emp_id,
@@ -2317,6 +2320,9 @@ exports.approveLeave = async (req, res) => {
                     employee_personal.pr_last_name AS employee_last_name,
                     employee_personal.pr_email AS employee_personal_email,
 
+                    /* =========================
+                       MANAGER DETAILS
+                    ========================= */
                     manager.pr_id AS manager_pr_id,
                     manager.or_emp_id AS manager_emp_id,
                     manager.or_official_email AS manager_official_email,
@@ -2325,6 +2331,9 @@ exports.approveLeave = async (req, res) => {
                     manager_personal.pr_last_name AS manager_last_name,
                     manager_personal.pr_email AS manager_personal_email,
 
+                    /* =========================
+                       LEAVE TYPE
+                    ========================= */
                     lt.lt_leave_type_name,
                     lt.lt_leave_type_code
 
@@ -2369,6 +2378,10 @@ exports.approveLeave = async (req, res) => {
 
             const leaveRequest = requestResult.rows[0];
 
+            /* =========================
+               CHECK APPROVER
+            ========================= */
+
             if (
                 Number(leaveRequest.manager_pr_id) !==
                 Number(approverPrId)
@@ -2380,6 +2393,10 @@ exports.approveLeave = async (req, res) => {
                 error.statusCode = 403;
                 throw error;
             }
+
+            /* =========================
+               CHECK STATUS
+            ========================= */
 
             const currentStatus =
                 String(
@@ -2394,6 +2411,10 @@ exports.approveLeave = async (req, res) => {
                 error.statusCode = 400;
                 throw error;
             }
+
+            /* =========================
+               GET QUOTA
+            ========================= */
 
             const quotaResult = await client.query(
                 `
@@ -2464,6 +2485,10 @@ exports.approveLeave = async (req, res) => {
             const usedDaysAfter =
                 usedDaysBefore + requestedDays;
 
+            /* =========================
+               UPDATE QUOTA
+            ========================= */
+
             await client.query(
                 `
                 UPDATE public.leave_quota
@@ -2481,6 +2506,10 @@ exports.approveLeave = async (req, res) => {
                     quota.lq_id
                 ]
             );
+
+            /* =========================
+               GENERATE REQUEST ID
+            ========================= */
 
             const requestNumber =
                 Number(leaveRequest.lr_leave_request_id);
@@ -2501,6 +2530,10 @@ exports.approveLeave = async (req, res) => {
 
             const generatedRequestId =
                 `${day}${month}${year}${String(requestNumber).padStart(2, "0")}`;
+
+            /* =========================
+               UPDATE LEAVE REQUEST
+            ========================= */
 
             const updateResult = await client.query(
                 `
@@ -2526,6 +2559,10 @@ exports.approveLeave = async (req, res) => {
                 ]
             );
 
+            /* =========================
+               EMPLOYEE NAME
+            ========================= */
+
             const employeeName = [
                 leaveRequest.employee_first_name,
                 leaveRequest.employee_last_name
@@ -2533,6 +2570,10 @@ exports.approveLeave = async (req, res) => {
                 .filter(Boolean)
                 .join(" ")
                 .trim();
+
+            /* =========================
+               MANAGER NAME
+            ========================= */
 
             const managerName = [
                 leaveRequest.manager_first_name,
@@ -2542,64 +2583,132 @@ exports.approveLeave = async (req, res) => {
                 .join(" ")
                 .trim();
 
-            const employeeEmail =
-                leaveRequest.employee_personal_email ||
+            /* =========================================================
+               IMPORTANT:
+               USE OFFICIAL EMAIL FROM organizations TABLE
+            ========================================================= */
+
+            const employeeOfficialEmail =
                 leaveRequest.employee_official_email ||
                 null;
 
-            const managerEmail =
+            const managerOfficialEmail =
                 leaveRequest.manager_official_email ||
-                leaveRequest.manager_personal_email ||
                 null;
 
             return {
                 request: updateResult.rows[0],
 
+                /* =========================
+                   EMPLOYEE
+                ========================= */
+
                 employee: {
-                    pr_id: leaveRequest.employee_pr_id,
-                    emp_id: leaveRequest.employee_emp_id,
+                    pr_id:
+                        leaveRequest.employee_pr_id,
+
+                    emp_id:
+                        leaveRequest.employee_emp_id,
+
                     name:
                         employeeName ||
                         leaveRequest.employee_emp_id ||
                         "Employee",
-                    email: employeeEmail,
+
+                    /* OFFICIAL EMAIL */
+                    official_email:
+                        employeeOfficialEmail,
+
+                    /* Keep email also pointing to official email */
+                    email:
+                        employeeOfficialEmail,
+
+                    personal_email:
+                        leaveRequest.employee_personal_email ||
+                        null,
+
                     organization:
                         leaveRequest.employee_organization_name ||
                         "-"
                 },
 
+                /* =========================
+                   MANAGER
+                ========================= */
+
                 manager: {
-                    pr_id: leaveRequest.manager_pr_id,
-                    emp_id: leaveRequest.manager_emp_id,
+                    pr_id:
+                        leaveRequest.manager_pr_id,
+
+                    emp_id:
+                        leaveRequest.manager_emp_id,
+
                     name:
                         managerName ||
                         leaveRequest.manager_emp_id ||
                         "Manager",
-                    email: managerEmail
+
+                    /* OFFICIAL EMAIL */
+                    official_email:
+                        managerOfficialEmail,
+
+                    /* Keep email also pointing to official email */
+                    email:
+                        managerOfficialEmail,
+
+                    personal_email:
+                        leaveRequest.manager_personal_email ||
+                        null
                 },
+
+                /* =========================
+                   LEAVE TYPE
+                ========================= */
 
                 leave_type: {
-                    name: leaveRequest.lt_leave_type_name,
-                    code: leaveRequest.lt_leave_type_code
+                    name:
+                        leaveRequest.lt_leave_type_name,
+
+                    code:
+                        leaveRequest.lt_leave_type_code
                 },
 
+                /* =========================
+                   QUOTA
+                ========================= */
+
                 quota: {
-                    lq_id: quota.lq_id,
+                    lq_id:
+                        quota.lq_id,
+
                     allocated_days:
-                        Number(quota.lq_allocated_days || 0),
+                        Number(
+                            quota.lq_allocated_days || 0
+                        ),
+
                     carry_forward_days:
-                        Number(quota.lq_carry_forward_days || 0),
+                        Number(
+                            quota.lq_carry_forward_days || 0
+                        ),
+
                     pending_days_before:
                         pendingDays,
+
                     pending_days_after:
                         pendingDaysAfter,
+
                     used_days_before:
                         usedDaysBefore,
+
                     used_days_after:
                         usedDaysAfter
                 }
             };
         });
+
+        /* =========================================================
+           FORMAT DATE TIME
+        ========================================================= */
 
         const formatDateTime = (value) => {
             if (!value) {
@@ -2628,7 +2737,9 @@ exports.approveLeave = async (req, res) => {
                 String(date.getMinutes()).padStart(2, "0");
 
             const amPm =
-                hours >= 12 ? "PM" : "AM";
+                hours >= 12
+                    ? "PM"
+                    : "AM";
 
             hours =
                 hours % 12 || 12;
@@ -2639,17 +2750,30 @@ exports.approveLeave = async (req, res) => {
             return `${day}-${month}-${year} ${hours}:${minutes} ${amPm}`;
         };
 
-        const request = result.request;
+        /* =========================================================
+           REQUEST
+        ========================================================= */
+
+        const request =
+            result.request;
 
         const leaveRequestId =
             request.request_id ||
             request.lr_leave_request_id;
 
         const formattedAppliedAt =
-            formatDateTime(request.lr_applied_at);
+            formatDateTime(
+                request.lr_applied_at
+            );
 
         const formattedApprovedAt =
-            formatDateTime(request.lr_approver_at);
+            formatDateTime(
+                request.lr_approver_at
+            );
+
+        /* =========================================================
+           EMAIL DATA
+        ========================================================= */
 
         const emailData = {
             employee_name:
@@ -2657,6 +2781,10 @@ exports.approveLeave = async (req, res) => {
 
             employee_id:
                 result.employee.emp_id,
+
+            employee_official_email:
+                result.employee.official_email ||
+                "-",
 
             organization_name:
                 result.employee.organization,
@@ -2667,6 +2795,10 @@ exports.approveLeave = async (req, res) => {
             manager_id:
                 result.manager.emp_id,
 
+            manager_official_email:
+                result.manager.official_email ||
+                "-",
+
             leave_request_id:
                 leaveRequestId,
 
@@ -2674,13 +2806,18 @@ exports.approveLeave = async (req, res) => {
                 result.leave_type.name,
 
             leave_type_code:
-                result.leave_type.code || "-",
+                result.leave_type.code ||
+                "-",
 
             from_date:
-                formatDateTime(request.lr_from_date),
+                formatDateTime(
+                    request.lr_from_date
+                ),
 
             to_date:
-                formatDateTime(request.lr_to_date),
+                formatDateTime(
+                    request.lr_to_date
+                ),
 
             total_days:
                 request.lr_total_days,
@@ -2721,13 +2858,32 @@ exports.approveLeave = async (req, res) => {
                 result.quota.used_days_after
         };
 
+        /* =========================================================
+           EMAIL STATUS
+        ========================================================= */
+
         let employeeEmailSent = false;
         let managerEmailSent = false;
 
+        /* =========================================================
+           SEND EMAILS
+        ========================================================= */
+
         try {
-            if (result.employee.or_official_email) {
+
+            /* =====================================================
+               EMPLOYEE OFFICIAL EMAIL
+            ===================================================== */
+
+            const employeeEmail =
+                result.employee.official_email;
+
+            if (
+                employeeEmail &&
+                String(employeeEmail).trim()
+            ) {
                 await sendEmail(
-                    result.employee.or_official_email,
+                    employeeEmail.trim(),
                     `Leave Request Approved - ${leaveRequestId}`,
                     "leave_approved",
                     emailData
@@ -2736,13 +2892,34 @@ exports.approveLeave = async (req, res) => {
                 employeeEmailSent = true;
 
                 console.log(
-                    `[LEAVE APPROVAL EMAIL SENT] Request=${leaveRequestId} To=${result.employee.or_official_email}`
+                    `[LEAVE APPROVAL EMAIL SENT] ` +
+                    `Request=${leaveRequestId} ` +
+                    `Employee=${result.employee.name} ` +
+                    `To=${employeeEmail}`
+                );
+            } else {
+                console.warn(
+                    `[LEAVE APPROVAL EMAIL SKIPPED] ` +
+                    `Employee official email not found. ` +
+                    `Request=${leaveRequestId} ` +
+                    `EmployeePR=${result.employee.pr_id} ` +
+                    `EmpId=${result.employee.emp_id}`
                 );
             }
 
-            if (result.manager.or_official_email) {
+            /* =====================================================
+               MANAGER OFFICIAL EMAIL
+            ===================================================== */
+
+            const managerEmail =
+                result.manager.official_email;
+
+            if (
+                managerEmail &&
+                String(managerEmail).trim()
+            ) {
                 await sendEmail(
-                    result.manager.or_official_email,
+                    managerEmail.trim(),
                     `Leave Request Approved - ${leaveRequestId}`,
                     "leave_approved_manager",
                     emailData
@@ -2751,11 +2928,29 @@ exports.approveLeave = async (req, res) => {
                 managerEmailSent = true;
 
                 console.log(
-                    `[LEAVE APPROVAL MANAGER EMAIL SENT] Request=${leaveRequestId} To=${result.manager.or_official_email}`
+                    `[LEAVE APPROVAL MANAGER EMAIL SENT] ` +
+                    `Request=${leaveRequestId} ` +
+                    `Manager=${result.manager.name} ` +
+                    `To=${managerEmail}`
+                );
+            } else {
+                console.warn(
+                    `[LEAVE APPROVAL MANAGER EMAIL SKIPPED] ` +
+                    `Manager official email not found. ` +
+                    `Request=${leaveRequestId} ` +
+                    `ManagerPR=${result.manager.pr_id} ` +
+                    `ManagerEmpId=${result.manager.emp_id}`
                 );
             }
 
-            if (employeeEmailSent || managerEmailSent) {
+            /* =====================================================
+               UPDATE MAIL FLAG
+            ===================================================== */
+
+            if (
+                employeeEmailSent ||
+                managerEmailSent
+            ) {
                 await db.query(
                     `
                     UPDATE public.leave_requests
@@ -2773,21 +2968,39 @@ exports.approveLeave = async (req, res) => {
             }
 
         } catch (emailError) {
+
             console.error(
-                `[LEAVE APPROVAL EMAIL ERROR] Request=${leaveRequestId}`,
+                `[LEAVE APPROVAL EMAIL ERROR] ` +
+                `Request=${leaveRequestId}`,
                 emailError
             );
         }
+
+        /* =========================================================
+           FINAL RESPONSE
+        ========================================================= */
 
         return successResponse(
             res,
             200,
             {
                 ...result,
+
                 email: {
+                    employee_email:
+                        result.employee.official_email,
+
+                    manager_email:
+                        result.manager.official_email,
+
                     employee_email_sent:
                         employeeEmailSent,
+
                     manager_email_sent:
+                        managerEmailSent,
+
+                    both_sent:
+                        employeeEmailSent &&
                         managerEmailSent
                 }
             },
@@ -2795,7 +3008,10 @@ exports.approveLeave = async (req, res) => {
         );
 
     } catch (error) {
-        return handleDbError(res, error);
+        return handleDbError(
+            res,
+            error
+        );
     }
 };
 
@@ -3913,8 +4129,17 @@ exports.rejectLeave = async (req, res) => {
         }
 
         const result = await withTransaction(async (client) => {
+
+            /* =========================================================
+               GET REJECTED STATUS
+            ========================================================= */
+
             const rejectedStatusId =
                 await getLeaveStatusId(client, "Rejected");
+
+            /* =========================================================
+               GET LEAVE REQUEST + EMPLOYEE + MANAGER DETAILS
+            ========================================================= */
 
             const requestResult = await client.query(
                 `
@@ -3922,25 +4147,62 @@ exports.rejectLeave = async (req, res) => {
                     lr.*,
                     ls.ls_leave_status_name,
 
+                    /* =========================
+                       EMPLOYEE
+                    ========================= */
+
                     employee.or_id AS employee_or_id,
                     employee.pr_id AS employee_pr_id,
                     employee.or_emp_id AS employee_emp_id,
-                    employee.or_official_email AS employee_official_email,
+
+                    /* IMPORTANT:
+                       EMPLOYEE OFFICIAL EMAIL
+                    */
+                    employee.or_official_email
+                        AS employee_official_email,
+
                     employee.or_reporting_to_id,
 
-                    cm.cpt_name AS employee_organization_name,
+                    cm.cpt_name
+                        AS employee_organization_name,
 
-                    employee_personal.pr_first_name AS employee_first_name,
-                    employee_personal.pr_last_name AS employee_last_name,
-                    employee_personal.pr_email AS employee_personal_email,
+                    employee_personal.pr_first_name
+                        AS employee_first_name,
 
-                    manager.pr_id AS manager_pr_id,
-                    manager.or_emp_id AS manager_emp_id,
-                    manager.or_official_email AS manager_official_email,
+                    employee_personal.pr_last_name
+                        AS employee_last_name,
 
-                    manager_personal.pr_first_name AS manager_first_name,
-                    manager_personal.pr_last_name AS manager_last_name,
-                    manager_personal.pr_email AS manager_personal_email,
+                    employee_personal.pr_email
+                        AS employee_personal_email,
+
+                    /* =========================
+                       MANAGER
+                    ========================= */
+
+                    manager.pr_id
+                        AS manager_pr_id,
+
+                    manager.or_emp_id
+                        AS manager_emp_id,
+
+                    /* IMPORTANT:
+                       MANAGER OFFICIAL EMAIL
+                    */
+                    manager.or_official_email
+                        AS manager_official_email,
+
+                    manager_personal.pr_first_name
+                        AS manager_first_name,
+
+                    manager_personal.pr_last_name
+                        AS manager_last_name,
+
+                    manager_personal.pr_email
+                        AS manager_personal_email,
+
+                    /* =========================
+                       LEAVE TYPE
+                    ========================= */
 
                     lt.lt_leave_type_name,
                     lt.lt_leave_type_code
@@ -3948,25 +4210,32 @@ exports.rejectLeave = async (req, res) => {
                 FROM public.leave_requests lr
 
                 INNER JOIN public.leave_status ls
-                    ON ls.ls_leave_status_id = lr.lr_status_id
+                    ON ls.ls_leave_status_id =
+                       lr.lr_status_id
 
                 INNER JOIN public.organizations employee
-                    ON employee.pr_id = lr.lr_pr_id
+                    ON employee.pr_id =
+                       lr.lr_pr_id
 
                 INNER JOIN public.personal employee_personal
-                    ON employee_personal.pr_id = employee.pr_id
+                    ON employee_personal.pr_id =
+                       employee.pr_id
 
                 INNER JOIN public.organizations manager
-                    ON manager.or_id = employee.or_reporting_to_id
+                    ON manager.or_id =
+                       employee.or_reporting_to_id
 
                 LEFT JOIN public.personal manager_personal
-                    ON manager_personal.pr_id = manager.pr_id
+                    ON manager_personal.pr_id =
+                       manager.pr_id
 
                 INNER JOIN public.leave_types lt
-                    ON lt.lt_leave_type_id = lr.lr_leave_type_id
+                    ON lt.lt_leave_type_id =
+                       lr.lr_leave_type_id
 
                 LEFT JOIN public.companies_master cm
-                    ON cm.cpt_id = employee.or_company_id
+                    ON cm.cpt_id =
+                       employee.or_company_id
 
                 WHERE lr.lr_leave_request_id = $1
 
@@ -3974,6 +4243,10 @@ exports.rejectLeave = async (req, res) => {
                 `,
                 [requestId]
             );
+
+            /* =========================================================
+               REQUEST NOT FOUND
+            ========================================================= */
 
             if (requestResult.rows.length === 0) {
                 const error = new Error(
@@ -3984,7 +4257,12 @@ exports.rejectLeave = async (req, res) => {
                 throw error;
             }
 
-            const leaveRequest = requestResult.rows[0];
+            const leaveRequest =
+                requestResult.rows[0];
+
+            /* =========================================================
+               CHECK APPROVER
+            ========================================================= */
 
             if (
                 Number(leaveRequest.manager_pr_id) !==
@@ -3997,6 +4275,10 @@ exports.rejectLeave = async (req, res) => {
                 error.statusCode = 403;
                 throw error;
             }
+
+            /* =========================================================
+               CHECK CURRENT STATUS
+            ========================================================= */
 
             const currentStatus =
                 String(
@@ -4011,6 +4293,10 @@ exports.rejectLeave = async (req, res) => {
                 error.statusCode = 400;
                 throw error;
             }
+
+            /* =========================================================
+               GET LEAVE QUOTA
+            ========================================================= */
 
             const quotaResult = await client.query(
                 `
@@ -4027,7 +4313,9 @@ exports.rejectLeave = async (req, res) => {
                 WHERE lq_pr_id = $1
                   AND lq_leave_type_id = $2
                   AND lq_leave_year =
-                      EXTRACT(YEAR FROM $3::date)
+                      EXTRACT(
+                          YEAR FROM $3::date
+                      )
                 FOR UPDATE
                 `,
                 [
@@ -4046,13 +4334,22 @@ exports.rejectLeave = async (req, res) => {
                 throw error;
             }
 
-            const quota = quotaResult.rows[0];
+            const quota =
+                quotaResult.rows[0];
+
+            /* =========================================================
+               QUOTA VALUES
+            ========================================================= */
 
             const pendingDays =
-                Number(quota.lq_pending_days || 0);
+                Number(
+                    quota.lq_pending_days || 0
+                );
 
             const requestedDays =
-                Number(leaveRequest.lr_total_days || 0);
+                Number(
+                    leaveRequest.lr_total_days || 0
+                );
 
             if (requestedDays <= 0) {
                 const error = new Error(
@@ -4072,11 +4369,21 @@ exports.rejectLeave = async (req, res) => {
                 throw error;
             }
 
+            /* =========================================================
+               RELEASE PENDING DAYS
+            ========================================================= */
+
             const pendingDaysAfter =
                 pendingDays - requestedDays;
 
             const usedDays =
-                Number(quota.lq_used_days || 0);
+                Number(
+                    quota.lq_used_days || 0
+                );
+
+            /* =========================================================
+               UPDATE QUOTA
+            ========================================================= */
 
             await client.query(
                 `
@@ -4093,6 +4400,10 @@ exports.rejectLeave = async (req, res) => {
                     quota.lq_id
                 ]
             );
+
+            /* =========================================================
+               UPDATE LEAVE REQUEST
+            ========================================================= */
 
             const updateResult = await client.query(
                 `
@@ -4116,6 +4427,10 @@ exports.rejectLeave = async (req, res) => {
                 ]
             );
 
+            /* =========================================================
+               EMPLOYEE NAME
+            ========================================================= */
+
             const employeeName = [
                 leaveRequest.employee_first_name,
                 leaveRequest.employee_last_name
@@ -4123,6 +4438,10 @@ exports.rejectLeave = async (req, res) => {
                 .filter(Boolean)
                 .join(" ")
                 .trim();
+
+            /* =========================================================
+               MANAGER NAME
+            ========================================================= */
 
             const managerName = [
                 leaveRequest.manager_first_name,
@@ -4132,97 +4451,202 @@ exports.rejectLeave = async (req, res) => {
                 .join(" ")
                 .trim();
 
-            const employeeEmail =
-                leaveRequest.employee_personal_email ||
+            /* =========================================================
+               IMPORTANT:
+               USE OFFICIAL EMAIL ONLY
+            ========================================================= */
+
+            const employeeOfficialEmail =
                 leaveRequest.employee_official_email ||
                 null;
 
-            const managerEmail =
+            const managerOfficialEmail =
                 leaveRequest.manager_official_email ||
-                leaveRequest.manager_personal_email ||
                 null;
 
             return {
-                request: updateResult.rows[0],
+                request:
+                    updateResult.rows[0],
+
+                /* =====================================================
+                   EMPLOYEE
+                ===================================================== */
 
                 employee: {
-                    pr_id: leaveRequest.employee_pr_id,
-                    emp_id: leaveRequest.employee_emp_id,
+                    pr_id:
+                        leaveRequest.employee_pr_id,
+
+                    emp_id:
+                        leaveRequest.employee_emp_id,
+
                     name:
                         employeeName ||
                         leaveRequest.employee_emp_id ||
                         "Employee",
-                    email: employeeEmail,
+
+                    /* OFFICIAL EMAIL */
+                    official_email:
+                        employeeOfficialEmail,
+
+                    /* Alias */
+                    email:
+                        employeeOfficialEmail,
+
+                    /* Personal email kept only for reference */
+                    personal_email:
+                        leaveRequest.employee_personal_email ||
+                        null,
+
                     organization:
                         leaveRequest.employee_organization_name ||
                         "-"
                 },
 
+                /* =====================================================
+                   MANAGER
+                ===================================================== */
+
                 manager: {
-                    pr_id: leaveRequest.manager_pr_id,
-                    emp_id: leaveRequest.manager_emp_id,
+                    pr_id:
+                        leaveRequest.manager_pr_id,
+
+                    emp_id:
+                        leaveRequest.manager_emp_id,
+
                     name:
                         managerName ||
                         leaveRequest.manager_emp_id ||
                         "Manager",
-                    email: managerEmail
+
+                    /* OFFICIAL EMAIL */
+                    official_email:
+                        managerOfficialEmail,
+
+                    /* Alias */
+                    email:
+                        managerOfficialEmail,
+
+                    /* Personal email kept only for reference */
+                    personal_email:
+                        leaveRequest.manager_personal_email ||
+                        null
                 },
+
+                /* =====================================================
+                   LEAVE TYPE
+                ===================================================== */
 
                 leave_type: {
-                    name: leaveRequest.lt_leave_type_name,
-                    code: leaveRequest.lt_leave_type_code
+                    name:
+                        leaveRequest.lt_leave_type_name,
+
+                    code:
+                        leaveRequest.lt_leave_type_code
                 },
 
+                /* =====================================================
+                   QUOTA
+                ===================================================== */
+
                 quota: {
-                    lq_id: quota.lq_id,
+                    lq_id:
+                        quota.lq_id,
+
                     allocated_days:
-                        Number(quota.lq_allocated_days || 0),
+                        Number(
+                            quota.lq_allocated_days || 0
+                        ),
+
                     carry_forward_days:
-                        Number(quota.lq_carry_forward_days || 0),
+                        Number(
+                            quota.lq_carry_forward_days || 0
+                        ),
+
                     pending_days_before:
                         pendingDays,
+
                     pending_days_after:
                         pendingDaysAfter,
-                    used_days: usedDays,
-                    released_days: requestedDays
+
+                    used_days:
+                        usedDays,
+
+                    released_days:
+                        requestedDays
                 }
             };
         });
+
+        /* =============================================================
+           DATE FORMAT
+        ============================================================= */
 
         const formatDateTime = (value) => {
             if (!value) {
                 return "-";
             }
 
-            const date = new Date(value);
+            const date =
+                new Date(value);
 
-            if (Number.isNaN(date.getTime())) {
+            if (
+                Number.isNaN(
+                    date.getTime()
+                )
+            ) {
                 return "-";
             }
 
-            const day = String(
-                date.getDate()
-            ).padStart(2, "0");
+            const day =
+                String(
+                    date.getDate()
+                ).padStart(2, "0");
 
-            const month = String(
-                date.getMonth() + 1
-            ).padStart(2, "0");
+            const month =
+                String(
+                    date.getMonth() + 1
+                ).padStart(2, "0");
 
             const year =
                 date.getFullYear();
 
-            const hours = String(
-                date.getHours()
-            ).padStart(2, "0");
+            let hours =
+                date.getHours();
 
-            const minutes = String(
-                date.getMinutes()
-            ).padStart(2, "0");
+            const minutes =
+                String(
+                    date.getMinutes()
+                ).padStart(2, "0");
 
-            return `${day}-${month}-${year}:${hours}:${minutes}`;
+            const amPm =
+                hours >= 12
+                    ? "PM"
+                    : "AM";
+
+            hours =
+                hours % 12 || 12;
+
+            hours =
+                String(hours)
+                    .padStart(2, "0");
+
+            return `${day}-${month}-${year} ${hours}:${minutes} ${amPm}`;
         };
 
-        const request = result.request;
+        /* =============================================================
+           REQUEST
+        ============================================================= */
+
+        const request =
+            result.request;
+
+        const leaveRequestId =
+            request.request_id ||
+            request.lr_leave_request_id;
+
+        /* =============================================================
+           EMAIL DATA
+        ============================================================= */
 
         const emailData = {
             employee_name:
@@ -4230,6 +4654,10 @@ exports.rejectLeave = async (req, res) => {
 
             employee_id:
                 result.employee.emp_id,
+
+            employee_official_email:
+                result.employee.official_email ||
+                "-",
 
             organization_name:
                 result.employee.organization,
@@ -4240,15 +4668,19 @@ exports.rejectLeave = async (req, res) => {
             manager_id:
                 result.manager.emp_id,
 
+            manager_official_email:
+                result.manager.official_email ||
+                "-",
+
             leave_request_id:
-                request.request_id ||
-                request.lr_leave_request_id,
+                leaveRequestId,
 
             leave_type:
                 result.leave_type.name,
 
             leave_type_code:
-                result.leave_type.code || "-",
+                result.leave_type.code ||
+                "-",
 
             from_date:
                 formatDateTime(
@@ -4303,14 +4735,33 @@ exports.rejectLeave = async (req, res) => {
                 result.quota.carry_forward_days
         };
 
+        /* =============================================================
+           EMAIL FLAGS
+        ============================================================= */
+
         let employeeEmailSent = false;
         let managerEmailSent = false;
 
+        /* =============================================================
+           SEND EMAILS
+        ============================================================= */
+
         try {
-            if (result.employee.or_official_email) {
+
+            /* =========================================================
+               EMPLOYEE OFFICIAL EMAIL
+            ========================================================= */
+
+            const employeeEmail =
+                result.employee.official_email;
+
+            if (
+                employeeEmail &&
+                String(employeeEmail).trim()
+            ) {
                 await sendEmail(
-                    result.employee.or_official_email,
-                    `Leave Request Rejected - ${emailData.leave_request_id}`,
+                    employeeEmail.trim(),
+                    `Leave Request Rejected - ${leaveRequestId}`,
                     "leave_rejected",
                     emailData
                 );
@@ -4318,14 +4769,35 @@ exports.rejectLeave = async (req, res) => {
                 employeeEmailSent = true;
 
                 console.log(
-                    `[LEAVE REJECTION EMAIL SENT] Request=${emailData.leave_request_id} To=${result.employee.or_official_email}`
+                    `[LEAVE REJECTION EMAIL SENT] ` +
+                    `Request=${leaveRequestId} ` +
+                    `Employee=${result.employee.name} ` +
+                    `To=${employeeEmail}`
+                );
+            } else {
+                console.warn(
+                    `[LEAVE REJECTION EMAIL SKIPPED] ` +
+                    `Employee official email not found. ` +
+                    `Request=${leaveRequestId} ` +
+                    `EmployeePR=${result.employee.pr_id} ` +
+                    `EmpId=${result.employee.emp_id}`
                 );
             }
 
-            if (result.manager.or_official_email) {
+            /* =========================================================
+               MANAGER OFFICIAL EMAIL
+            ========================================================= */
+
+            const managerEmail =
+                result.manager.official_email;
+
+            if (
+                managerEmail &&
+                String(managerEmail).trim()
+            ) {
                 await sendEmail(
-                    result.manager.or_official_email,
-                    `Leave Request Rejected - ${emailData.leave_request_id}`,
+                    managerEmail.trim(),
+                    `Leave Request Rejected - ${leaveRequestId}`,
                     "leave_rejected_manager",
                     emailData
                 );
@@ -4333,11 +4805,29 @@ exports.rejectLeave = async (req, res) => {
                 managerEmailSent = true;
 
                 console.log(
-                    `[LEAVE REJECTION MANAGER EMAIL SENT] Request=${emailData.leave_request_id} To=${result.manager.or_official_email}`
+                    `[LEAVE REJECTION MANAGER EMAIL SENT] ` +
+                    `Request=${leaveRequestId} ` +
+                    `Manager=${result.manager.name} ` +
+                    `To=${managerEmail}`
+                );
+            } else {
+                console.warn(
+                    `[LEAVE REJECTION MANAGER EMAIL SKIPPED] ` +
+                    `Manager official email not found. ` +
+                    `Request=${leaveRequestId} ` +
+                    `ManagerPR=${result.manager.pr_id} ` +
+                    `ManagerEmpId=${result.manager.emp_id}`
                 );
             }
 
-            if (employeeEmailSent || managerEmailSent) {
+            /* =========================================================
+               UPDATE MAIL FLAG
+            ========================================================= */
+
+            if (
+                employeeEmailSent ||
+                managerEmailSent
+            ) {
                 await db.query(
                     `
                     UPDATE public.leave_requests
@@ -4353,22 +4843,40 @@ exports.rejectLeave = async (req, res) => {
                     ]
                 );
             }
+
         } catch (emailError) {
             console.error(
-                `[LEAVE REJECTION EMAIL ERROR] Request=${emailData.leave_request_id}`,
+                `[LEAVE REJECTION EMAIL ERROR] ` +
+                `Request=${leaveRequestId}`,
                 emailError
             );
         }
+
+        /* =============================================================
+           RESPONSE
+        ============================================================= */
 
         return successResponse(
             res,
             200,
             {
                 ...result,
+
                 email: {
+                    employee_email:
+                        result.employee.official_email,
+
+                    manager_email:
+                        result.manager.official_email,
+
                     employee_email_sent:
                         employeeEmailSent,
+
                     manager_email_sent:
+                        managerEmailSent,
+
+                    both_sent:
+                        employeeEmailSent &&
                         managerEmailSent
                 }
             },
@@ -4376,7 +4884,10 @@ exports.rejectLeave = async (req, res) => {
         );
 
     } catch (error) {
-        return handleDbError(res, error);
+        return handleDbError(
+            res,
+            error
+        );
     }
 };
 
@@ -4499,7 +5010,28 @@ exports.getManagerLeaveRequests = async (req, res) => {
     try {
         const managerPrId = getLoggedInPrId(req);
 
-        const { page, limit, offset } = getPaginationParams(req);
+        // ============================================================
+        // CUSTOM PAGINATION
+        // ============================================================
+        let page = parseInt(req.query.page, 10);
+        let limit = parseInt(req.query.limit, 10);
+
+        // Default page
+        if (!Number.isInteger(page) || page < 1) {
+            page = 1;
+        }
+
+        // Default limit
+        if (!Number.isInteger(limit) || limit < 1) {
+            limit = 10;
+        }
+
+        // Maximum records allowed per request
+        if (limit > 1000) {
+            limit = 1000;
+        }
+
+        const offset = (page - 1) * limit;
 
         const {
             employee_id,
@@ -4507,6 +5039,9 @@ exports.getManagerLeaveRequests = async (req, res) => {
             leave_type_code
         } = req.query;
 
+        // ============================================================
+        // CHECK ADMIN ROLE
+        // ============================================================
         const roleResult = await db.query(
             `
             SELECT rm.rm_role_name
@@ -4521,6 +5056,9 @@ exports.getManagerLeaveRequests = async (req, res) => {
 
         const isAdmin = roleResult.rows.length > 0;
 
+        // ============================================================
+        // BUILD WHERE CONDITIONS
+        // ============================================================
         const params = [];
         let paramIndex = 1;
 
@@ -4528,6 +5066,10 @@ exports.getManagerLeaveRequests = async (req, res) => {
             employee.or_is_active = TRUE
         `;
 
+        // ------------------------------------------------------------
+        // NORMAL MANAGER
+        // Only show employees reporting to logged-in manager
+        // ------------------------------------------------------------
         if (!isAdmin) {
             whereConditions += `
                 AND lr.lr_reporting_to = $${paramIndex}
@@ -4537,6 +5079,9 @@ exports.getManagerLeaveRequests = async (req, res) => {
             paramIndex++;
         }
 
+        // ============================================================
+        // EMPLOYEE / REQUEST SEARCH
+        // ============================================================
         if (employee_id) {
             whereConditions += `
                 AND (
@@ -4552,6 +5097,9 @@ exports.getManagerLeaveRequests = async (req, res) => {
             paramIndex++;
         }
 
+        // ============================================================
+        // STATUS FILTER
+        // ============================================================
         if (request_status) {
             whereConditions += `
                 AND LOWER(ls.ls_leave_status_name) = LOWER($${paramIndex})
@@ -4561,6 +5109,9 @@ exports.getManagerLeaveRequests = async (req, res) => {
             paramIndex++;
         }
 
+        // ============================================================
+        // LEAVE TYPE FILTER
+        // ============================================================
         if (leave_type_code) {
             whereConditions += `
                 AND LOWER(lt.lt_leave_type_code) = LOWER($${paramIndex})
@@ -4570,6 +5121,9 @@ exports.getManagerLeaveRequests = async (req, res) => {
             paramIndex++;
         }
 
+        // ============================================================
+        // TOTAL COUNT
+        // ============================================================
         const countResult = await db.query(
             `
             SELECT COUNT(*) AS total
@@ -4594,8 +5148,18 @@ exports.getManagerLeaveRequests = async (req, res) => {
 
         const total = Number(countResult.rows[0].total);
 
-        const dataParams = [...params, limit, offset];
+        // ============================================================
+        // PAGINATION PARAMETERS
+        // ============================================================
+        const dataParams = [
+            ...params,
+            limit,
+            offset
+        ];
 
+        // ============================================================
+        // FETCH DATA
+        // ============================================================
         const result = await db.query(
             `
             SELECT
@@ -4618,8 +5182,16 @@ exports.getManagerLeaveRequests = async (req, res) => {
                 lt.lt_total_days_per_year,
                 lt.lt_is_paid,
 
-                TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,
-                TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,
+                TO_CHAR(
+                    lr.lr_from_date,
+                    'YYYY-MM-DD'
+                ) AS lr_from_date,
+
+                TO_CHAR(
+                    lr.lr_to_date,
+                    'YYYY-MM-DD'
+                ) AS lr_to_date,
+
                 lr.lr_total_days,
                 lr.lr_reason,
 
@@ -4664,15 +5236,20 @@ exports.getManagerLeaveRequests = async (req, res) => {
             ORDER BY
                 CASE
                     WHEN LOWER(ls.ls_leave_status_name) = 'pending'
-                    THEN 0
+                        THEN 0
+
                     WHEN LOWER(ls.ls_leave_status_name) = 'approved'
-                    THEN 1
+                        THEN 1
+
                     WHEN LOWER(ls.ls_leave_status_name) = 'rejected'
-                    THEN 2
+                        THEN 2
+
                     WHEN LOWER(ls.ls_leave_status_name) = 'cancelled'
-                    THEN 3
+                        THEN 3
+
                     ELSE 4
                 END,
+
                 lr.lr_created_at DESC
 
             LIMIT $${paramIndex}
@@ -4681,16 +5258,48 @@ exports.getManagerLeaveRequests = async (req, res) => {
             dataParams
         );
 
-        return paginatedResponse(
-            res,
-            200,
-            result.rows,
-            page,
-            limit,
-            total
-        );
+        // ============================================================
+        // CUSTOM PAGINATION RESPONSE
+        // ============================================================
+        const totalPages = limit > 0
+            ? Math.ceil(total / limit)
+            : 0;
+
+        const hasNextPage = page < totalPages;
+        const hasPreviousPage = page > 1;
+
+        return res.status(200).json({
+            success: true,
+
+            data: result.rows,
+
+            pagination: {
+                page,
+                limit,
+                offset,
+
+                totalRecords: total,
+                totalPages,
+
+                hasNextPage,
+                hasPreviousPage,
+
+                nextPage: hasNextPage
+                    ? page + 1
+                    : null,
+
+                previousPage: hasPreviousPage
+                    ? page - 1
+                    : null
+            }
+        });
 
     } catch (error) {
+        console.error(
+            "getManagerLeaveRequests Error:",
+            error
+        );
+
         return handleDbError(res, error);
     }
 };
