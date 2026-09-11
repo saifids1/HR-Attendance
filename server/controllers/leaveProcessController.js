@@ -3414,23 +3414,23 @@ exports.editLeave = async (req, res) => {
                 throw error;
             }
 
-            const oldFromDate =
-                String(
-                    oldRequest.lr_from_date
-                ).substring(0, 10);
+            // const oldFromDate =
+            //     String(
+            //         oldRequest.lr_from_date
+            //     ).substring(0, 10);
 
-            if (
-                !/^\d{4}-\d{2}-\d{2}$/.test(
-                    oldFromDate
-                )
-            ) {
-                const error = new Error(
-                    "Existing leave request has an invalid from date."
-                );
+            // if (
+            //     !/^\d{4}-\d{2}-\d{2}$/.test(
+            //         oldFromDate
+            //     )
+            // ) {
+            //     const error = new Error(
+            //         "Existing leave request has an invalid from date."
+            //     );
 
-                error.statusCode = 400;
-                throw error;
-            }
+            //     error.statusCode = 400;
+            //     throw error;
+            // }
 
             const oldYear = Number(
                 oldFromDate.substring(0, 4)
