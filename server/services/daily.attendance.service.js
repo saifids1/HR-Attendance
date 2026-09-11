@@ -10,6 +10,8 @@
   of falsely accusing someone of being absent — unlike Absent,
   it never needs punch evidence to justify itself.
 */
+
+const sendEmail = require("../utils/mailer");
 const BACKFILL_START_DATE = process.env.ATTENDANCE_BACKFILL_START_DATE || "2025-07-01";
 
 async function generateDailyAttendance(client) {
@@ -19,12 +21,6 @@ WITH current_day AS
 SELECT
 (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS attendance_date
 ),
-
-/* =====================================================
-       STALE PUNCHES: (emp_id, date) pairs where
-       attendance_logs has data not yet reflected in
-       daily_attendance — however old, however recent.
-    ===================================================== */
 
 stale_pairs AS
 (
@@ -49,13 +45,6 @@ stale_pairs AS
         AND da.updated_at >= al.created_at
     )
 ),
-
-    /* =====================================================
-       TODAY'S ACTIVE EMPLOYEES
-
-       Always recomputed, so today's holiday/weekly-off/
-       absent/present status is always current.
-    ===================================================== */
 
 today_pairs AS
 (
@@ -83,15 +72,6 @@ today_pairs AS
     )
 ),
 
-    /* =====================================================
-       FIRST REAL PUNCH PER EMPLOYEE
-
-       Used as the true backfill floor per employee for
-       PUNCH-DEPENDENT dates (Present/Absent/Half Day) —
-       protects against marking someone absent for dates
-       before the machine had any record of them at all.
-    ===================================================== */
-
     first_punch_per_emp AS
     (
       SELECT
@@ -106,20 +86,6 @@ today_pairs AS
 
       GROUP BY TRIM(al.emp_id)
     ),
-
-    /* =====================================================
-       BACKFILL (PUNCH-EVIDENCE-BASED): every (active employee,
-       date) pair, starting from GREATEST(joining_date, first
-       real punch, safety floor) — never before real evidence
-       exists for that employee.
-
-       Employees with zero punches ever are excluded entirely
-       (INNER JOIN to first_punch_per_emp) — this protection is
-       intentional and stays exactly as before. It only ever
-       protected against false Absent/Present claims — holiday
-       and weekly-off dates are now handled separately below,
-       since they don't need this protection.
-    ===================================================== */
 
 backfill_pairs AS
 (
@@ -173,6 +139,27 @@ distinct_target_dates AS
 (
   SELECT DISTINCT attendance_date
   FROM target_pairs
+),
+
+/* =====================================================
+   PRIOR STATE: whatever daily_attendance already had
+   for each target (emp_id, date) pair BEFORE this run.
+   Used to detect "punch_in/punch_out just got recorded"
+   vs. "was already recorded on an earlier run" — an
+   upsert's RETURNING alone can't tell you that.
+===================================================== */
+
+prior_state AS
+(
+  SELECT
+    da.emp_id,
+    da.attendance_date,
+    da.punch_in  AS old_punch_in,
+    da.punch_out AS old_punch_out
+  FROM public.daily_attendance da
+  JOIN target_pairs tp
+    ON tp.emp_id = da.emp_id
+   AND tp.attendance_date = da.attendance_date
 ),
 
 active_setting AS
@@ -390,6 +377,9 @@ calculated AS
     p.punch_in,
     p.punch_out,
 
+    (ps.old_punch_in IS NULL AND p.punch_in IS NOT NULL)   AS send_punch_in,
+    (ps.old_punch_out IS NULL AND p.punch_out IS NOT NULL) AS send_punch_out,
+
     CASE
       WHEN p.punch_in IS NULL THEN INTERVAL '0'
       WHEN p.punch_out IS NULL THEN INTERVAL '0'
@@ -504,61 +494,137 @@ calculated AS
   LEFT JOIN leave_info li
     ON li.emp_id = p.emp_id
    AND li.attendance_date = p.attendance_date
+
+  LEFT JOIN prior_state ps
+    ON ps.emp_id = p.emp_id
+   AND ps.attendance_date = p.attendance_date
+),
+
+upserted AS
+(
+  INSERT INTO public.daily_attendance
+  (
+    attendance_date,
+    punch_in,
+    punch_out,
+    total_hours,
+    expected_hours,
+    created_at,
+    updated_at,
+    emp_id,
+    late_arrival,
+    is_late_arrived,
+    early_go,
+    is_early_gone,
+    status_id
+  )
+
+  SELECT
+    attendance_date,
+    punch_in,
+    punch_out,
+    total_hours,
+    expected_hours,
+    CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
+    CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
+    emp_id,
+    late_arrival,
+    is_late_arrived,
+    early_go,
+    is_early_gone,
+    status_id
+
+  FROM calculated
+
+  ON CONFLICT (emp_id, attendance_date)
+
+  DO UPDATE SET
+    punch_in = EXCLUDED.punch_in,
+    punch_out = EXCLUDED.punch_out,
+    total_hours = EXCLUDED.total_hours,
+    expected_hours = EXCLUDED.expected_hours,
+    late_arrival = EXCLUDED.late_arrival,
+    is_late_arrived = EXCLUDED.is_late_arrived,
+    early_go = EXCLUDED.early_go,
+    is_early_gone = EXCLUDED.is_early_gone,
+    status_id = EXCLUDED.status_id,
+    updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+
+  RETURNING *
 )
 
-INSERT INTO public.daily_attendance
-(
-  attendance_date,
-  punch_in,
-  punch_out,
-  total_hours,
-  expected_hours,
-  created_at,
-  updated_at,
-  emp_id,
-  late_arrival,
-  is_late_arrived,
-  early_go,
-  is_early_gone,
-  status_id
-)
 
 SELECT
-  attendance_date,
-  punch_in,
-  punch_out,
-  total_hours,
-  expected_hours,
-  CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
-  CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
-  emp_id,
-  late_arrival,
-  is_late_arrived,
-  early_go,
-  is_early_gone,
-  status_id
+      u.emp_id,
+      TRIM(COALESCE(p.pr_first_name, '') || ' ' || COALESCE(p.pr_last_name, '')) AS emp_name,
+      o.or_official_email AS emp_email,
 
-FROM calculated
+      TO_CHAR(u.attendance_date, 'DD Mon YYYY') AS date_text,
+      TO_CHAR(u.attendance_date, 'FMDay')       AS day_text,
+      TO_CHAR(u.punch_in,  'HH12:MI AM')        AS punch_in_text,
+      TO_CHAR(u.punch_out, 'HH12:MI AM')        AS punch_out_text,
 
-ON CONFLICT (emp_id, attendance_date)
+      CASE WHEN u.punch_out IS NOT NULL THEN
+        FLOOR(EXTRACT(EPOCH FROM u.total_hours) / 3600)::INT || 'h ' ||
+        FLOOR(MOD(EXTRACT(EPOCH FROM u.total_hours)::INT, 3600) / 60)::INT || 'm'
+      END AS duration_text,
 
-DO UPDATE SET
-  punch_in = EXCLUDED.punch_in,
-  punch_out = EXCLUDED.punch_out,
-  total_hours = EXCLUDED.total_hours,
-  expected_hours = EXCLUDED.expected_hours,
-  late_arrival = EXCLUDED.late_arrival,
-  is_late_arrived = EXCLUDED.is_late_arrived,
-  early_go = EXCLUDED.early_go,
-  is_early_gone = EXCLUDED.is_early_gone,
-  status_id = EXCLUDED.status_id,
-  updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata';
+      (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)   AS send_punch_in,
+      (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL) AS send_punch_out
 
+    FROM upserted u
 
-`;
+    JOIN public.organizations o
+      ON TRIM(o.or_emp_id) = u.emp_id
 
-const result = await client.query(query);
+    JOIN public.personal p
+      ON p.pr_id = o.pr_id
 
+LEFT JOIN prior_state os
+      ON os.emp_id = u.emp_id
+     AND os.attendance_date = u.attendance_date
+
+    WHERE (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)
+       OR (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL);
+  `;
+
+  const result = await client.query(query);
+
+  for (const row of result.rows) {
+    if (!row.emp_email) continue; // no email on file, skip
+
+    if (row.send_punch_in) {
+      await sendEmail(
+        row.emp_email,
+        `Punch In Recorded - ${row.date_text}`,
+        "punch_in",
+        {
+          name: row.emp_name,
+          emp_id: row.emp_id,
+          date: row.date_text,
+          day: row.day_text,
+          punch_in: row.punch_in_text,
+        }
+      );
+    }
+
+    if (row.send_punch_out) {
+      await sendEmail(
+        row.emp_email,
+        `Punch Out Recorded - ${row.date_text}`,
+        "punch_out",
+        {
+          name: row.emp_name,
+          emp_id: row.emp_id,
+          date: row.date_text,
+          day: row.day_text,
+          punch_in: row.punch_in_text,
+          punch_out: row.punch_out_text,
+          duration: row.duration_text,
+        }
+      );
+    }
+  }
 return { touched: result.rowCount };
 }
 
