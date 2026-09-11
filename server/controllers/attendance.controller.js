@@ -891,53 +891,69 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     // TODAY ATTENDANCE SUMMARY
     // =========================================================
     let summaryQuery = `
-      SELECT
+  SELECT
 
-        COUNT(DISTINCT o.or_id)
-          AS total_employees,
+    COUNT(DISTINCT o.or_id)
+      AS total_employees,
 
-        /*
-         * Employees who have punched in
-         */
-        COUNT(
-          DISTINCT CASE
-            WHEN da.punch_in IS NOT NULL
-            THEN o.or_id
-          END
-        ) AS punch_in,
+    /*
+     * Employees who have punched in
+     */
+    COUNT(
+      DISTINCT CASE
+        WHEN da.punch_in IS NOT NULL
+        THEN o.or_id
+      END
+    ) AS punch_in,
 
-        /*
-         * Employees who have punched out
-         */
-        COUNT(
-          DISTINCT CASE
-            WHEN da.punch_out IS NOT NULL
-            THEN o.or_id
-          END
-        ) AS punch_out,
+    /*
+     * Employees who have punched out
+     */
+    COUNT(
+      DISTINCT CASE
+        WHEN da.punch_out IS NOT NULL
+        THEN o.or_id
+      END
+    ) AS punch_out,
 
-        /*
-         * Employees who have not punched in
-         */
-        COUNT(
-          DISTINCT CASE
-            WHEN da.punch_in IS NULL
-            THEN o.or_id
-          END
-        ) AS absent
+    /*
+     * Employees on Leave today
+     */
+    COUNT(
+      DISTINCT CASE
+        WHEN ast.status_name = 'Leave'
+        THEN o.or_id
+      END
+    ) AS leave,
 
-      FROM public.organizations o
+    /*
+     * Employees who have not punched in AND are not on Leave
+     * (avoids double-counting Leave as Absent)
+     */
+    COUNT(
+      DISTINCT CASE
+        WHEN da.punch_in IS NULL
+             AND COALESCE(ast.status_name, 'Absent') <> 'Leave'
+        THEN o.or_id
+      END
+    ) AS absent
 
-      INNER JOIN public.personal p
-        ON p.pr_id = o.pr_id
+  FROM public.organizations o
 
-      LEFT JOIN public.daily_attendance da
-        ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
-        AND da.attendance_date = $1
+  INNER JOIN public.personal p
+    ON p.pr_id = o.pr_id
 
-      WHERE o.or_emp_id IS NOT NULL
-        AND TRIM(o.or_emp_id) <> ''
-    `;
+  LEFT JOIN public.daily_attendance da
+    ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
+    AND da.attendance_date = $1
+
+  LEFT JOIN public.attendence_status ast
+    ON ast.id = da.status_id
+    AND COALESCE(ast.is_active, TRUE) = TRUE
+
+  WHERE o.or_emp_id IS NOT NULL
+    AND TRIM(o.or_emp_id) <> ''
+`;
 
     const summaryParams = [today];
 
@@ -959,11 +975,9 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
     const attendanceSummary = {
       total_employees: parseInt(summaryRow.total_employees, 10) || 0,
-
       punch_in: parseInt(summaryRow.punch_in, 10) || 0,
-
       punch_out: parseInt(summaryRow.punch_out, 10) || 0,
-
+      leave: parseInt(summaryRow.leave, 10) || 0,
       absent: parseInt(summaryRow.absent, 10) || 0,
     };
 
@@ -1180,6 +1194,7 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         punch_out: attendanceSummary.punch_out,
 
         absent: attendanceSummary.absent,
+        leave : attendanceSummary.leave
       },
 
       // =======================================================
