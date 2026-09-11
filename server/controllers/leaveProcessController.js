@@ -1690,7 +1690,7 @@ exports.getMyLeaveRequests = async (req, res) => {
         );
         const total = Number(countResult.rows[0].total || 0);
         const result = await db.query(
-            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason, lr.lr_created_at, lr.lr_updated_at FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,, lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason, lr.lr_created_at, lr.lr_updated_at FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
             [...values, limit, offset]
         );
         return paginatedResponse(res, result.rows, page, limit, total);
@@ -1709,7 +1709,7 @@ exports.getLeaveRequestById = async (req, res) => {
         const result = await db.query(
             `SELECT lr.lr_leave_request_id,lr.request_id,pr_emp.pr_first_name,pr_emp.pr_last_name,or_emp.or_official_email as emp_email, or_emp.or_emp_id,
             or_reporting.or_official_email as reportingemail,pr_reporting.pr_first_name as reportingname,pr_reporting.pr_last_name as reportingLastname,
-             lr.lr_pr_id, lr.lr_leave_type_id, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, lr.lr_to_date,
+             lr.lr_pr_id, lr.lr_leave_type_id, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,,
               lr.lr_total_days, lr.lr_reason, lr.lr_status_id,
                ls.ls_leave_status_name, lr.lr_ismailfromrequester, 
                lr.lr_ismailfromapprover, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, 
@@ -2238,7 +2238,7 @@ exports.getPendingApprovals = async (req, res) => {
         );
         const total = Number(countResult.rows[0]?.total || 0);
         const result = await db.query(
-            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, employee.or_emp_id AS employee_id, employee.or_organization_name AS employee_name, employee.or_department_id AS department_id, employee.or_designation_id AS designation_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,lr.lr_total_days, lr.lr_reason, lr.lr_applied_at, ls.ls_leave_status_id, ls.ls_leave_status_name FROM public.leave_requests lr INNER JOIN public.organizations employee ON employee.pr_id = lr.lr_pr_id INNER JOIN public.organizations manager ON manager.or_id = employee.or_reporting_to_id INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at ASC LIMIT $2 OFFSET $3`,
+            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, employee.or_emp_id AS employee_id, employee.or_organization_name AS employee_name, employee.or_department_id AS department_id, employee.or_designation_id AS designation_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,, lr.lr_total_days, lr.lr_reason, lr.lr_applied_at, ls.ls_leave_status_id, ls.ls_leave_status_name FROM public.leave_requests lr INNER JOIN public.organizations employee ON employee.pr_id = lr.lr_pr_id INNER JOIN public.organizations manager ON manager.or_id = employee.or_reporting_to_id INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at ASC LIMIT $2 OFFSET $3`,
             [approverPrId, limit, offset]
         );
         return paginatedResponse(res, 200, result.rows, page, limit, total);
@@ -4241,7 +4241,7 @@ exports.getEmployeeLeaveRequests = async (req, res) => {
         );
         const total = Number(countResult.rows[0].total || 0);
         const result = await db.query(
-            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,, lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
             [...values, limit, offset]
         );
         return paginatedResponse(res, result.rows, page, limit, total);
@@ -4261,7 +4261,7 @@ exports.getLeaveDashboard = async (req, res) => {
                 [prId, year]
             );
             const recentResult = await client.query(
-                `SELECT lr.lr_leave_request_id, lt.lt_leave_type_name, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date,TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,lr.lr_total_days, ls.ls_leave_status_name, lr.lr_applied_at FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id WHERE lr.lr_pr_id = $1 ORDER BY lr.lr_applied_at DESC LIMIT 5`,
+                `SELECT lr.lr_leave_request_id, lt.lt_leave_type_name, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,, lr.lr_total_days, ls.ls_leave_status_name, lr.lr_applied_at FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id WHERE lr.lr_pr_id = $1 ORDER BY lr.lr_applied_at DESC LIMIT 5`,
                 [prId]
             );
             return { year, summary: summaryResult.rows[0], recent_requests: recentResult.rows };
