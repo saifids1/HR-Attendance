@@ -1,13 +1,34 @@
 /*
-  BACKFILL_START_DATE controls how far back backfill_pairs reaches.
-  Set this to your earliest employee joining date, or the date you
-  want attendance history to start from.
+  BACKFILL_START_DATE is now only a safety floor (guards against
+  dirty/garbage old timestamps in attendance_logs). The real
+  backfill start per employee is GREATEST(joining_date, their
+  first real punch, BACKFILL_START_DATE) — see first_punch_per_emp.
+
+  Holiday/weekly-off dates are handled separately (see
+  non_working_backfill_pairs below) and only require joining_date,
+  since marking a date "Holiday" or "Weekly Off" carries no risk
+  of falsely accusing someone of being absent — unlike Absent,
+  it never needs punch evidence to justify itself.
 */
 const BACKFILL_START_DATE = process.env.ATTENDANCE_BACKFILL_START_DATE || "2025-07-01";
 
 async function generateMonthlyAttendance(client) {
   const query = `
-    WITH stale_pairs AS
+    WITH active_setting AS
+    (
+      SELECT
+        s.id,
+        s.office_start_time,
+        s.office_end_time,
+        s.grace_period_minutes,
+        s.half_day_after_minutes
+      FROM public.attendance_settings s
+      WHERE s.is_active = TRUE
+      ORDER BY s.id DESC
+      LIMIT 1
+    ),
+
+    stale_pairs AS
     (
       SELECT DISTINCT
         TRIM(al.emp_id) AS emp_id,
@@ -63,24 +84,84 @@ async function generateMonthlyAttendance(client) {
         TRIM(o.or_emp_id) AS emp_id,
         d.attendance_date
 
-      FROM (
+      FROM public.organizations o
+
+      JOIN first_punch_per_emp fp
+        ON fp.emp_id = TRIM(o.or_emp_id)
+
+      CROSS JOIN LATERAL
+      (
         SELECT generate_series(
-          '${BACKFILL_START_DATE}'::DATE,
+          GREATEST(
+            o.or_joining_date,
+            fp.first_punch_date,
+            '${BACKFILL_START_DATE}'::DATE
+          ),
           (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE,
           INTERVAL '1 day'
         )::DATE AS attendance_date
       ) d
 
-      CROSS JOIN public.organizations o
+      WHERE o.or_emp_id IS NOT NULL
+        AND TRIM(o.or_emp_id) <> ''
+        AND COALESCE(o.or_is_active, TRUE) = TRUE
+        AND o.or_joining_date IS NOT NULL
+
+        AND (
+          o.or_leaving_date IS NULL
+          OR o.or_leaving_date >= d.attendance_date
+        )
+
+        AND NOT EXISTS
+        (
+          SELECT 1
+          FROM public.monthly_attendance da
+          WHERE da.emp_id = TRIM(o.or_emp_id)
+            AND da.attendance_date = d.attendance_date
+        )
+    ),
+
+    /* =====================================================
+       BACKFILL (NON-WORKING DAYS): every (active employee,
+       date) pair from joining_date onward that is ALREADY
+       KNOWN to be a holiday or weekly-off — regardless of
+       whether the employee has ever punched.
+    ===================================================== */
+
+    non_working_backfill_pairs AS
+    (
+      SELECT
+        TRIM(o.or_emp_id) AS emp_id,
+        d.attendance_date
+
+      FROM public.organizations o
+
+      CROSS JOIN LATERAL
+      (
+        SELECT generate_series(
+          GREATEST(
+            o.or_joining_date,
+            '${BACKFILL_START_DATE}'::DATE
+          ),
+          (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE,
+          INTERVAL '1 day'
+        )::DATE AS attendance_date
+      ) d
+
+      CROSS JOIN active_setting s
+
+      LEFT JOIN public.attendance_weekly_rules r
+        ON r.attendance_setting_id = s.id
+       AND r.day_of_week = EXTRACT(ISODOW FROM d.attendance_date)::INTEGER
+
+      LEFT JOIN public.holidays h
+        ON h.holiday_date = d.attendance_date
+       AND COALESCE(h.is_active, TRUE) = TRUE
 
       WHERE o.or_emp_id IS NOT NULL
         AND TRIM(o.or_emp_id) <> ''
         AND COALESCE(o.or_is_active, TRUE) = TRUE
-
-        AND (
-          o.or_joining_date IS NULL
-          OR o.or_joining_date <= d.attendance_date
-        )
+        AND o.or_joining_date IS NOT NULL
 
         AND (
           o.or_leaving_date IS NULL
@@ -103,26 +184,14 @@ async function generateMonthlyAttendance(client) {
       SELECT emp_id, attendance_date FROM today_pairs
       UNION
       SELECT emp_id, attendance_date FROM backfill_pairs
+      UNION
+      SELECT emp_id, attendance_date FROM non_working_backfill_pairs
     ),
 
     distinct_target_dates AS
     (
       SELECT DISTINCT attendance_date
       FROM target_pairs
-    ),
-
-    active_setting AS
-    (
-      SELECT
-        s.id,
-        s.office_start_time,
-        s.office_end_time,
-        s.grace_period_minutes,
-        s.half_day_after_minutes
-      FROM public.attendance_settings s
-      WHERE s.is_active = TRUE
-      ORDER BY s.id DESC
-      LIMIT 1
     ),
 
     day_rule AS
