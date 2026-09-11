@@ -101,7 +101,7 @@ app.use(
 );
 
 // Serve uploads folder
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/IHRDocument", express.static(path.join(__dirname, "IHRDocument")));
 
 // Auth Routes
 app.use("/api/auth", userRoutes);

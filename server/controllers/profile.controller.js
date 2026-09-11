@@ -4152,7 +4152,14 @@ exports.addBankDocInfo = async (req, res) => {
       });
     }
 
-    const filePath = `/uploads/bank-docs/${req.file.filename}`;
+    if (!req.companyEmployeeId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company employee ID not found"
+      });
+    }
+
+    const filePath = `/IHRDocument/${req.companyEmployeeId}/${req.file.filename}`;
 
     const result = await db.query(
       `
@@ -4545,11 +4552,19 @@ exports.addProfileImage = async (req, res) => {
 
     const employeeId = parseInt(emp_id, 10);
     const createdBy = req.user?.id || null;
+    const employeeCode = req.user?.emp_id;
 
     if (!emp_id || isNaN(employeeId)) {
       return res.status(400).json({
         success: false,
         message: "Valid employee ID is required"
+      });
+    }
+
+    if (!employeeCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee code not found"
       });
     }
 
@@ -4560,7 +4575,6 @@ exports.addProfileImage = async (req, res) => {
       });
     }
 
-    // Check employee exists
     const employeeCheck = await db.query(
       `
       SELECT Pr_Id
@@ -4577,9 +4591,8 @@ exports.addProfileImage = async (req, res) => {
       });
     }
 
-    const imagePath = `/uploads/profile-images/${req.file.filename}`;
+    const imagePath = `/IHRDocument/${employeeCode}/${req.file.filename}`;
 
-    // Check existing image
     const oldImageResult = await db.query(
       `
       SELECT
@@ -4595,7 +4608,6 @@ exports.addProfileImage = async (req, res) => {
 
     const oldImage = oldImageResult.rows[0];
 
-    // Insert new image
     const result = await db.query(
       `
       INSERT INTO User_Image (
@@ -4619,12 +4631,16 @@ exports.addProfileImage = async (req, res) => {
       ]
     );
 
-    // Delete old image file
     if (oldImage?.ui_imagepath) {
+      const oldRelativePath = oldImage.ui_imagepath.replace(
+        /^\/+/,
+        ""
+      );
+
       const oldFilePath = path.join(
         __dirname,
         "..",
-        oldImage.ui_imagepath
+        oldRelativePath
       );
 
       if (fs.existsSync(oldFilePath)) {
@@ -4639,7 +4655,6 @@ exports.addProfileImage = async (req, res) => {
       }
     }
 
-    // Delete old DB record
     if (oldImage?.ui_id) {
       await db.query(
         `
@@ -4656,6 +4671,7 @@ exports.addProfileImage = async (req, res) => {
         ? "Profile image updated successfully"
         : "Profile image added successfully",
       employee_id: employeeId,
+      employee_code: employeeCode,
       profile_image: imagePath,
       data: result.rows[0]
     });
