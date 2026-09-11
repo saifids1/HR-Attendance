@@ -1735,7 +1735,7 @@ exports.getLeaveRequestById = async (req, res) => {
         const result = await db.query(
             `SELECT lr.lr_leave_request_id,lr.request_id,pr_emp.pr_first_name,pr_emp.pr_last_name,or_emp.or_official_email as emp_email, or_emp.or_emp_id,
             or_reporting.or_official_email as reportingemail,pr_reporting.pr_first_name as reportingname,pr_reporting.pr_last_name as reportingLastname,
-             lr.lr_pr_id, lr.lr_leave_type_id, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,,
+             lr.lr_pr_id, lr.lr_leave_type_id, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date,
               lr.lr_total_days, lr.lr_reason, lr.lr_status_id,
                ls.ls_leave_status_name, lr.lr_ismailfromrequester, 
                lr.lr_ismailfromapprover, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, 
@@ -4761,6 +4761,44 @@ exports.getMyReportingDetails = async (req, res) => {
             result.rows[0] || null
         );
 
+    } catch (error) {
+        return handleDbError(res, error);
+    }
+};
+
+exports.getReportingLeaveStatusCounts = async (req, res) => {
+    try {
+        const reportingTo = Number(req.params.id);
+
+        if (!Number.isInteger(reportingTo) || reportingTo <= 0) {
+            return errorResponse(res, 400, null, "Invalid reporting user ID");
+        }
+
+        const result = await db.query(
+            `
+            SELECT
+                ls.ls_leave_status_id AS status_id,
+                ls.ls_leave_status_name AS status,
+                COUNT(lr.lr_leave_request_id) AS total_count
+            FROM public.leave_status ls
+            LEFT JOIN public.leave_requests lr
+                ON lr.lr_status_id = ls.ls_leave_status_id
+                AND lr.lr_reporting_to = $1
+            GROUP BY
+                ls.ls_leave_status_id,
+                ls.ls_leave_status_name
+            ORDER BY
+                ls.ls_leave_status_id
+            `,
+            [reportingTo]
+        );
+
+        return successResponse(
+            res,
+            200,
+            result.rows,
+            "Leave status counts fetched successfully"
+        );
     } catch (error) {
         return handleDbError(res, error);
     }
