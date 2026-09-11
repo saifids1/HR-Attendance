@@ -2,23 +2,43 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const uploadDir = path.join(__dirname, "../uploads/profile-images");
+const baseUploadDir = path.join(
+  __dirname,
+  "../IHRDocument"
+);
 
-// Ensure directory exists
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+if (!fs.existsSync(baseUploadDir)) {
+  fs.mkdirSync(baseUploadDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    const empId = req.user?.emp_id;
+
+    if (!empId) {
+      return cb(new Error("Employee ID not found"));
+    }
+
+    const employeeDir = path.join(
+      baseUploadDir,
+      String(empId)
+    );
+
+    if (!fs.existsSync(employeeDir)) {
+      fs.mkdirSync(employeeDir, { recursive: true });
+    }
+
+    cb(null, employeeDir);
   },
+
   filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+
     cb(
       null,
-      `profile_${req.user.emp_id}_${Date.now()}${path.extname(file.originalname)}`
+      `profile_${Date.now()}${ext}`
     );
-  },
+  }
 });
 
 const fileFilter = (req, file, cb) => {
@@ -32,5 +52,7 @@ const fileFilter = (req, file, cb) => {
 module.exports = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
 });

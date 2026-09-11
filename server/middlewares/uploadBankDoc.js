@@ -1,57 +1,78 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { db } = require("../db/connectDB");
 
-// =====================================================
-// Upload directory
-// =====================================================
+const baseUploadDir = path.join(__dirname, "..", "IHRDocument");
 
-const uploadDir = path.join(
-  __dirname,
-  "..",
-  "uploads",
-  "bank-docs"
-);
-
-// Create directory if it doesn't exist
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, {
+if (!fs.existsSync(baseUploadDir)) {
+  fs.mkdirSync(baseUploadDir, {
     recursive: true
   });
 }
 
-// =====================================================
-// Storage
-// =====================================================
-
 const storage = multer.diskStorage({
 
-  destination: (req, file, cb) => {
+  destination: async (req, file, cb) => {
+    try {
+      const employeeId = req.params.employee_id;
 
-    cb(null, uploadDir);
+      if (!employeeId) {
+        return cb(new Error("Employee ID is required"));
+      }
 
+      const result = await db.query(
+        `
+        SELECT or_emp_id
+        FROM organizations
+        WHERE pr_id = $1
+        LIMIT 1
+        `,
+        [employeeId]
+      );
+
+      if (result.rows.length === 0) {
+        return cb(new Error("Employee not found"));
+      }
+
+      const companyEmployeeId = result.rows[0].or_emp_id;
+
+      if (!companyEmployeeId) {
+        return cb(new Error("Employee ID not found in organization"));
+      }
+
+      const employeeDir = path.join(
+        baseUploadDir,
+        String(companyEmployeeId)
+      );
+
+      if (!fs.existsSync(employeeDir)) {
+        fs.mkdirSync(employeeDir, {
+          recursive: true
+        });
+      }
+
+      req.companyEmployeeId = companyEmployeeId;
+
+      cb(null, employeeDir);
+
+    } catch (error) {
+      cb(error);
+    }
   },
 
   filename: (req, file, cb) => {
-
-    const employeeId = req.params.employee_id;
 
     const ext = path
       .extname(file.originalname)
       .toLowerCase();
 
-    const uniqueName =
-      `Emp_${employeeId}_${Date.now()}${ext}`;
+    const uniqueName = `Doc_${Date.now()}${ext}`;
 
     cb(null, uniqueName);
-
   }
 
 });
-
-// =====================================================
-// File filter
-// =====================================================
 
 const fileFilter = (req, file, cb) => {
 
@@ -62,39 +83,20 @@ const fileFilter = (req, file, cb) => {
   ];
 
   if (!allowed.includes(file.mimetype)) {
-
     return cb(
-      new Error(
-        "Only PDF, PNG, JPG allowed"
-      )
+      new Error("Only PDF, PNG, JPG allowed")
     );
-
   }
 
   cb(null, true);
-
 };
 
-// =====================================================
-// Multer
-// IMPORTANT:
-// cURL field = document
-// Therefore use .single("document")
-// =====================================================
-
 const uploadBankDoc = multer({
-
   storage,
-
   limits: {
     fileSize: 10 * 1024 * 1024
   },
-
   fileFilter
-
 }).single("document");
-
-
-// =====================================================
 
 module.exports = uploadBankDoc;
