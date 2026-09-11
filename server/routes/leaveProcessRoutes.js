@@ -60,6 +60,8 @@ router.get(
     leaveProcessController.getMyLeaveRequests
 );
 
+router.get("/reporting-leave-status-counts/:id", auth,  leaveController.getReportingLeaveStatusCounts);
+
 router.get(
     "/my-reporting-details",
     auth,
