@@ -2201,41 +2201,41 @@ exports.cancelLeave = async (req, res) => {
                 result.manager.emp_id
         };
 
-        if (result.employee.email) {
+        if (result.employee.or_official_email) {
             try {
                 await sendEmail(
-                    result.employee.email,
+                    result.employee.or_official_email,
                     `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
                     "leave_cancelled",
                     emailData
                 );
 
                 console.log(
-                    `[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.email}`
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`
                 );
             } catch (emailError) {
                 console.error(
-                    `[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.email}`,
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`,
                     emailError
                 );
             }
         }
 
-        if (result.manager.email) {
+        if (result.manager.or_official_email) {
             try {
                 await sendEmail(
-                    result.manager.email,
+                    result.manager.or_official_email,
                     `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
                     "leave_cancelled_manager",
                     emailData
                 );
 
                 console.log(
-                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.email}`
+                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`
                 );
             } catch (emailError) {
                 console.error(
-                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.email}`,
+                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`,
                     emailError
                 );
             }
@@ -2725,9 +2725,9 @@ exports.approveLeave = async (req, res) => {
         let managerEmailSent = false;
 
         try {
-            if (result.employee.email) {
+            if (result.employee.or_official_email) {
                 await sendEmail(
-                    result.employee.email,
+                    result.employee.or_official_email,
                     `Leave Request Approved - ${leaveRequestId}`,
                     "leave_approved",
                     emailData
@@ -2736,13 +2736,13 @@ exports.approveLeave = async (req, res) => {
                 employeeEmailSent = true;
 
                 console.log(
-                    `[LEAVE APPROVAL EMAIL SENT] Request=${leaveRequestId} To=${result.employee.email}`
+                    `[LEAVE APPROVAL EMAIL SENT] Request=${leaveRequestId} To=${result.employee.or_official_email}`
                 );
             }
 
-            if (result.manager.email) {
+            if (result.manager.or_official_email) {
                 await sendEmail(
-                    result.manager.email,
+                    result.manager.or_official_email,
                     `Leave Request Approved - ${leaveRequestId}`,
                     "leave_approved_manager",
                     emailData
@@ -2751,7 +2751,7 @@ exports.approveLeave = async (req, res) => {
                 managerEmailSent = true;
 
                 console.log(
-                    `[LEAVE APPROVAL MANAGER EMAIL SENT] Request=${leaveRequestId} To=${result.manager.email}`
+                    `[LEAVE APPROVAL MANAGER EMAIL SENT] Request=${leaveRequestId} To=${result.manager.or_official_email}`
                 );
             }
 
@@ -4306,9 +4306,9 @@ exports.rejectLeave = async (req, res) => {
         let managerEmailSent = false;
 
         try {
-            if (result.employee.email) {
+            if (result.employee.or_official_email) {
                 await sendEmail(
-                    result.employee.email,
+                    result.employee.or_official_email,
                     `Leave Request Rejected - ${emailData.leave_request_id}`,
                     "leave_rejected",
                     emailData
@@ -4317,13 +4317,13 @@ exports.rejectLeave = async (req, res) => {
                 employeeEmailSent = true;
 
                 console.log(
-                    `[LEAVE REJECTION EMAIL SENT] Request=${emailData.leave_request_id} To=${result.employee.email}`
+                    `[LEAVE REJECTION EMAIL SENT] Request=${emailData.leave_request_id} To=${result.employee.or_official_email}`
                 );
             }
 
-            if (result.manager.email) {
+            if (result.manager.or_official_email) {
                 await sendEmail(
-                    result.manager.email,
+                    result.manager.or_official_email,
                     `Leave Request Rejected - ${emailData.leave_request_id}`,
                     "leave_rejected_manager",
                     emailData
@@ -4332,7 +4332,7 @@ exports.rejectLeave = async (req, res) => {
                 managerEmailSent = true;
 
                 console.log(
-                    `[LEAVE REJECTION MANAGER EMAIL SENT] Request=${emailData.leave_request_id} To=${result.manager.email}`
+                    `[LEAVE REJECTION MANAGER EMAIL SENT] Request=${emailData.leave_request_id} To=${result.manager.or_official_email}`
                 );
             }
 
