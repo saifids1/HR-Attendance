@@ -1694,37 +1694,207 @@ function formatDDMMYYYY(dateStr) {
 exports.getMyLeaveRequests = async (req, res) => {
     try {
         const prId = getLoggedInPrId(req);
-        const { page, limit, offset } = getPaginationParams(req);
-        const year = req.query.year ? validateYear(req.query.year) : null;
+
+        // ============================================================
+        // CUSTOM PAGINATION
+        // ============================================================
+        let page = parseInt(req.query.page, 10);
+        let limit = parseInt(req.query.limit, 10);
+
+        // Default page
+        if (!Number.isInteger(page) || page < 1) {
+            page = 1;
+        }
+
+        // Default limit
+        if (!Number.isInteger(limit) || limit < 1) {
+            limit = 10;
+        }
+
+        // Maximum 1000 records per request
+        if (limit > 1000) {
+            limit = 1000;
+        }
+
+        const offset = (page - 1) * limit;
+
+        // ============================================================
+        // FILTERS
+        // ============================================================
+        const year = req.query.year
+            ? validateYear(req.query.year)
+            : null;
+
         const status = req.query.status || null;
+
         const values = [prId];
+
         let paramIndex = 2;
-        let whereClause = `WHERE lr.lr_pr_id = $1`;
+
+        let whereClause = `
+            WHERE lr.lr_pr_id = $1
+        `;
+
+        // ============================================================
+        // YEAR FILTER
+        // ============================================================
         if (year) {
-            whereClause += ` AND EXTRACT(YEAR FROM lr.lr_from_date) = $${paramIndex}`;
+            whereClause += `
+                AND EXTRACT(YEAR FROM lr.lr_from_date) = $${paramIndex}
+            `;
+
             values.push(year);
             paramIndex++;
         }
+
+        // ============================================================
+        // STATUS FILTER
+        // ============================================================
         if (status) {
-            whereClause += ` AND LOWER(ls.ls_leave_status_name) = LOWER($${paramIndex})`;
+            whereClause += `
+                AND LOWER(ls.ls_leave_status_name) = LOWER($${paramIndex})
+            `;
+
             values.push(status);
             paramIndex++;
         }
+
+        // ============================================================
+        // TOTAL COUNT
+        // ============================================================
         const countResult = await db.query(
-            `SELECT COUNT(*) AS total FROM public.leave_requests lr INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause}`,
+            `
+            SELECT COUNT(*) AS total
+
+            FROM public.leave_requests lr
+
+            INNER JOIN public.leave_status ls
+                ON ls.ls_leave_status_id = lr.lr_status_id
+
+            ${whereClause}
+            `,
             values
         );
-        const total = Number(countResult.rows[0].total || 0);
-        const result = await db.query(
-            `SELECT lr.lr_leave_request_id, lr.lr_pr_id, lr.lr_leave_type_id, lt.lt_leave_type_code, lt.lt_leave_type_name, lt.lt_is_paid, TO_CHAR(lr.lr_from_date, 'YYYY-MM-DD') AS lr_from_date, TO_CHAR(lr.lr_to_date, 'YYYY-MM-DD') AS lr_to_date, lr.lr_total_days, lr.lr_reason, ls.ls_leave_status_id, ls.ls_leave_status_name, lr.lr_applied_at, lr.lr_approver_by, lr.lr_approver_at, lr.lr_approver_remark, lr.lr_cancelled_at, lr.lr_cancellation_reason, lr.lr_created_at, lr.lr_updated_at FROM public.leave_requests lr INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id ${whereClause} ORDER BY lr.lr_applied_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-            [...values, limit, offset]
+
+        const total = Number(
+            countResult.rows[0]?.total || 0
         );
-        return paginatedResponse(res, result.rows, page, limit, total);
+
+        // ============================================================
+        // DATA QUERY
+        // ============================================================
+        const dataParams = [
+            ...values,
+            limit,
+            offset
+        ];
+
+        const result = await db.query(
+            `
+            SELECT
+                lr.lr_leave_request_id,
+                lr.lr_pr_id,
+                lr.lr_leave_type_id,
+
+                lt.lt_leave_type_code,
+                lt.lt_leave_type_name,
+                lt.lt_is_paid,
+
+                TO_CHAR(
+                    lr.lr_from_date,
+                    'YYYY-MM-DD'
+                ) AS lr_from_date,
+
+                TO_CHAR(
+                    lr.lr_to_date,
+                    'YYYY-MM-DD'
+                ) AS lr_to_date,
+
+                lr.lr_total_days,
+                lr.lr_reason,
+
+                ls.ls_leave_status_id,
+                ls.ls_leave_status_name,
+
+                lr.lr_applied_at,
+
+                lr.lr_approver_by,
+                lr.lr_approver_at,
+                lr.lr_approver_remark,
+
+                lr.lr_cancelled_at,
+                lr.lr_cancellation_reason,
+
+                lr.lr_created_at,
+                lr.lr_updated_at
+
+            FROM public.leave_requests lr
+
+            INNER JOIN public.leave_types lt
+                ON lt.lt_leave_type_id = lr.lr_leave_type_id
+
+            INNER JOIN public.leave_status ls
+                ON ls.ls_leave_status_id = lr.lr_status_id
+
+            ${whereClause}
+
+            ORDER BY
+                lr.lr_applied_at DESC
+
+            LIMIT $${paramIndex}
+            OFFSET $${paramIndex + 1}
+            `,
+            dataParams
+        );
+
+        // ============================================================
+        // PAGINATION DETAILS
+        // ============================================================
+        const totalPages = limit > 0
+            ? Math.ceil(total / limit)
+            : 0;
+
+        const hasNextPage = page < totalPages;
+        const hasPreviousPage = page > 1;
+
+        // ============================================================
+        // RESPONSE
+        // ============================================================
+        return res.status(200).json({
+            success: true,
+
+            data: result.rows,
+
+            pagination: {
+                page,
+                limit,
+                offset,
+
+                totalRecords: total,
+                totalPages,
+
+                hasNextPage,
+                hasPreviousPage,
+
+                nextPage: hasNextPage
+                    ? page + 1
+                    : null,
+
+                previousPage: hasPreviousPage
+                    ? page - 1
+                    : null
+            }
+        });
+
     } catch (error) {
+        console.error(
+            "getMyLeaveRequests Error:",
+            error
+        );
+
         return handleDbError(res, error);
     }
 };
-
 exports.getLeaveRequestById = async (req, res) => {
     try {
         const prId = getLoggedInPrId(req);
