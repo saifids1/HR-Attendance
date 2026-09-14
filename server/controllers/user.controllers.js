@@ -403,8 +403,8 @@ const getAllEmployeesPaginated = async (req, res) => {
             COALESCE(p.pr_last_name, '')
           ),
 
-          'dob',
-          p.pr_dob,
+                              'dob',
+          TO_CHAR(p.pr_dob, 'YYYY-MM-DD'),
 
           'gender_id',
           p.pr_gender_id,
@@ -424,10 +424,10 @@ const getAllEmployeesPaginated = async (req, res) => {
           'is_active',
           p.pr_is_active,
 
-          'created_at',
+                             'created_at',
           p.pr_created_at,
 
-          'updated_at',
+                               'updated_at',
           p.pr_updated_at,
 
           'created_by',
@@ -480,13 +480,13 @@ const getAllEmployeesPaginated = async (req, res) => {
           'designation_id',
           o.or_designation_id,
 
-          'joining_date',
-          o.or_joining_date,
+                              'joining_date',
+          TO_CHAR(o.or_joining_date, 'YYYY-MM-DD'),
 
-          'leaving_date',
-          o.or_leaving_date,
+                              'leaving_date',
+          TO_CHAR(o.or_leaving_date, 'YYYY-MM-DD'),
 
-          'created_at',
+                             'created_at',
           o.or_created_at,
 
           'updated_at',
@@ -571,37 +571,37 @@ const getAllEmployeesPaginated = async (req, res) => {
 
     const totalPages = Math.ceil(total / limit);
 
-  return res.status(200).json({
-  success: true,
+    return res.status(200).json({
+      success: true,
 
-  summary: {
-    totalEmployees: summary.total_employees,
-    activeEmployees: summary.active_employees,
-    inactiveEmployees: summary.inactive_employees,
-    newJoiners: summary.new_joiners,
-  },
+      summary: {
+        totalEmployees: summary.total_employees,
+        activeEmployees: summary.active_employees,
+        inactiveEmployees: summary.inactive_employees,
+        newJoiners: summary.new_joiners,
+      },
 
-  pagination: {
-    currentPage: page,
-    limit,
-    totalRecords: total,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
-  },
+      pagination: {
+        currentPage: page,
+        limit,
+        totalRecords: total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
 
-  filters: {
-    search: searchValue || null,
-    department: department || null,
-    designation: designation || null,
-    status:
-      status === undefined || status === ""
-        ? null
-        : status === "true",
-  },
+      filters: {
+        search: searchValue || null,
+        department: department || null,
+        designation: designation || null,
+        status:
+          status === undefined || status === ""
+            ? null
+            : status === "true",
+      },
 
-  employees: result.rows,
-});
+      employees: result.rows,
+    });
   } catch (error) {
     console.error("Get Employees Error:", error);
 
@@ -691,7 +691,7 @@ const updateUserActiveOrInActiveStatus = async (req, res) => {
   }
 };
 
-const resetPassword = async (req, res) => {};
+const resetPassword = async (req, res) => { };
 
 module.exports = {
   updateUserActiveOrInActiveStatus,

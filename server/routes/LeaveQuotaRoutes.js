@@ -3,13 +3,21 @@ const express = require("express");
 const router = express.Router();
 
 const {
-    syncLeaveQuota
+    syncLeaveQuota,
+    allocateSingleLeaveQuota
 } = require("../controllers/LeaveQuotaController");
 
-// Trigger leave quota synchronization
+
+
 router.post(
     "/sync",
     syncLeaveQuota
+);
+
+
+router.post(
+    "/allocate/:leaveTypeId",
+    allocateSingleLeaveQuota
 );
 
 module.exports = router;
