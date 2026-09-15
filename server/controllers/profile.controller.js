@@ -4391,7 +4391,7 @@ exports.updateBankDocInfo = async (req, res) => {
 
       if (req.file) {
         fileName = req.file.filename;
-        filePath = `/uploads/bank-docs/${req.file.filename}`;
+        filePath = `/IHRDocument/${req.companyEmployeeId}/${req.file.filename}`;
         fileSize = req.file.size;
       }
 
@@ -4443,7 +4443,7 @@ exports.updateBankDocInfo = async (req, res) => {
     }
 
     const fileName = req.file.filename;
-    const filePath = `/uploads/bank-docs/${req.file.filename}`;
+    const filePath = `/IHRDocument/${req.companyEmployeeId}/${req.file.filename}`;
     const fileSize = req.file.size;
 
     const result = await db.query(
