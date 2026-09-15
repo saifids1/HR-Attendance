@@ -5832,6 +5832,281 @@ exports.getManagerLeaveRequests = async (req, res) => {
     }
 };
 
+exports.getLeaveRequestsByReportingToId = async (req, res) => {
+    try {
+        const managerPrId = getLoggedInPrId(req);
+
+        // ============================================================
+        // CUSTOM PAGINATION
+        // ============================================================
+        let page = parseInt(req.query.page, 10);
+        let limit = parseInt(req.query.limit, 10);
+
+        if (!Number.isInteger(page) || page < 1) {
+            page = 1;
+        }
+
+        if (!Number.isInteger(limit) || limit < 1) {
+            limit = 10;
+        }
+
+        if (limit > 1000) {
+            limit = 1000;
+        }
+
+        const offset = (page - 1) * limit;
+
+        const {
+            employee_id,
+            request_status,
+            leave_type_code
+        } = req.query;
+
+        // ============================================================
+        // BUILD WHERE CONDITIONS
+        // ============================================================
+        const params = [];
+        let paramIndex = 1;
+
+        let whereConditions = `
+            employee.or_is_active = TRUE
+        `;
+
+        // ============================================================
+        // ALWAYS SHOW ONLY LEAVES REPORTED TO CURRENT USER
+        // ============================================================
+        whereConditions += `
+            AND lr.lr_reporting_to = $${paramIndex}
+        `;
+
+        params.push(managerPrId);
+        paramIndex++;
+
+        // ============================================================
+        // EMPLOYEE / REQUEST SEARCH
+        // ============================================================
+        if (employee_id) {
+            whereConditions += `
+                AND (
+                    employee.or_emp_id::TEXT ILIKE $${paramIndex}
+                    OR employee.or_organization_name ILIKE $${paramIndex}
+                    OR employee.or_official_email ILIKE $${paramIndex}
+                    OR employee.or_official_contact ILIKE $${paramIndex}
+                    OR lr.request_id::TEXT ILIKE $${paramIndex}
+                )
+            `;
+
+            params.push(`%${employee_id}%`);
+            paramIndex++;
+        }
+
+        // ============================================================
+        // STATUS FILTER
+        // ============================================================
+        if (request_status) {
+            whereConditions += `
+                AND LOWER(ls.ls_leave_status_name) = LOWER($${paramIndex})
+            `;
+
+            params.push(request_status);
+            paramIndex++;
+        }
+
+        // ============================================================
+        // LEAVE TYPE FILTER
+        // ============================================================
+        if (leave_type_code) {
+            whereConditions += `
+                AND LOWER(lt.lt_leave_type_code) = LOWER($${paramIndex})
+            `;
+
+            params.push(leave_type_code);
+            paramIndex++;
+        }
+
+        // ============================================================
+        // TOTAL COUNT
+        // ============================================================
+        const countResult = await db.query(
+            `
+            SELECT COUNT(*) AS total
+            FROM public.leave_requests lr
+
+            INNER JOIN public.organizations employee
+                ON employee.pr_id = lr.lr_pr_id
+
+            INNER JOIN public.organizations manager
+                ON manager.or_id = employee.or_reporting_to_id
+
+            INNER JOIN public.leave_types lt
+                ON lt.lt_leave_type_id = lr.lr_leave_type_id
+
+            INNER JOIN public.leave_status ls
+                ON ls.ls_leave_status_id = lr.lr_status_id
+
+            WHERE ${whereConditions}
+            `,
+            params
+        );
+
+        const total = Number(countResult.rows[0].total);
+
+        // ============================================================
+        // PAGINATION PARAMETERS
+        // ============================================================
+        const dataParams = [
+            ...params,
+            limit,
+            offset
+        ];
+
+        // ============================================================
+        // FETCH DATA
+        // ============================================================
+        const result = await db.query(
+            `
+            SELECT
+                lr.lr_leave_request_id,
+                lr.lr_pr_id,
+                lr.request_id,
+                lr.lr_reporting_to,
+
+                employee.or_id AS employee_or_id,
+                employee.or_emp_id AS employee_id,
+                employee.or_official_email,
+                employee.or_official_contact,
+
+                pr.pr_first_name,
+                pr.pr_last_name,
+
+                lr.lr_leave_type_id,
+                lt.lt_leave_type_code,
+                lt.lt_leave_type_name,
+                lt.lt_total_days_per_year,
+                lt.lt_is_paid,
+
+                TO_CHAR(
+                    lr.lr_from_date,
+                    'YYYY-MM-DD'
+                ) AS lr_from_date,
+
+                TO_CHAR(
+                    lr.lr_to_date,
+                    'YYYY-MM-DD'
+                ) AS lr_to_date,
+
+                lr.lr_total_days,
+                lr.lr_reason,
+
+                lr.lr_status_id,
+                ls.ls_leave_status_name AS request_status,
+
+                lr.lr_ismailfromrequester,
+                lr.lr_applied_at,
+
+                lr.lr_approver_by,
+                lr.lr_approver_at,
+                lr.lr_approver_remark,
+                lr.lr_ismailfromapprover,
+
+                lr.lr_cancelled_at,
+                lr.lr_cancellation_reason,
+
+                lr.lr_created_at,
+                lr.lr_created_by,
+                lr.lr_updated_at,
+                lr.lr_updated_by
+
+            FROM public.leave_requests lr
+
+            INNER JOIN public.organizations employee
+                ON employee.pr_id = lr.lr_pr_id
+
+            INNER JOIN public.Personal pr
+                ON pr.pr_id = lr.lr_pr_id
+
+            INNER JOIN public.organizations manager
+                ON manager.or_id = employee.or_reporting_to_id
+
+            INNER JOIN public.leave_types lt
+                ON lt.lt_leave_type_id = lr.lr_leave_type_id
+
+            INNER JOIN public.leave_status ls
+                ON ls.ls_leave_status_id = lr.lr_status_id
+
+            WHERE ${whereConditions}
+
+            ORDER BY
+                CASE
+                    WHEN LOWER(ls.ls_leave_status_name) = 'pending'
+                        THEN 0
+
+                    WHEN LOWER(ls.ls_leave_status_name) = 'approved'
+                        THEN 1
+
+                    WHEN LOWER(ls.ls_leave_status_name) = 'rejected'
+                        THEN 2
+
+                    WHEN LOWER(ls.ls_leave_status_name) = 'cancelled'
+                        THEN 3
+
+                    ELSE 4
+                END,
+
+                lr.lr_created_at DESC
+
+            LIMIT $${paramIndex}
+            OFFSET $${paramIndex + 1}
+            `,
+            dataParams
+        );
+
+        // ============================================================
+        // PAGINATION RESPONSE
+        // ============================================================
+        const totalPages = limit > 0
+            ? Math.ceil(total / limit)
+            : 0;
+
+        const hasNextPage = page < totalPages;
+        const hasPreviousPage = page > 1;
+
+        return res.status(200).json({
+            success: true,
+
+            data: result.rows,
+
+            pagination: {
+                page,
+                limit,
+                offset,
+
+                totalRecords: total,
+                totalPages,
+
+                hasNextPage,
+                hasPreviousPage,
+
+                nextPage: hasNextPage
+                    ? page + 1
+                    : null,
+
+                previousPage: hasPreviousPage
+                    ? page - 1
+                    : null
+            }
+        });
+
+    } catch (error) {
+        console.error(
+            "getManagerLeaveRequests Error:",
+            error
+        );
+
+        return handleDbError(res, error);
+    }
+};
+
 exports.getMyReportingDetails = async (req, res) => {
     try {
         const prId = Number(req.query.pr_id);
