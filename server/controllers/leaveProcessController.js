@@ -1081,99 +1081,114 @@ exports.applyLeave = async (req, res) => {
    GET MY LEAVE REQUESTS  (paginated)
 ============================================================ */
 exports.getMyLeaveRequests = async (req, res) => {
-  try {
-    const prId = getLoggedInPrId(req);
+    try {
+        const prId = getLoggedInPrId(req);
 
-    let page = parseInt(req.query.page, 10);
-    let limit = parseInt(req.query.limit, 10);
-    if (!Number.isInteger(page) || page < 1) page = 1;
-    if (!Number.isInteger(limit) || limit < 1) limit = 10;
-    if (limit > 1000) limit = 1000;
-    const offset = (page - 1) * limit;
+        let page = parseInt(req.query.page, 10);
+        let limit = parseInt(req.query.limit, 10);
 
-    const year = req.query.year ? validateYear(req.query.year) : null;
-    const status = req.query.status || null;
+        if (!Number.isInteger(page) || page < 1) page = 1;
+        if (!Number.isInteger(limit) || limit < 1) limit = 10;
+        if (limit > 1000) limit = 1000;
 
-    const where = { lr_pr_id: prId };
-    if (year) {
-      where.lr_from_date = { [Op.gte]: `${year}-01-01`, [Op.lte]: `${year}-12-31` };
+        const offset = (page - 1) * limit;
+
+        const year = req.query.year ? validateYear(req.query.year) : null;
+        const status = req.query.status || null;
+
+        const where = { lr_pr_id: prId };
+
+        if (year) {
+            where[Op.and] = [
+                literal(
+                    `EXTRACT(YEAR FROM "leave_requests"."lr_from_date") = ${Number(year)}`
+                ),
+            ];
+        }
+
+        const include = [
+            {
+                model: LeaveTypes,
+                as: "leaveType",
+                required: true,
+                attributes: [
+                    "lt_leave_type_code",
+                    "lt_leave_type_name",
+                    "lt_total_days_per_year",
+                    "lt_is_paid",
+                ],
+            },
+            {
+                model: LeaveStatus,
+                as: "status",
+                required: true,
+                attributes: [
+                    "ls_leave_status_id",
+                    "ls_leave_status_name",
+                ],
+            },
+        ];
+
+        if (status) {
+            include[1].where = literal(
+                `LOWER("status"."ls_leave_status_name") = LOWER(${db.sequelize.escape(status)})`
+            );
+        }
+
+        const { rows, count: total } = await LeaveRequests.findAndCountAll({
+            where,
+            include,
+            order: [["lr_applied_at", "DESC"]],
+            limit,
+            offset,
+            distinct: true,
+        });
+
+        const data = rows.map((r) => {
+            const j = r.toJSON();
+            const lt = j.leaveType || {};
+            const ls = j.status || {};
+
+            return {
+                lr_leave_request_id: j.lr_leave_request_id,
+                request_id: j.request_id,
+                lr_pr_id: j.lr_pr_id,
+                lr_leave_type_id: j.lr_leave_type_id,
+                lt_leave_type_code: lt.lt_leave_type_code ?? null,
+                lt_leave_type_name: lt.lt_leave_type_name ?? null,
+                lt_total_days_per_year: lt.lt_total_days_per_year ?? null,
+                lt_is_paid: lt.lt_is_paid ?? null,
+                lr_from_date: j.lr_from_date ? String(j.lr_from_date).slice(0, 10) : null,
+                lr_to_date: j.lr_to_date ? String(j.lr_to_date).slice(0, 10) : null,
+                lr_total_days: j.lr_total_days,
+                lr_reason: j.lr_reason,
+                lr_status_id: j.lr_status_id,
+                request_status: ls.ls_leave_status_name ?? null,
+                lr_ismailfromrequester: j.lr_ismailfromrequester,
+                lr_applied_at: j.lr_applied_at,
+                lr_approver_by: j.lr_approver_by,
+                lr_approver_at: j.lr_approver_at,
+                lr_approver_remark: j.lr_approver_remark,
+                lr_ismailfromapprover: j.lr_ismailfromapprover,
+                lr_cancelled_at: j.lr_cancelled_at,
+                lr_cancellation_reason: j.lr_cancellation_reason,
+                lr_created_at: j.lr_created_at,
+                lr_created_by: j.lr_created_by,
+                lr_updated_at: j.lr_updated_at,
+                lr_updated_by: j.lr_updated_by,
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: data,
+            data: total,
+            pagination: limit,
+        });
+    } catch (error) {
+        console.error("getMyLeaveRequests Error:", error);
+        return handleDbError(res, error);
     }
-
-    const include = [
-      {
-        model: LeaveTypes,
-        as: "leaveType",
-        attributes: ["lt_leave_type_code", "lt_leave_type_name", "lt_is_paid"],
-      },
-      {
-        model: LeaveStatus,
-        as: "status",
-        attributes: ["ls_leave_status_id", "ls_leave_status_name"],
-      },
-    ];
-
-    if (status) {
-      include[1].where = literal(
-        `LOWER("status"."ls_leave_status_name") = LOWER(${sequelize.escape(status)})`
-      );
-    }
-
-    const { rows, count } = await LeaveRequests.findAndCountAll({
-      where,
-      include,
-      order: [["lr_applied_at", "DESC"]],
-      limit,
-      offset,
-      distinct: true,
-    });
-
-    const totalPages = limit > 0 ? Math.ceil(count / limit) : 0;
-
-    return res.status(200).json({
-      success: true,
-      data: rows.map((r) => {
-        const j = r.toJSON();
-        return {
-          lr_leave_request_id: j.lr_leave_request_id,
-          lr_pr_id: j.lr_pr_id,
-          lr_leave_type_id: j.lr_leave_type_id,
-          lt_leave_type_code: r.leaveType?.lt_leave_type_code,
-          lt_leave_type_name: r.leaveType?.lt_leave_type_name,
-          lt_is_paid: r.leaveType?.lt_is_paid,
-          lr_from_date: j.lr_from_date
-            ? String(j.lr_from_date).slice(0, 10)
-            : null,
-          lr_to_date: j.lr_to_date
-            ? String(j.lr_to_date).slice(0, 10)
-            : null,
-          lr_total_days: j.lr_total_days,
-          lr_reason: j.lr_reason,
-          ls_leave_status_id: r.status?.ls_leave_status_id,
-          ls_leave_status_name: r.status?.ls_leave_status_name,
-          lr_applied_at: j.lr_applied_at,
-          lr_approver_by: j.lr_approver_by,
-          lr_approver_at: j.lr_approver_at,
-          lr_approver_remark: j.lr_approver_remark,
-          lr_cancelled_at: j.lr_cancelled_at,
-          lr_cancellation_reason: j.lr_cancellation_reason,
-          lr_created_at: j.lr_created_at,
-          lr_updated_at: j.lr_updated_at,
-        };
-      }),
-      pagination: {
-        page, limit, offset,
-        totalRecords: count,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-        nextPage: page < totalPages ? page + 1 : null,
-        previousPage: page > 1 ? page - 1 : null,
-      },
-    });
-  } catch (error) {
-    console.error("getMyLeaveRequests Error:", error);
-    return handleDbError(res, error);
-  }
 };
 
 /* ============================================================

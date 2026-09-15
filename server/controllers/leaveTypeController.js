@@ -1,18 +1,20 @@
-const { db } = require("../db/connectDB");
 const {
   successResponse,
   errorResponse,
   paginatedResponse,
-  handleDbError
+  handleDbError,
 } = require("../utils/response");
 
 const {
   getPaginationParams,
-  buildIsActiveClause
 } = require("../utils/pagination");
 
+const db = require("../models");
+const { LeaveTypes, Organizations } = db;
 
-
+/* ============================================================
+   CREATE LEAVE TYPE
+============================================================ */
 const createLeaveType = async (req, res) => {
   try {
     const {
@@ -23,40 +25,19 @@ const createLeaveType = async (req, res) => {
       from_date,
       to_date,
       emptype,
-      created_by
+      created_by,
     } = req.body;
 
-    // Validate leave type code
     if (!leave_type_code || leave_type_code.trim() === "") {
-      return errorResponse(
-        res,
-        400,
-        "leave_type_code is required",
-        null
-      );
+      return errorResponse(res, 400, "leave_type_code is required", null);
     }
 
-    // Validate leave type name
     if (!leave_type_name || leave_type_name.trim() === "") {
-      return errorResponse(
-        res,
-        400,
-        "leave_type_name is required",
-        null
-      );
+      return errorResponse(res, 400, "leave_type_name is required", null);
     }
 
-    // Validate total days
-    if (
-      total_days_per_year === undefined ||
-      total_days_per_year === null
-    ) {
-      return errorResponse(
-        res,
-        400,
-        "total_days_per_year is required",
-        null
-      );
+    if (total_days_per_year === undefined || total_days_per_year === null) {
+      return errorResponse(res, 400, "total_days_per_year is required", null);
     }
 
     if (
@@ -71,34 +52,18 @@ const createLeaveType = async (req, res) => {
       );
     }
 
-    // Validate is_paid
-    if (
-      is_paid !== undefined &&
-      typeof is_paid !== "boolean"
-    ) {
-      return errorResponse(
-        res,
-        400,
-        "is_paid must be true or false",
-        null
-      );
+    if (is_paid !== undefined && typeof is_paid !== "boolean") {
+      return errorResponse(res, 400, "is_paid must be true or false", null);
     }
 
-    // Validate emptype
     if (
       emptype === undefined ||
       emptype === null ||
       !Number.isInteger(Number(emptype))
     ) {
-      return errorResponse(
-        res,
-        400,
-        "valid emptype is required",
-        null
-      );
+      return errorResponse(res, 400, "valid emptype is required", null);
     }
 
-    // Validate from_date and to_date
     if (from_date && to_date && new Date(to_date) < new Date(from_date)) {
       return errorResponse(
         res,
@@ -108,112 +73,63 @@ const createLeaveType = async (req, res) => {
       );
     }
 
-    const query = `
-      INSERT INTO public.leave_types
-      (
-        lt_leave_type_code,
-        lt_leave_type_name,
-        lt_total_days_per_year,
-        lt_is_paid,
-        lt_from_date,
-        lt_to_date,
-        lt_emptype,
-        lt_is_active,
-        lt_created_at,
-        lt_created_by
-      )
-      VALUES
-      (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        TRUE,
-        CURRENT_TIMESTAMP,
-        $8
-      )
-      RETURNING *
-    `;
-
-    const result = await db.query(query, [
-      leave_type_code.trim().toUpperCase(),
-      leave_type_name.trim(),
-      Number(total_days_per_year),
-      is_paid !== undefined ? is_paid : true,
-      from_date || null,
-      to_date || null,
-      Number(emptype),
-      created_by || null
-    ]);
+    const created = await LeaveTypes.create({
+      lt_leave_type_code: leave_type_code.trim().toUpperCase(),
+      lt_leave_type_name: leave_type_name.trim(),
+      lt_total_days_per_year: Number(total_days_per_year),
+      lt_is_paid: is_paid !== undefined ? is_paid : true,
+      lt_from_date: from_date || null,
+      lt_to_date: to_date || null,
+      lt_emptype: Number(emptype),
+      lt_is_active: true,
+      lt_created_at: new Date(),
+      lt_created_by: created_by || null,
+    });
 
     return successResponse(
       res,
       201,
       "Leave type created successfully",
-      result.rows[0]
+      created.toJSON()
     );
-
   } catch (error) {
-    return handleDbError(
-      res,
-      error,
-      "Failed to create leave type"
-    );
+    return handleDbError(res, error, "Failed to create leave type");
   }
 };
 
-
-
+/* ============================================================
+   GET LEAVE TYPE BY ID
+============================================================ */
 const getLeaveTypeById = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
-      return errorResponse(
-        res,
-        400,
-        "Valid leave_type_id is required",
-        null
-      );
+      return errorResponse(res, 400, "Valid leave_type_id is required", null);
     }
 
-    const query = `
-      SELECT *
-      FROM public.leave_types
-      WHERE lt_leave_type_id = $1
-    `;
+    const row = await LeaveTypes.findOne({
+      where: { lt_leave_type_id: Number(id) },
+    });
 
-    const result = await db.query(query, [Number(id)]);
-
-    if (result.rows.length === 0) {
-      return errorResponse(
-        res,
-        404,
-        "Leave type not found",
-        null
-      );
+    if (!row) {
+      return errorResponse(res, 404, "Leave type not found", null);
     }
 
     return successResponse(
       res,
       200,
       "Leave type fetched successfully",
-      result.rows[0]
+      row.toJSON()
     );
-
   } catch (error) {
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch leave type"
-    );
+    return handleDbError(res, error, "Failed to fetch leave type");
   }
 };
 
-
+/* ============================================================
+   GET ALL LEAVE TYPES (by employee type from pr_id)
+============================================================ */
 const getAllLeaveTypes = async (req, res) => {
   try {
     const { pr_id, is_active } = req.query;
@@ -221,194 +137,125 @@ const getAllLeaveTypes = async (req, res) => {
     if (!pr_id) {
       return res.status(400).json({
         success: false,
-        message: "Pr_Id is required"
+        message: "Pr_Id is required",
       });
     }
 
-    const employeeResult = await db.query(
-      `
-      SELECT
-        or_employee_type_id
-      FROM public.organizations
-      WHERE pr_id = $1
-        AND COALESCE(or_is_active, TRUE) = TRUE
-        AND or_employee_type_id IS NOT NULL
-      ORDER BY or_id DESC
-      LIMIT 1
-      `,
-      [pr_id]
-    );
+    const employeeOrg = await Organizations.findOne({
+      where: {
+        pr_id,
+        or_employee_type_id: { [db.Sequelize.Op.ne]: null },
+        [db.Sequelize.Op.or]: [
+          { or_is_active: true },
+          { or_is_active: null },
+        ],
+      },
+      attributes: ["or_employee_type_id"],
+      order: [["or_id", "DESC"]],
+    });
 
-    if (employeeResult.rows.length === 0) {
+    if (!employeeOrg) {
       return res.status(404).json({
         success: false,
-        message: `Active organization information not found for Pr_Id ${pr_id}`
+        message: `Active organization information not found for Pr_Id ${pr_id}`,
       });
     }
 
-    const employeeTypeId =
-      employeeResult.rows[0].or_employee_type_id;
+    const employeeTypeId = employeeOrg.or_employee_type_id;
 
-    let activeCondition = "lt_is_active = TRUE";
-
+    // Validate is_active
+    let activeValue = true;
     if (is_active !== undefined) {
-      const activeValue = String(is_active).toLowerCase();
-
-      if (activeValue === "true") {
-        activeCondition = "lt_is_active = TRUE";
-      } else if (activeValue === "false") {
-        activeCondition = "lt_is_active = FALSE";
-      } else {
+      const v = String(is_active).toLowerCase();
+      if (v === "true") activeValue = true;
+      else if (v === "false") activeValue = false;
+      else {
         return res.status(400).json({
           success: false,
-          message: "is_active must be true or false"
+          message: "is_active must be true or false",
         });
       }
     }
 
-    const result = await db.query(
-      `
-      SELECT
-        lt_leave_type_id,
-        lt_leave_type_code,
-        lt_leave_type_name,
-        lt_total_days_per_year,
-        lt_is_paid,
-        lt_from_date,
-        lt_to_date,
-        lt_emptype,
-        lt_is_active,
-        lt_created_at,
-        lt_updated_at,
-        lt_created_by,
-        lt_updated_by
-      FROM public.leave_types
-      WHERE lt_emptype = $1
-      AND lt_leave_type_code IN ('PL', 'LWP')
-        AND  lt_is_active = true
-      ORDER BY lt_leave_type_id ASC
-      `,
-      [employeeTypeId]
-    );
+    const rows = await LeaveTypes.findAll({
+      where: {
+        lt_emptype: employeeTypeId,
+        lt_leave_type_code: { [db.Sequelize.Op.in]: ["PL", "LWP"] },
+        lt_is_active: activeValue,
+      },
+      order: [["lt_leave_type_id", "ASC"]],
+    });
 
     return successResponse(
       res,
       200,
       "Leave types fetched successfully",
-      result.rows
+      rows.map((r) => r.toJSON())
     );
-
   } catch (error) {
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch leave types"
-    );
+    return handleDbError(res, error, "Failed to fetch leave types");
   }
 };
 
-
-
-
-
+/* ============================================================
+   GET PAGINATED LEAVE TYPES
+============================================================ */
 const getPaginatedLeaveTypes = async (req, res) => {
   try {
     const { is_active } = req.query;
+    const { page, limit, offset } = getPaginationParams(req.query);
 
-    const {
-      page,
+    const where = {};
+
+    if (is_active !== undefined) {
+      const v = String(is_active).toLowerCase();
+      if (v === "true") where.lt_is_active = true;
+      else if (v === "false") where.lt_is_active = false;
+    }
+
+    const { rows, count: total_records } = await LeaveTypes.findAndCountAll({
+      where,
+      order: [["lt_leave_type_id", "ASC"]],
       limit,
-      offset
-    } = getPaginationParams(req.query);
+      offset,
+    });
 
-    const whereClause = buildIsActiveClause(
-      is_active,
-      "lt_is_active"
-    );
-
-    // Count
-    const countQuery = `
-      SELECT COUNT(*)::int AS total
-      FROM public.leave_types
-      ${whereClause}
-    `;
-
-    const countResult = await db.query(countQuery);
-
-    const total_records = countResult.rows[0].total;
-
-    const total_pages =
-      Math.ceil(total_records / limit) || 0;
-
-    // Data
-    const dataQuery = `
-      SELECT *
-      FROM public.leave_types
-      ${whereClause}
-      ORDER BY lt_leave_type_id ASC
-      LIMIT $1
-      OFFSET $2
-    `;
-
-    const dataResult = await db.query(
-      dataQuery,
-      [limit, offset]
-    );
+    const total_pages = Math.ceil(total_records / limit) || 0;
 
     return paginatedResponse(
       res,
       200,
       "Leave types fetched successfully",
-      dataResult.rows,
+      rows.map((r) => r.toJSON()),
       {
         page,
         limit,
         total_records,
-        total_pages
+        total_pages,
       }
     );
-
   } catch (error) {
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch paginated leave types"
-    );
+    return handleDbError(res, error, "Failed to fetch paginated leave types");
   }
 };
 
-
-
+/* ============================================================
+   UPDATE LEAVE TYPE
+============================================================ */
 const updateLeaveType = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
-      return errorResponse(
-        res,
-        400,
-        "Valid leave_type_id is required",
-        null
-      );
+      return errorResponse(res, 400, "Valid leave_type_id is required", null);
     }
 
-    // Check existing record
-    const existing = await db.query(
-      `
-      SELECT *
-      FROM public.leave_types
-      WHERE lt_leave_type_id = $1
-      `,
-      [id]
-    );
+    const existing = await LeaveTypes.findOne({
+      where: { lt_leave_type_id: id },
+    });
 
-    if (existing.rows.length === 0) {
-      return errorResponse(
-        res,
-        404,
-        "Leave type not found",
-        null
-      );
+    if (!existing) {
+      return errorResponse(res, 404, "Leave type not found", null);
     }
 
     const {
@@ -420,43 +267,24 @@ const updateLeaveType = async (req, res) => {
       to_date,
       emptype,
       is_active,
-      updated_by
+      updated_by,
     } = req.body;
 
-
-    // Validate code
     if (
       leave_type_code !== undefined &&
-      (!leave_type_code ||
-        leave_type_code.trim() === "")
+      (!leave_type_code || leave_type_code.trim() === "")
     ) {
-      return errorResponse(
-        res,
-        400,
-        "leave_type_code cannot be empty",
-        null
-      );
+      return errorResponse(res, 400, "leave_type_code cannot be empty", null);
     }
 
-
-    // Validate name
     if (
       leave_type_name !== undefined &&
-      (!leave_type_name ||
-        leave_type_name.trim() === "")
+      (!leave_type_name || leave_type_name.trim() === "")
     ) {
-      return errorResponse(
-        res,
-        400,
-        "leave_type_name cannot be empty",
-        null
-      );
+      return errorResponse(res, 400, "leave_type_name cannot be empty", null);
     }
 
-
-    // Validate total days
     if (total_days_per_year !== undefined) {
-
       if (
         !Number.isInteger(Number(total_days_per_year)) ||
         Number(total_days_per_year) < 0
@@ -470,34 +298,14 @@ const updateLeaveType = async (req, res) => {
       }
     }
 
-
-    // Validate is_paid
-    if (
-      is_paid !== undefined &&
-      typeof is_paid !== "boolean"
-    ) {
-      return errorResponse(
-        res,
-        400,
-        "is_paid must be true or false",
-        null
-      );
+    if (is_paid !== undefined && typeof is_paid !== "boolean") {
+      return errorResponse(res, 400, "is_paid must be true or false", null);
     }
 
-    // Validate emptype
-    if (
-      emptype !== undefined &&
-      !Number.isInteger(Number(emptype))
-    ) {
-      return errorResponse(
-        res,
-        400,
-        "emptype must be a valid integer",
-        null
-      );
+    if (emptype !== undefined && !Number.isInteger(Number(emptype))) {
+      return errorResponse(res, 400, "emptype must be a valid integer", null);
     }
 
-    // Validate from_date and to_date
     if (from_date && to_date && new Date(to_date) < new Date(from_date)) {
       return errorResponse(
         res,
@@ -507,210 +315,80 @@ const updateLeaveType = async (req, res) => {
       );
     }
 
-    // Validate is_active
-    if (
-      is_active !== undefined &&
-      typeof is_active !== "boolean"
-    ) {
-      return errorResponse(
-        res,
-        400,
-        "is_active must be true or false",
-        null
-      );
+    if (is_active !== undefined && typeof is_active !== "boolean") {
+      return errorResponse(res, 400, "is_active must be true or false", null);
     }
 
+    // Apply only provided fields
+    if (leave_type_code !== undefined)
+      existing.lt_leave_type_code = leave_type_code.trim().toUpperCase();
+    if (leave_type_name !== undefined)
+      existing.lt_leave_type_name = leave_type_name.trim();
+    if (total_days_per_year !== undefined)
+      existing.lt_total_days_per_year = Number(total_days_per_year);
+    if (is_paid !== undefined) existing.lt_is_paid = is_paid;
+    if (from_date !== undefined) existing.lt_from_date = from_date;
+    if (to_date !== undefined) existing.lt_to_date = to_date;
+    if (emptype !== undefined) existing.lt_emptype = Number(emptype);
+    if (is_active !== undefined) existing.lt_is_active = is_active;
+    if (updated_by !== undefined) existing.lt_updated_by = updated_by;
 
-    const query = `
-      UPDATE public.leave_types
-      SET
-        lt_leave_type_code =
-          COALESCE($1, lt_leave_type_code),
-
-        lt_leave_type_name =
-          COALESCE($2, lt_leave_type_name),
-
-        lt_total_days_per_year =
-          COALESCE($3, lt_total_days_per_year),
-
-        lt_is_paid =
-          COALESCE($4, lt_is_paid),
-
-        lt_from_date =
-          COALESCE($5, lt_from_date),
-
-        lt_to_date =
-          COALESCE($6, lt_to_date),
-
-        lt_emptype =
-          COALESCE($7, lt_emptype),
-
-        lt_is_active =
-          COALESCE($8, lt_is_active),
-
-        lt_updated_by =
-          COALESCE($9, lt_updated_by),
-
-        lt_updated_at =
-          CURRENT_TIMESTAMP
-
-      WHERE lt_leave_type_id = $10
-
-      RETURNING *
-    `;
-
-    const values = [
-      leave_type_code !== undefined
-        ? leave_type_code.trim().toUpperCase()
-        : null,
-
-      leave_type_name !== undefined
-        ? leave_type_name.trim()
-        : null,
-
-      total_days_per_year !== undefined
-        ? Number(total_days_per_year)
-        : null,
-
-      is_paid !== undefined
-        ? is_paid
-        : null,
-
-      from_date !== undefined
-        ? from_date
-        : null,
-
-      to_date !== undefined
-        ? to_date
-        : null,
-
-      emptype !== undefined
-        ? Number(emptype)
-        : null,
-
-      is_active !== undefined
-        ? is_active
-        : null,
-
-      updated_by !== undefined
-        ? updated_by
-        : null,
-
-      id
-    ];
-
-    const result = await db.query(
-      query,
-      values
-    );
+    existing.lt_updated_at = new Date();
+    await existing.save();
 
     return successResponse(
       res,
       200,
       "Leave type updated successfully",
-      result.rows[0]
+      existing.toJSON()
     );
-
   } catch (error) {
-    return handleDbError(
-      res,
-      error,
-      "Failed to update leave type"
-    );
+    return handleDbError(res, error, "Failed to update leave type");
   }
 };
 
-
-
-
+/* ============================================================
+   DELETE / TOGGLE LEAVE TYPE ACTIVE STATUS
+============================================================ */
 const deleteLeaveType = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
-      return errorResponse(
-        res,
-        400,
-        "Valid leave_type_id is required",
-        null
-      );
+      return errorResponse(res, 400, "Valid leave_type_id is required", null);
     }
 
-    // Check existing
-    const existing = await db.query(
-      `
-      SELECT lt_leave_type_id
-      FROM public.leave_types
-      WHERE lt_leave_type_id = $1
-      `,
-      [id]
-    );
+    const existing = await LeaveTypes.findOne({
+      where: { lt_leave_type_id: id },
+    });
 
-    if (existing.rows.length === 0) {
-      return errorResponse(
-        res,
-        404,
-        "Leave type not found",
-        null
-      );
+    if (!existing) {
+      return errorResponse(res, 404, "Leave type not found", null);
     }
 
-    const {
-      is_active,
-      updated_by
-    } = req.body;
+    const { is_active, updated_by } = req.body;
 
-    // Validate is_active
     if (typeof is_active !== "boolean") {
-      return errorResponse(
-        res,
-        400,
-        "is_active must be true or false",
-        null
-      );
+      return errorResponse(res, 400, "is_active must be true or false", null);
     }
 
-    const query = `
-      UPDATE public.leave_types
-      SET
-        lt_is_active = $1,
-        lt_updated_by = COALESCE($2, lt_updated_by),
-        lt_updated_at = CURRENT_TIMESTAMP
-      WHERE lt_leave_type_id = $3
-      RETURNING *
-    `;
-
-    const result = await db.query(
-      query,
-      [
-        is_active,
-        updated_by || null,
-        id
-      ]
-    );
+    existing.lt_is_active = is_active;
+    if (updated_by !== undefined && updated_by !== null) {
+      existing.lt_updated_by = updated_by;
+    }
+    existing.lt_updated_at = new Date();
+    await existing.save();
 
     return successResponse(
       res,
       200,
-      `Leave type ${
-        is_active
-          ? "activated"
-          : "deactivated"
-      } successfully`,
-      result.rows[0]
+      `Leave type ${is_active ? "activated" : "deactivated"} successfully`,
+      existing.toJSON()
     );
-
   } catch (error) {
-    return handleDbError(
-      res,
-      error,
-      "Failed to update leave type status"
-    );
+    return handleDbError(res, error, "Failed to update leave type status");
   }
 };
-
-
-
 
 module.exports = {
   createLeaveType,
@@ -718,5 +396,5 @@ module.exports = {
   getAllLeaveTypes,
   getPaginatedLeaveTypes,
   updateLeaveType,
-  deleteLeaveType
+  deleteLeaveType,
 };
