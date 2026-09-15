@@ -46,6 +46,9 @@ const leaveTypeRoutes = require('./routes/leaveTypeRoutes');
 const leaveStatusRoutes = require("./routes/LeaveStatusRoutes");
 const leaveProcessRoutes = require("./routes/leaveProcessRoutes");
 const leaveQuotaRoutes = require("./routes/LeaveQuotaRoutes");
+const salarySlipRoutes = require("./routes/salarySlip.routes");
+
+
 // const adminRoutes = require("./routes/admin.routes");
 require("./cron/attendance.cron");
 //require("./cron/leaveQuota.cron");
@@ -144,6 +147,7 @@ app.use('/api/bank-account-types', bankAccountTypeRoutes);
 app.use('/api/leave-types', leaveTypeRoutes);
 app.use("/api/leave-status",leaveStatusRoutes);
 app.use("/api/leave", leaveProcessRoutes);
+app.use("/api/salary-slips", salarySlipRoutes);
 // Leaves
 
 app.use("/api/leaves/types", leavesRoutes);
