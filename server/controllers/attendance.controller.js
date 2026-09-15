@@ -837,7 +837,6 @@ exports.processAndSendAttendanceReport = async (
 exports.getTodayOrganizationAttendance = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
-
     const limit = Math.max(parseInt(req.query.limit) || 15, 1);
 
     const offset = (page - 1) * limit;
@@ -891,69 +890,68 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     // TODAY ATTENDANCE SUMMARY
     // =========================================================
     let summaryQuery = `
-  SELECT
+      SELECT
 
-    COUNT(DISTINCT o.or_id)
-      AS total_employees,
+        COUNT(DISTINCT o.or_id)
+          AS total_employees,
 
-    /*
-     * Employees who have punched in
-     */
-    COUNT(
-      DISTINCT CASE
-        WHEN da.punch_in IS NOT NULL
-        THEN o.or_id
-      END
-    ) AS punch_in,
+        /*
+         * Employees who have punched in
+         */
+        COUNT(
+          DISTINCT CASE
+            WHEN da.punch_in IS NOT NULL
+            THEN o.or_id
+          END
+        ) AS punch_in,
 
-    /*
-     * Employees who have punched out
-     */
-    COUNT(
-      DISTINCT CASE
-        WHEN da.punch_out IS NOT NULL
-        THEN o.or_id
-      END
-    ) AS punch_out,
+        /*
+         * Employees who have punched out
+         */
+        COUNT(
+          DISTINCT CASE
+            WHEN da.punch_out IS NOT NULL
+            THEN o.or_id
+          END
+        ) AS punch_out,
 
-    /*
-     * Employees on Leave today
-     */
-    COUNT(
-      DISTINCT CASE
-        WHEN ast.status_name = 'Leave'
-        THEN o.or_id
-      END
-    ) AS leave,
+        /*
+         * Employees on Leave today
+         */
+        COUNT(
+          DISTINCT CASE
+            WHEN ast.status_name = 'Leave'
+            THEN o.or_id
+          END
+        ) AS leave,
 
-    /*
-     * Employees who have not punched in AND are not on Leave
-     * (avoids double-counting Leave as Absent)
-     */
-    COUNT(
-      DISTINCT CASE
-        WHEN da.punch_in IS NULL
-             AND COALESCE(ast.status_name, 'Absent') <> 'Leave'
-        THEN o.or_id
-      END
-    ) AS absent
+        /*
+         * Employees who have not punched in AND are not on Leave
+         */
+        COUNT(
+          DISTINCT CASE
+            WHEN da.punch_in IS NULL
+                 AND COALESCE(ast.status_name, 'Absent') <> 'Leave'
+            THEN o.or_id
+          END
+        ) AS absent
 
-  FROM public.organizations o
+      FROM public.organizations o
 
-  INNER JOIN public.personal p
-    ON p.pr_id = o.pr_id
+      INNER JOIN public.personal p
+        ON p.pr_id = o.pr_id
 
-  LEFT JOIN public.daily_attendance da
-    ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
-    AND da.attendance_date = $1
+      LEFT JOIN public.daily_attendance da
+        ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
+        AND da.attendance_date = $1
 
-  LEFT JOIN public.attendence_status ast
-    ON ast.id = da.status_id
-    AND COALESCE(ast.is_active, TRUE) = TRUE
+      LEFT JOIN public.attendence_status ast
+        ON ast.id = da.status_id
+        AND COALESCE(ast.is_active, TRUE) = TRUE
 
-  WHERE o.or_emp_id IS NOT NULL
-    AND TRIM(o.or_emp_id) <> ''
-`;
+      WHERE o.or_emp_id IS NOT NULL
+        AND TRIM(o.or_emp_id) <> ''
+    `;
 
     const summaryParams = [today];
 
@@ -975,9 +973,13 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
     const attendanceSummary = {
       total_employees: parseInt(summaryRow.total_employees, 10) || 0,
+
       punch_in: parseInt(summaryRow.punch_in, 10) || 0,
+
       punch_out: parseInt(summaryRow.punch_out, 10) || 0,
+
       leave: parseInt(summaryRow.leave, 10) || 0,
+
       absent: parseInt(summaryRow.absent, 10) || 0,
     };
 
@@ -985,91 +987,105 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     // ATTENDANCE QUERY
     // =========================================================
     let query = `
-      SELECT
+  SELECT
 
-        (
-          CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
-        )::DATE AS attendance_date,
+    (
+      CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+    )::DATE AS attendance_date,
 
-        TRIM(o.or_emp_id) AS emp_id,
+    TRIM(o.or_emp_id) AS emp_id,
 
-        ui.Ui_ImagePath AS profile_image,
+    ui.Ui_ImagePath AS profile_image,
 
-        COALESCE(
-          o.or_is_active,
-          FALSE
-        ) AS is_active,
+    COALESCE(
+      o.or_is_active,
+      FALSE
+    ) AS is_active,
 
-        COALESCE(
-          NULLIF(
-            TRIM(p.pr_first_name),
-            ''
-          ),
-          TRIM(
-            CONCAT_WS(
-              ' ',
-              p.pr_first_name,
-              p.pr_last_name
-            )
-          ),
-          '-'
-        ) AS name,
+    COALESCE(
+      NULLIF(
+        TRIM(p.pr_first_name),
+        ''
+      ),
+      TRIM(
+        CONCAT_WS(
+          ' ',
+          p.pr_first_name,
+          p.pr_last_name
+        )
+      ),
+      '-'
+    ) AS name,
 
-        /*
-         * Official email
-         */
-        o."or_official_email" AS email,
+    o."or_official_email" AS email,
 
-        'employee' AS role,
+    'employee' AS role,
 
-        da.punch_in,
+    da.punch_in,
 
-        da.punch_out,
+    da.punch_out,
 
-        da.status_id,
+    da.status_id,
 
-        COALESCE(
-          ast.status_name,
-          'Absent'
-        ) AS status,
+    CASE
+      WHEN da.expected_hours IS NULL THEN '00:00'
+      ELSE
+        LPAD(
+          FLOOR(
+            EXTRACT(EPOCH FROM da.expected_hours) / 3600
+          )::TEXT,
+          2,
+          '0'
+        )
+        || ':' ||
+        LPAD(
+          FLOOR(
+            MOD(EXTRACT(EPOCH FROM da.expected_hours), 3600) / 60
+          )::TEXT,
+          2,
+          '0'
+        )
+    END AS expected_hours,
 
-        /*
-         * Calculate total seconds
-         */
-        CASE
-          WHEN da.punch_in IS NOT NULL
-               AND da.punch_out IS NOT NULL
-          THEN
-            EXTRACT(
-              EPOCH FROM (
-                da.punch_out - da.punch_in
-              )
-            )
-          ELSE 0
-        END AS total_seconds
+    COALESCE(
+      ast.status_name,
+      'Absent'
+    ) AS status,
 
-      FROM public.organizations o
+    CASE
+      WHEN da.punch_in IS NOT NULL
+           AND da.punch_out IS NOT NULL
+      THEN
+        EXTRACT(
+          EPOCH FROM (
+            da.punch_out - da.punch_in
+          )
+        )
+      ELSE 0
+    END AS total_seconds
 
-      INNER JOIN public.personal p
-        ON p.pr_id = o.pr_id
+  FROM public.organizations o
 
-      LEFT JOIN public.User_Image ui
-        ON ui.pr_id = p.pr_id
+  INNER JOIN public.personal p
+    ON p.pr_id = o.pr_id
 
-      LEFT JOIN public.daily_attendance da
-        ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
-        AND da.attendance_date = $1
+  LEFT JOIN public.User_Image ui
+    ON ui.pr_id = p.pr_id
 
-      LEFT JOIN public.attendence_status ast
-        ON ast.id = da.status_id
-        AND COALESCE(
-          ast.is_active,
-          TRUE
-        ) = TRUE
+  LEFT JOIN public.daily_attendance da
+    ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
+    AND da.attendance_date = $1
 
-      WHERE o.or_emp_id IS NOT NULL
-        AND TRIM(o.or_emp_id) <> ''
-    `;
+  LEFT JOIN public.attendence_status ast
+    ON ast.id = da.status_id
+    AND COALESCE(
+      ast.is_active,
+      TRUE
+    ) = TRUE
+
+  WHERE o.or_emp_id IS NOT NULL
+    AND TRIM(o.or_emp_id) <> ''
+`;
 
     const queryParams = [today];
 
@@ -1089,12 +1105,12 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     // ORDER + PAGINATION
     // =========================================================
     query += `
-  ORDER BY
-    TRIM(o.or_emp_id) ASC
+      ORDER BY
+        TRIM(o.or_emp_id) ASC
 
-  LIMIT $2
-  OFFSET $3
-`;
+      LIMIT $2
+      OFFSET $3
+    `;
 
     queryParams.push(limit, offset);
 
@@ -1148,6 +1164,15 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         : "--";
 
       // =====================================================
+      // EXPECTED HOURS
+      // =====================================================
+      let expectedHours = "00:00";
+
+      if (row.expected_hours !== null && row.expected_hours !== undefined) {
+        expectedHours = String(row.expected_hours);
+      }
+
+      // =====================================================
       // RESPONSE ROW
       // =====================================================
       return {
@@ -1173,6 +1198,8 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
         total_hours: totalHours,
 
+        expected_hours: expectedHours,
+
         profile_image: row.profile_image || "-",
       };
     });
@@ -1194,7 +1221,8 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         punch_out: attendanceSummary.punch_out,
 
         absent: attendanceSummary.absent,
-        leave : attendanceSummary.leave
+
+        leave: attendanceSummary.leave,
       },
 
       // =======================================================
