@@ -1,5 +1,5 @@
 const ZKLib = require("zklib-js");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const cron = require("node-cron");
 const sendEmail = require("../utils/mailer");
 

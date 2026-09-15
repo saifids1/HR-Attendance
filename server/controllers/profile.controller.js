@@ -2938,26 +2938,45 @@ exports.addProfileImage = async (req, res) => {
 
     const employeeId = parseInt(emp_id, 10);
     const createdBy = req.user?.id || null;
-    const employeeCode = req.user?.emp_id;
 
     if (!emp_id || isNaN(employeeId)) {
-      return res.status(400).json({ success: false, message: "Valid employee ID is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Valid employee ID is required"
+      });
     }
-    if (!employeeCode) {
-      return res.status(400).json({ success: false, message: "Employee code not found" });
-    }
+
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "Profile image is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Profile image is required"
+      });
     }
 
     const employeeCheck = await Personal.findOne({
       where: { pr_id: employeeId },
-      attributes: ["pr_id"],
+      attributes: ["pr_id"]
     });
+
     if (!employeeCheck) {
       return res.status(404).json({
         success: false,
-        message: `Employee with ID ${employeeId} not found`,
+        message: `Employee with ID ${employeeId} not found`
+      });
+    }
+
+    const orgRow = await Organizations.findOne({
+      where: { pr_id: employeeId },
+      attributes: ["or_emp_id"],
+      order: [["or_id", "DESC"]]
+    });
+
+    const employeeCode = orgRow?.or_emp_id;
+
+    if (!employeeCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee code not found"
       });
     }
 
@@ -2965,30 +2984,44 @@ exports.addProfileImage = async (req, res) => {
 
     const oldImage = await UserImage.findOne({
       where: { pr_id: employeeId },
-      order: [["ui_id", "DESC"]],
+      order: [["ui_id", "DESC"]]
     });
 
-    const newImage = await UserImage.create({
+    const result = await UserImage.create({
       pr_id: employeeId,
       ui_imagepath: imagePath,
       ui_created_by: createdBy,
-      ui_created_at: new Date(),
+      ui_created_at: new Date()
     });
 
-    // Delete old image file + row
     if (oldImage?.ui_imagepath) {
-      const oldRelativePath = oldImage.ui_imagepath.replace(/^\/+/, "");
-      const oldFilePath = path.join(__dirname, "..", oldRelativePath);
+      const oldRelativePath = oldImage.ui_imagepath.replace(
+        /^\/+/,
+        ""
+      );
+
+      const oldFilePath = path.join(
+        __dirname,
+        "..",
+        oldRelativePath
+      );
 
       if (fs.existsSync(oldFilePath)) {
         fs.unlink(oldFilePath, (err) => {
-          if (err) console.error("Failed to delete old profile image:", err);
+          if (err) {
+            console.error(
+              "Failed to delete old profile image:",
+              err
+            );
+          }
         });
       }
     }
 
     if (oldImage?.ui_id) {
-      await UserImage.destroy({ where: { ui_id: oldImage.ui_id } });
+      await UserImage.destroy({
+        where: { ui_id: oldImage.ui_id }
+      });
     }
 
     return res.status(200).json({
@@ -2999,14 +3032,16 @@ exports.addProfileImage = async (req, res) => {
       employee_id: employeeId,
       employee_code: employeeCode,
       profile_image: imagePath,
-      data: newImage.toJSON(),
+      data: result.toJSON()
     });
+
   } catch (error) {
     console.error("Add Profile Image Error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
-      error: error.message,
+      error: error.message
     });
   }
 };

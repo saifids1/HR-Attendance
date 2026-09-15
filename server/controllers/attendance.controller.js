@@ -1,4 +1,4 @@
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 require("dotenv").config();
 const { getDeviceAttendance } = require("../services/zk.service");
 const sendEmail = require("../utils/mailer");

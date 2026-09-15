@@ -4,7 +4,7 @@ const controller = require("../controllers/attendance.controller");
 const auth = require("../middlewares/authMiddleware");
 const { addEmployController } = require("../controllers/attendance.controller");
 const { isAdmin } = require("../middlewares/roleMiddleware");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const uploadProfileImage = require("../middlewares/uploadProfileImage");
 const {
   updateEmployController,
