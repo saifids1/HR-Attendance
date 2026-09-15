@@ -9,14 +9,21 @@ const { db: pool } = require("../db/connectDB");
 */
 const getEmployees = async (req, res) => {
   try {
+     const {
+          or_department_id
+        } = req.body;
     const result = await pool.query(`
       SELECT
-        p.pr_id AS emp_id,
+        og.or_emp_id AS emp_id,
         p.pr_first_name AS first_name,
         p.pr_last_name AS last_name
       FROM personal p
-      ORDER BY p.pr_first_name, p.pr_last_name
-    `);
+      left join organizations og 
+      on og.pr_id = p.pr_id 
+	  where or_is_active = true and og.or_department_id = $1
+      ORDER BY p.pr_first_name, p.pr_last_name`,
+                [or_department_id]
+    );
 
     res.status(200).json({
       success: true,

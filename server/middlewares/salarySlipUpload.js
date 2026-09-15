@@ -57,20 +57,7 @@ const uploadSalarySlip = multer({
   },
 });
 
-/*
-|--------------------------------------------------------------------------
-| Salary Slip PDF Upload Middleware
-|--------------------------------------------------------------------------
-|
-| Clients often name the uploaded file field differently ("pdf", "file",
-| "salary_slip", ...). Since this endpoint accepts a single PDF, we do not
-| lock the request to one field name - the first uploaded file is always
-| exposed as req.file so the controllers can keep using req.file.
-|
-| Multer errors (wrong file type, file too large, ...) are converted into
-| JSON responses instead of the default Express HTML error page.
-|
-*/
+/*Salary Slip PDF Upload Middleware*/
 const salarySlipPdfUpload = (req, res, next) => {
   uploadSalarySlip.any()(req, res, (err) => {
     if (err) {
