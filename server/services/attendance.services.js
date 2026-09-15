@@ -1,4 +1,4 @@
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 
 async function processDailyAttendance(date) {
   await db.query(`

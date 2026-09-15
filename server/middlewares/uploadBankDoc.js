@@ -1,7 +1,7 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 
 const baseUploadDir = path.join(__dirname, "..", "IHRDocument");
 
