@@ -280,7 +280,15 @@ const getAllEmployeesPaginated = async (req, res) => {
     const { search = "", department, designation, status } = req.query;
     const searchValue = search.trim();
 
-    // -------- Build WHERE for Personal --------
+    const {
+      Personal,
+      Organizations,
+      UserRoleRelation,
+      UsrRoleMaster,
+      Login,
+      UserImage,
+    } = db;
+
     const personalWhere = {};
     if (searchValue) {
       personalWhere[Op.or] = [
@@ -293,7 +301,6 @@ const getAllEmployeesPaginated = async (req, res) => {
       personalWhere.pr_is_active = status === "true";
     }
 
-    // -------- Build WHERE for Organizations (include filter) --------
     const orgWhere = {};
     if (department !== undefined && department !== "") {
       orgWhere.or_department_id = department;
@@ -308,32 +315,46 @@ const getAllEmployeesPaginated = async (req, res) => {
       ];
     }
 
-    /* ============================================================
-       TOTAL COUNT
-    ============================================================ */
+    const hasOrgFilter = Object.keys(orgWhere).length > 0;
+
     const total = await Personal.count({
       where: personalWhere,
-      include:
-        Object.keys(orgWhere).length > 0
-          ? [{ model: Organizations, as: "organizations", required: true, where: orgWhere }]
-          : [{ model: Organizations, as: "organizations", required: false }],
+      include: [
+        {
+          model: Organizations,
+          as: "organizations",
+          required: hasOrgFilter,
+          where: hasOrgFilter ? orgWhere : undefined,
+        },
+      ],
       distinct: true,
       col: "pr_id",
     });
 
-    /* ============================================================
-       SUMMARY
-    ============================================================ */
     const allActive = await Personal.count({
       where: { ...personalWhere, pr_is_active: true },
-      include: [{ model: Organizations, as: "organizations", required: false, where: orgWhere }],
+      include: [
+        {
+          model: Organizations,
+          as: "organizations",
+          required: hasOrgFilter,
+          where: hasOrgFilter ? orgWhere : undefined,
+        },
+      ],
       distinct: true,
       col: "pr_id",
     });
 
     const allInactive = await Personal.count({
       where: { ...personalWhere, pr_is_active: false },
-      include: [{ model: Organizations, as: "organizations", required: false, where: orgWhere }],
+      include: [
+        {
+          model: Organizations,
+          as: "organizations",
+          required: hasOrgFilter,
+          where: hasOrgFilter ? orgWhere : undefined,
+        },
+      ],
       distinct: true,
       col: "pr_id",
     });
@@ -371,9 +392,6 @@ const getAllEmployeesPaginated = async (req, res) => {
       new_joiners: newJoiners,
     };
 
-    /* ============================================================
-       FETCH DATA
-    ============================================================ */
     const employees = await Personal.findAll({
       where: personalWhere,
       include: [
@@ -381,7 +399,7 @@ const getAllEmployeesPaginated = async (req, res) => {
           model: Organizations,
           as: "organizations",
           required: false,
-          where: Object.keys(orgWhere).length > 0 ? orgWhere : undefined,
+          where: hasOrgFilter ? orgWhere : undefined,
         },
         {
           model: UserRoleRelation,
@@ -413,8 +431,19 @@ const getAllEmployeesPaginated = async (req, res) => {
         },
       ],
       order: [
-        [literal(`"organizations"."or_is_active" DESC`)],
-        [literal(`NULLIF("organizations"."or_emp_id", '')::BIGINT ASC NULLS LAST`)],
+        [
+          literal(`
+            CASE
+              WHEN "organizations"."or_is_active" = true THEN 0
+              ELSE 1
+            END
+          `),
+        ],
+        [
+          literal(`
+            NULLIF("organizations"."or_emp_id", '')::BIGINT ASC NULLS LAST
+          `),
+        ],
         ["pr_id", "ASC"],
       ],
       limit,
@@ -422,11 +451,13 @@ const getAllEmployeesPaginated = async (req, res) => {
       subQuery: false,
     });
 
-    /* ============================================================
-       MAP TO OLD RESPONSE SHAPE
-    ============================================================ */
     const rows = employees.map((p) => {
-      const org = p.organizations || {};
+      const org = p.organizations
+        ? Array.isArray(p.organizations)
+          ? p.organizations[0]
+          : p.organizations
+        : null;
+
       const loginRow = p.login;
       const img = (p.userImages && p.userImages[0]) || null;
 
@@ -438,7 +469,9 @@ const getAllEmployeesPaginated = async (req, res) => {
           email: p.pr_email,
           first_name: p.pr_first_name,
           last_name: p.pr_last_name,
-          full_name: `${p.pr_first_name || ""} ${p.pr_last_name || ""}`.trim(),
+          full_name: `${p.pr_first_name || ""} ${
+            p.pr_last_name || ""
+          }`.trim(),
           dob: p.pr_dob ? String(p.pr_dob).slice(0, 10) : null,
           gender_id: p.pr_gender_id,
           blood_group_id: p.pr_blood_group_id,
@@ -452,7 +485,7 @@ const getAllEmployeesPaginated = async (req, res) => {
           updated_by: p.pr_updated_by,
         },
 
-        organization: org.pr_id
+        organization: org
           ? {
               or_id: org.or_id,
               pr_id: org.pr_id,
@@ -484,7 +517,10 @@ const getAllEmployeesPaginated = async (req, res) => {
         roles: (p.userRoles || [])
           .map((r) =>
             r.role
-              ? { role_id: r.role.rm_role_id, role_name: r.role.rm_role_name }
+              ? {
+                  role_id: r.role.rm_role_id,
+                  role_name: r.role.rm_role_name,
+                }
               : null
           )
           .filter(Boolean),
@@ -499,7 +535,10 @@ const getAllEmployeesPaginated = async (req, res) => {
           : null,
 
         user_image: img
-          ? { image_id: img.ui_id, image_path: img.ui_imagepath }
+          ? {
+              image_id: img.ui_id,
+              image_path: img.ui_imagepath,
+            }
           : null,
       };
     });
