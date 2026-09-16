@@ -375,13 +375,13 @@ const createMultipleSalarySlips = async (req, res) => {
     /*                            File Count Check                                */
     /* -------------------------------------------------------------------------- */
 
-    if (req.files.length !== salarySlips.length) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Number of salary slip records and PDF files must be the same",
-      });
-    }
+    // if (req.files.length !== salarySlips.length) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message:
+    //       "Number of salary slip records and PDF files must be the same",
+    //   });
+    // }
 
     /* -------------------------------------------------------------------------- */
     /*                              Start Transaction                             */
@@ -785,9 +785,9 @@ const getSalarySlipById = async (req, res) => {
 
     const result = await pool.query(
       `
-      SELECT
+      SELECT 
         ss.salary_slip_id,
-        ss.employee_id AS emp_id,
+        og.or_emp_id AS emp_id,
         ss.month,
         ss.year,
         ss.salary_slip_no,
@@ -811,11 +811,14 @@ const getSalarySlipById = async (req, res) => {
 
       FROM salary_slips ss
 
+      LEFT JOIN organization og
+        ON og.or_emp_id = ss.employee_id
+
       LEFT JOIN personal p
         ON p.pr_id = ss.employee_id
 
       LEFT JOIN LATERAL (
-        SELECT
+        SELECT 
           salary_slip_file_id,
           file_path,
           file_size
@@ -825,7 +828,7 @@ const getSalarySlipById = async (req, res) => {
         LIMIT 1
       ) ssf ON TRUE
 
-      WHERE ss.salary_slip_id = $1
+      WHERE og.or_emp_id = $1
       `,
       [id]
     );
