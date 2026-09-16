@@ -304,6 +304,315 @@ const createSalarySlip = async (req, res) => {
 
 /*
 |--------------------------------------------------------------------------
+| Create Salary Slip for multiple
+|--------------------------------------------------------------------------
+*/
+const createMultipleSalarySlips = async (req, res) => {
+  const client = await pool.connect();
+
+  let uploadedFiles = [];
+
+  try {
+    /*Get Salary Slip Data*/
+
+    let salarySlips = req.body.salary_slips;
+
+    if (!salarySlips) {
+      return res.status(400).json({
+        success: false,
+        message: "salary_slips data is required",
+      });
+    }
+
+    /*Parse JSON*/
+
+    if (typeof salarySlips === "string") {
+      try {
+        salarySlips = JSON.parse(salarySlips);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid salary_slips JSON format",
+        });
+      }
+    }
+
+    if (!Array.isArray(salarySlips)) {
+      return res.status(400).json({
+        success: false,
+        message: "salary_slips must be an array",
+      });
+    }
+
+    if (salarySlips.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one salary slip is required",
+      });
+    }
+
+    /*Check Uploaded Files*/
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Salary slip PDF files are required",
+      });
+    }
+
+    uploadedFiles = req.files;
+
+    /*File Count Check*/
+
+    if (req.files.length !== salarySlips.length) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Number of salary slip records and PDF files must be the same",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    const createdSalarySlips = [];
+
+    /*Process Each Salary Slip*/
+
+    for (let i = 0; i < salarySlips.length; i++) {
+      const slip = salarySlips[i];
+
+      const {
+        emp_id,
+        month,
+        year,
+        salary_slip_no,
+        payroll_date,
+        salary_generated_date,
+        created_by,
+      } = slip;
+
+      const file = req.files[i];
+
+      /*Validation*/
+
+      if (!emp_id) {
+        throw new Error(
+          `Employee ID is required for salary slip ${i + 1}`
+        );
+      }
+
+      if (!month || month < 1 || month > 12) {
+        throw new Error(
+          `Invalid month for salary slip ${i + 1}`
+        );
+      }
+
+      if (!year || year < 2000) {
+        throw new Error(
+          `Invalid year for salary slip ${i + 1}`
+        );
+      }
+
+      if (!salary_slip_no) {
+        throw new Error(
+          `Salary slip number is required for salary slip ${i + 1}`
+        );
+      }
+
+      if (!file) {
+        throw new Error(
+          `PDF file is required for salary slip ${i + 1}`
+        );
+      }
+
+      /*Check Employee*/
+
+      const employeeResult = await client.query(
+        `
+        SELECT pr_id
+        FROM personal
+        WHERE pr_id = $1
+        `,
+        [emp_id]
+      );
+
+      if (employeeResult.rows.length === 0) {
+        throw new Error(
+          `Employee ${emp_id} not found`
+        );
+      }
+
+      /*Check Salary Slip Number*/
+
+      const slipNoResult = await client.query(
+        `
+        SELECT salary_slip_id
+        FROM salary_slips
+        WHERE salary_slip_no = $1
+        `,
+        [salary_slip_no]
+      );
+
+      if (slipNoResult.rows.length > 0) {
+        throw new Error(
+          `Salary slip number ${salary_slip_no} already exists`
+        );
+      }
+
+      /*Check Employee + Month + Year*/
+
+      const duplicateResult = await client.query(
+        `
+        SELECT salary_slip_id
+        FROM salary_slips
+        WHERE employee_id = $1
+          AND month = $2
+          AND year = $3
+        `,
+        [
+          emp_id,
+          month,
+          year,
+        ]
+      );
+
+      if (duplicateResult.rows.length > 0) {
+        throw new Error(
+          `Salary slip already exists for employee ${emp_id} for ${month}/${year}`
+        );
+      }
+
+      /*Insert Salary Slip*/
+
+      const salarySlipResult = await client.query(
+        `
+        INSERT INTO salary_slips (
+          employee_id,
+          month,
+          year,
+          salary_slip_no,
+          payroll_date,
+          salary_generated_date,
+          is_published,
+          created_by,
+          created_at
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          FALSE,
+          $7,
+          CURRENT_TIMESTAMP
+        )
+        RETURNING *
+        `,
+        [
+          emp_id,
+          month,
+          year,
+          salary_slip_no,
+          payroll_date || null,
+          salary_generated_date || null,
+          created_by || null,
+        ]
+      );
+
+      const salarySlip =
+        salarySlipResult.rows[0];
+
+      /*Insert File*/
+
+      const fileResult = await client.query(
+        `
+        INSERT INTO salary_slip_files (
+          salary_slip_id,
+          file_path,
+          file_size,
+          created_by,
+          created_at
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          CURRENT_TIMESTAMP
+        )
+        RETURNING *
+        `,
+        [
+          salarySlip.salary_slip_id,
+          file.path,
+          file.size,
+          created_by || null,
+        ]
+      );
+
+      createdSalarySlips.push({
+        salarySlip,
+        file: fileResult.rows[0],
+      });
+    }
+   
+
+    await client.query("COMMIT");
+
+    /*Success Response*/
+
+    return res.status(201).json({
+      success: true,
+      message: `${createdSalarySlips.length} salary slips created successfully`,
+      count: createdSalarySlips.length,
+      data: createdSalarySlips,
+    });
+
+  } catch (error) {
+
+    /*Rollback Databas*/
+
+    await client.query("ROLLBACK");
+
+    console.error(
+      "Create multiple salary slips error:",
+      error
+    );
+
+    /*Delete Uploaded Files*/
+
+    for (const file of uploadedFiles) {
+      try {
+        if (
+          file.path &&
+          fs.existsSync(file.path)
+        ) {
+          fs.unlinkSync(file.path);
+        }
+      } catch (fileError) {
+        console.error(
+          "Failed to delete uploaded file:",
+          fileError
+        );
+      }
+    }
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to create salary slips",
+    });
+
+  } finally {
+    client.release();
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
 | Get All Salary Slips
 |--------------------------------------------------------------------------
 */
@@ -874,6 +1183,7 @@ const getSalarySlipPdf = async (req, res) => {
 module.exports = {
   getDepartmentEmployees,
   createSalarySlip,
+  createMultipleSalarySlips,
   getSalarySlips,
   getSalarySlipById,
   updateSalarySlip,
