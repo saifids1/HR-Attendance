@@ -7,7 +7,7 @@ const {
 } = require("../middlewares/salarySlipUpload");
 
 const {
-  getEmployees,
+  getDepartmentEmployees,
   createSalarySlip,
   getSalarySlips,
   getSalarySlipById,
@@ -24,8 +24,8 @@ const {
 */
 
 router.get(
-  "/employees",
-  getEmployees
+  "/department/:or_department_id/employees",
+  getDepartmentEmployees
 );
 
 

@@ -7,34 +7,37 @@ const { db: pool } = require("../db/connectDB");
 | Get Employees
 |--------------------------------------------------------------------------
 */
-const getEmployees = async (req, res) => {
+const getDepartmentEmployees = async (req, res) => {
   try {
-     const {
-          or_department_id
-        } = req.body;
-    const result = await pool.query(`
+    const { or_department_id } = req.params;
+
+    const result = await pool.query(
+      `
       SELECT
         og.or_emp_id AS emp_id,
+        p.pr_id,
         p.pr_first_name AS first_name,
         p.pr_last_name AS last_name
-      FROM personal p
-      left join organizations og 
-      on og.pr_id = p.pr_id 
-	  where or_is_active = true and og.or_department_id = $1
-      ORDER BY p.pr_first_name, p.pr_last_name`,
-                [or_department_id]
+      FROM organizations og
+      INNER JOIN personal p
+        ON p.pr_id = og.pr_id
+      WHERE og.or_is_active = true
+        AND og.or_department_id = $1
+      ORDER BY p.pr_first_name ASC, p.pr_last_name ASC
+      `,
+      [or_department_id]
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: result.rows,
     });
   } catch (error) {
-    console.error("Get employees error:", error);
+    console.error("Get department employees error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch employees",
+      message: "Failed to fetch department employees",
       error: error.message,
     });
   }
@@ -869,7 +872,7 @@ const getSalarySlipPdf = async (req, res) => {
 };
 
 module.exports = {
-  getEmployees,
+  getDepartmentEmployees,
   createSalarySlip,
   getSalarySlips,
   getSalarySlipById,
