@@ -1,72 +1,52 @@
 const express = require("express");
-
 const router = express.Router();
 
 const {
   salarySlipPdfUpload,
+  salarySlipPdfUploadMultiple,
 } = require("../middlewares/salarySlipUpload");
 
 const {
   getDepartmentEmployees,
   createSalarySlip,
-   createMultipleSalarySlips,
+  createMultipleSalarySlips,
   getSalarySlips,
+  getSalarySlipsPaginated,
   getSalarySlipById,
   updateSalarySlip,
   deleteSalarySlip,
   getSalarySlipPdf,
 } = require("../controllers/salarySlip.controller");
 
+/* ---------------- STATIC / SPECIFIC ROUTES FIRST ---------------- */
 
-/*Employee Dropdown*/
-router.get(
-  "/department/:or_department_id/employees",
-  getDepartmentEmployees
-);
-/*Create Salary Slip*/
+// Employee dropdown
+router.get("/department/:or_department_id/employees", getDepartmentEmployees);
 
-router.post(
-  "/",
-  salarySlipPdfUpload,
-  createSalarySlip
-);
-/*Create Salary Slip for multi record*/
-router.post(
-  "/bulk",
-  salarySlipPdfUpload,
-  createMultipleSalarySlips
-);
-/*Get All Salary Slips*/
+// Create single
+router.post("/", salarySlipPdfUpload, createSalarySlip);
 
-router.get(
-  "/",
-  getSalarySlips
-);
-/*Get Salary Slip By ID*/
+// Create bulk
+router.post("/bulk", salarySlipPdfUploadMultiple, createMultipleSalarySlips);
 
-router.get(
-  "/:id",
-  getSalarySlipById
-);
-/*Update Salary Slip*/
+// Get all
+router.get("/", getSalarySlips);
 
-router.put(
-  "/:id",
-  salarySlipPdfUpload,
-  updateSalarySlip
-);
-/*Delete Salary Slip*/
+// ✅ Paginated MUST come BEFORE "/:id"
+router.get("/paginated", getSalarySlipsPaginated);
 
-router.delete(
-  "/:id",
-  deleteSalarySlip
-);
-/*View Salary Slip PDF*/
+/* ---------------- DYNAMIC ROUTES AFTER ---------------- */
 
-router.get(
-  "/:id/file",
-  getSalarySlipPdf
-);
+// Get single
+router.get("/:id", getSalarySlipById);
 
+// Update
+router.put("/:id", salarySlipPdfUpload, updateSalarySlip);
+
+// Delete
+router.delete("/:id", deleteSalarySlip);
+
+// View PDF
+router.get("/:id/file", getSalarySlipPdf);
 
 module.exports = router;

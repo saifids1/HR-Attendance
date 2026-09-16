@@ -1,12 +1,57 @@
+// controllers/salarySlip.controller.js
 const fs = require("fs");
 const path = require("path");
 const { db: pool } = require("../db/connectDB");
 
-/*
-|--------------------------------------------------------------------------
-| Get Employees
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   Self-contained base upload dir                                    */
+/* ------------------------------------------------------------------ */
+
+const baseUploadDir = path.join(__dirname, "..", "IHRDocument");
+
+if (!fs.existsSync(baseUploadDir)) {
+  fs.mkdirSync(baseUploadDir, { recursive: true });
+}
+
+/* ------------------------------------------------------------------ */
+/*   Helper: write memory buffer to employee folder                    */
+/*   Returns { filename, absolutePath, webPath, size }                 */
+/* ------------------------------------------------------------------ */
+
+const saveFileToEmployeeFolder = (file, companyEmployeeId) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const filename = `Slip_${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`;
+
+  const employeeDir = path.join(baseUploadDir, String(companyEmployeeId));
+
+  if (!fs.existsSync(employeeDir)) {
+    fs.mkdirSync(employeeDir, { recursive: true });
+  }
+
+  const absolutePath = path.join(employeeDir, filename);
+  fs.writeFileSync(absolutePath, file.buffer);
+
+  return {
+    filename,
+    absolutePath,
+    webPath: `/IHRDocument/${companyEmployeeId}/${filename}`,
+    size: file.size,
+  };
+};
+
+/* ------------------------------------------------------------------ */
+/*   Helper: convert web path -> absolute disk path                    */
+/* ------------------------------------------------------------------ */
+
+const webPathToDisk = (webPath) => {
+  const clean = String(webPath).replace(/^\/+/, "");
+  return path.join(__dirname, "..", clean);
+};
+
+/* ------------------------------------------------------------------ */
+/*   GET /department/:or_department_id/employees                       */
+/* ------------------------------------------------------------------ */
+
 const getDepartmentEmployees = async (req, res) => {
   try {
     const { or_department_id } = req.params;
@@ -19,8 +64,7 @@ const getDepartmentEmployees = async (req, res) => {
         p.pr_first_name AS first_name,
         p.pr_last_name AS last_name
       FROM organizations og
-      INNER JOIN personal p
-        ON p.pr_id = og.pr_id
+      INNER JOIN personal p ON p.pr_id = og.pr_id
       WHERE og.or_is_active = true
         AND og.or_department_id = $1
       ORDER BY p.pr_first_name ASC, p.pr_last_name ASC
@@ -28,13 +72,9 @@ const getDepartmentEmployees = async (req, res) => {
       [or_department_id]
     );
 
-    return res.status(200).json({
-      success: true,
-      data: result.rows,
-    });
+    return res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
     console.error("Get department employees error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch department employees",
@@ -43,13 +83,13 @@ const getDepartmentEmployees = async (req, res) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Create Salary Slip
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   POST /  — Create single salary slip                               */
+/* ------------------------------------------------------------------ */
+
 const createSalarySlip = async (req, res) => {
   const client = await pool.connect();
+  let writtenFile = null;
 
   try {
     const {
@@ -62,237 +102,133 @@ const createSalarySlip = async (req, res) => {
       created_by,
     } = req.body;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Validation
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Validation ---------------- */
 
     if (!salary_slip_no) {
-      return res.status(400).json({
-        success: false,
-        message: "Salary slip number is required",
-      });
+      return res.status(400).json({ success: false, message: "Salary slip number is required" });
     }
-
     if (!month || month < 1 || month > 12) {
-      return res.status(400).json({
-        success: false,
-        message: "Month must be between 1 and 12",
-      });
+      return res.status(400).json({ success: false, message: "Month must be between 1 and 12" });
     }
-
     if (!year || year < 2000) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid year",
-      });
+      return res.status(400).json({ success: false, message: "Invalid year" });
     }
-
+    if (!emp_id) {
+      return res.status(400).json({ success: false, message: "emp_id is required" });
+    }
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message:
-          'Salary slip PDF is required (send it as a multipart/form-data field named "pdf")',
+        message: 'Salary slip PDF is required (field name "pdf")',
       });
     }
 
     await client.query("BEGIN");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check Employee
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Map emp_id (or_emp_id) -> pr_id + or_emp_id ---------------- */
 
-    if (emp_id) {
-      const employeeResult = await client.query(
-        `
-        SELECT pr_id
-        FROM personal
-        WHERE pr_id = $1
-        `,
-        [emp_id]
-      );
-
-      if (employeeResult.rows.length === 0) {
-        await client.query("ROLLBACK");
-
-        if (req.file?.path) {
-          fs.unlinkSync(req.file.path);
-        }
-
-        return res.status(404).json({
-          success: false,
-          message: "Employee not found",
-        });
-      }
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check Salary Slip Number
-    |--------------------------------------------------------------------------
-    */
-
-    const slipNoResult = await client.query(
+    const empResult = await client.query(
       `
-      SELECT salary_slip_id
-      FROM salary_slips
-      WHERE salary_slip_no = $1
+      SELECT p.pr_id, og.or_emp_id
+      FROM personal p
+      INNER JOIN organizations og ON og.pr_id = p.pr_id
+      WHERE og.or_emp_id = $1
+      LIMIT 1
       `,
-      [salary_slip_no]
+      [emp_id]
     );
 
-    if (slipNoResult.rows.length > 0) {
+    if (empResult.rows.length === 0) {
       await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Employee not found" });
+    }
 
-      if (req.file?.path) {
-        fs.unlinkSync(req.file.path);
-      }
+    const { pr_id: employeeId, or_emp_id: companyEmployeeId } = empResult.rows[0];
 
+    /* ---------------- Duplicate checks ---------------- */
+
+    const dupNo = await client.query(
+      `SELECT salary_slip_id FROM salary_slips WHERE salary_slip_no = $1 LIMIT 1`,
+      [salary_slip_no]
+    );
+    if (dupNo.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ success: false, message: "Salary slip number already exists" });
+    }
+
+    const dupPeriod = await client.query(
+      `
+      SELECT salary_slip_id FROM salary_slips
+      WHERE employee_id = $1 AND month = $2 AND year = $3
+      LIMIT 1
+      `,
+      [employeeId, month, year]
+    );
+    if (dupPeriod.rows.length > 0) {
+      await client.query("ROLLBACK");
       return res.status(409).json({
         success: false,
-        message: "Salary slip number already exists",
+        message: "Salary slip already exists for this employee, month and year",
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check Employee + Month + Year
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Save file ---------------- */
 
-    if (emp_id) {
-      const duplicateResult = await client.query(
-        `
-        SELECT salary_slip_id
-        FROM salary_slips
-        WHERE employee_id = $1
-          AND month = $2
-          AND year = $3
-        `,
-        [emp_id, month, year]
-      );
+    const saved = saveFileToEmployeeFolder(req.file, companyEmployeeId);
+    writtenFile = saved.absolutePath;
 
-      if (duplicateResult.rows.length > 0) {
-        await client.query("ROLLBACK");
+    /* ---------------- Insert slip ---------------- */
 
-        if (req.file?.path) {
-          fs.unlinkSync(req.file.path);
-        }
-
-        return res.status(409).json({
-          success: false,
-          message:
-            "Salary slip already exists for this employee, month and year",
-        });
-      }
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Insert Salary Slip
-    |--------------------------------------------------------------------------
-    */
-
-    const salarySlipResult = await client.query(
+    const slipResult = await client.query(
       `
       INSERT INTO salary_slips (
-        employee_id,
-        month,
-        year,
-        salary_slip_no,
-        payroll_date,
-        salary_generated_date,
-        is_published,
-        created_by,
-        created_at
+        employee_id, month, year, salary_slip_no,
+        payroll_date, salary_generated_date,
+        is_published, created_by, created_at
       )
-      VALUES (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        FALSE,
-        $7,
-        CURRENT_TIMESTAMP
-      )
+      VALUES ($1,$2,$3,$4,$5,$6,FALSE,$7,CURRENT_TIMESTAMP)
       RETURNING *
       `,
       [
-        emp_id || null,
-        month || null,
-        year || null,
-        salary_slip_no,
+        employeeId, month, year, salary_slip_no,
         payroll_date || null,
         salary_generated_date || null,
         created_by || null,
       ]
     );
 
-    const salarySlip = salarySlipResult.rows[0];
+    const salarySlip = slipResult.rows[0];
 
-    /*
-    |--------------------------------------------------------------------------
-    | Insert PDF File
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Insert file (WEB PATH) ---------------- */
 
     const fileResult = await client.query(
       `
       INSERT INTO salary_slip_files (
-        salary_slip_id,
-        file_path,
-        file_size,
-        created_by,
-        created_at
+        salary_slip_id, file_path, file_size,
+        created_by, created_at
       )
-      VALUES (
-        $1,
-        $2,
-        $3,
-        $4,
-        CURRENT_TIMESTAMP
-      )
+      VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
       RETURNING *
       `,
-      [
-        salarySlip.salary_slip_id,
-        req.file.path,
-        req.file.size,
-        created_by || null,
-      ]
+      [salarySlip.salary_slip_id, saved.webPath, saved.size, created_by || null]
     );
 
     await client.query("COMMIT");
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Salary slip created successfully",
-      data: {
-        salarySlip,
-        file: fileResult.rows[0],
-      },
+      data: { salarySlip, file: fileResult.rows[0] },
     });
   } catch (error) {
-    await client.query("ROLLBACK");
-
+    try { await client.query("ROLLBACK"); } catch (e) { console.error("Rollback error:", e); }
     console.error("Create salary slip error:", error);
 
-    if (req.file?.path) {
-      try {
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-      } catch (fileError) {
-        console.error("Failed to delete uploaded file:", fileError);
-      }
+    if (writtenFile && fs.existsSync(writtenFile)) {
+      try { fs.unlinkSync(writtenFile); } catch (e) { console.error(e); }
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to create salary slip",
       error: error.message,
@@ -302,471 +238,194 @@ const createSalarySlip = async (req, res) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Create Salary Slip for multiple
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   POST /bulk — Create multiple salary slips                         */
+/* ------------------------------------------------------------------ */
+
 const createMultipleSalarySlips = async (req, res) => {
   const client = await pool.connect();
-
-  let uploadedFiles = [];
+  const writtenFiles = [];
 
   try {
-    /* -------------------------------------------------------------------------- */
-    /*                         Get Salary Slip Data                              */
-    /* -------------------------------------------------------------------------- */
-
     let salarySlips = req.body?.salary_slips;
 
-    console.log("Salary Slips Raw Data:", salarySlips);
-    console.log("Uploaded Files:", req.files);
-
     if (!salarySlips) {
-      return res.status(400).json({
-        success: false,
-        message: "salary_slips data is required",
-      });
+      return res.status(400).json({ success: false, message: "salary_slips data is required" });
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                              Parse JSON                                    */
-    /* -------------------------------------------------------------------------- */
-
     if (typeof salarySlips === "string") {
-      try {
-        salarySlips = JSON.parse(salarySlips);
-      } catch (error) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid salary_slips JSON format",
-        });
+      try { salarySlips = JSON.parse(salarySlips); }
+      catch {
+        return res.status(400).json({ success: false, message: "Invalid salary_slips JSON format" });
       }
     }
 
-    if (!Array.isArray(salarySlips)) {
-      return res.status(400).json({
-        success: false,
-        message: "salary_slips must be an array",
-      });
+    if (!Array.isArray(salarySlips) || salarySlips.length === 0) {
+      return res.status(400).json({ success: false, message: "salary_slips must be a non-empty array" });
     }
-
-    if (salarySlips.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one salary slip is required",
-      });
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /*                         Check Uploaded Files                               */
-    /* -------------------------------------------------------------------------- */
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Salary slip PDF files are required",
-      });
+      return res.status(400).json({ success: false, message: "Salary slip PDF files are required" });
     }
-
-    uploadedFiles = req.files;
-
-    /* -------------------------------------------------------------------------- */
-    /*                            File Count Check                                */
-    /* -------------------------------------------------------------------------- */
 
     if (req.files.length !== salarySlips.length) {
       return res.status(400).json({
         success: false,
-        message:
-          "Number of salary slip records and PDF files must be the same",
+        message: "Number of salary slip records and PDF files must be the same",
       });
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                              Start Transaction                             */
-    /* -------------------------------------------------------------------------- */
-
     await client.query("BEGIN");
 
-    const createdSalarySlips = [];
-
-    /* -------------------------------------------------------------------------- */
-    /*                         Process Each Salary Slip                           */
-    /* -------------------------------------------------------------------------- */
+    const created = [];
 
     for (let i = 0; i < salarySlips.length; i++) {
       const slip = salarySlips[i];
-
-      const {
-        emp_id,
-        month,
-        year,
-        salary_slip_no,
-        payroll_date,
-        salary_generated_date,
-        created_by,
-      } = slip;
-
       const file = req.files[i];
 
-      /* ------------------------------------------------------------------------ */
-      /*                              Validation                                  */
-      /* ------------------------------------------------------------------------ */
+      const {
+        emp_id, month, year, salary_slip_no,
+        payroll_date, salary_generated_date, created_by,
+      } = slip;
 
-      if (!emp_id) {
-        throw new Error(
-          `Employee ID is required for salary slip ${i + 1}`
-        );
-      }
+      if (!emp_id) throw new Error(`Employee ID missing at index ${i + 1}`);
+      if (!month || month < 1 || month > 12) throw new Error(`Invalid month at index ${i + 1}`);
+      if (!year || year < 2000) throw new Error(`Invalid year at index ${i + 1}`);
+      if (!salary_slip_no) throw new Error(`Salary slip number missing at index ${i + 1}`);
 
-      if (!month || month < 1 || month > 12) {
-        throw new Error(
-          `Invalid month for salary slip ${i + 1}`
-        );
-      }
-
-      if (!year || year < 2000) {
-        throw new Error(
-          `Invalid year for salary slip ${i + 1}`
-        );
-      }
-
-      if (!salary_slip_no) {
-        throw new Error(
-          `Salary slip number is required for salary slip ${i + 1}`
-        );
-      }
-
-      if (!file) {
-        throw new Error(
-          `PDF file is required for salary slip ${i + 1}`
-        );
-      }
-
-      /* ------------------------------------------------------------------------ */
-      /*                     Check Employee Using Employee Code                   */
-      /* ------------------------------------------------------------------------ */
-
-      /*
-        emp_id from Postman is actually organizations.or_emp_id.
-
-        Example:
-
-        or_emp_id   = 202000002
-        pr_id       = 25
-
-        salary_slips.employee_id should store 25.
-      */
-
-      const employeeResult = await client.query(
+      const empResult = await client.query(
         `
-        SELECT
-          p.pr_id,
-          og.or_emp_id
+        SELECT p.pr_id, og.or_emp_id
         FROM personal p
-        INNER JOIN organizations og
-          ON p.pr_id = og.pr_id
+        INNER JOIN organizations og ON og.pr_id = p.pr_id
         WHERE og.or_emp_id = $1
         LIMIT 1
         `,
         [emp_id]
       );
 
-      console.log(
-        `Employee Result for ${emp_id}:`,
-        employeeResult.rows
-      );
+      if (empResult.rows.length === 0) throw new Error(`Employee ${emp_id} not found`);
 
-      if (employeeResult.rows.length === 0) {
-        throw new Error(
-          `Employee ${emp_id} not found`
-        );
-      }
+      const { pr_id: employeeId, or_emp_id: companyEmployeeId } = empResult.rows[0];
 
-      const employeeId = employeeResult.rows[0].pr_id;
-
-      console.log(
-        `Employee ${emp_id} mapped to personal.pr_id: ${employeeId}`
-      );
-
-      /* ------------------------------------------------------------------------ */
-      /*                    Check Salary Slip Number                              */
-      /* ------------------------------------------------------------------------ */
-
-      const slipNoResult = await client.query(
-        `
-        SELECT salary_slip_id
-        FROM salary_slips
-        WHERE salary_slip_no = $1
-        LIMIT 1
-        `,
+      const dupNo = await client.query(
+        `SELECT salary_slip_id FROM salary_slips WHERE salary_slip_no = $1 LIMIT 1`,
         [salary_slip_no]
       );
+      if (dupNo.rows.length > 0) throw new Error(`Salary slip number ${salary_slip_no} already exists`);
 
-      if (slipNoResult.rows.length > 0) {
-        throw new Error(
-          `Salary slip number ${salary_slip_no} already exists`
-        );
-      }
-
-      /* ------------------------------------------------------------------------ */
-      /*                 Check Employee + Month + Year                            */
-      /* ------------------------------------------------------------------------ */
-
-      const duplicateResult = await client.query(
+      const dupPeriod = await client.query(
         `
-        SELECT salary_slip_id
-        FROM salary_slips
-        WHERE employee_id = $1
-          AND month = $2
-          AND year = $3
+        SELECT salary_slip_id FROM salary_slips
+        WHERE employee_id = $1 AND month = $2 AND year = $3
         LIMIT 1
         `,
-        [
-          employeeId,
-          month,
-          year,
-        ]
+        [employeeId, month, year]
       );
-
-      if (duplicateResult.rows.length > 0) {
-        throw new Error(
-          `Salary slip already exists for employee ${emp_id} for ${month}/${year}`
-        );
+      if (dupPeriod.rows.length > 0) {
+        throw new Error(`Salary slip already exists for employee ${emp_id} for ${month}/${year}`);
       }
 
-      /* ------------------------------------------------------------------------ */
-      /*                         Insert Salary Slip                               */
-      /* ------------------------------------------------------------------------ */
+      const saved = saveFileToEmployeeFolder(file, companyEmployeeId);
+      writtenFiles.push(saved.absolutePath);
 
-      const salarySlipResult = await client.query(
+      const slipResult = await client.query(
         `
         INSERT INTO salary_slips (
-          employee_id,
-          month,
-          year,
-          salary_slip_no,
-          payroll_date,
-          salary_generated_date,
-          is_published,
-          created_by,
-          created_at
+          employee_id, month, year, salary_slip_no,
+          payroll_date, salary_generated_date,
+          is_published, created_by, created_at
         )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          FALSE,
-          $7,
-          CURRENT_TIMESTAMP
-        )
+        VALUES ($1,$2,$3,$4,$5,$6,FALSE,$7,CURRENT_TIMESTAMP)
         RETURNING *
         `,
         [
-          employeeId,
-          month,
-          year,
-          salary_slip_no,
+          employeeId, month, year, salary_slip_no,
           payroll_date || null,
           salary_generated_date || null,
           created_by || null,
         ]
       );
 
-      const salarySlip = salarySlipResult.rows[0];
-
-      /* ------------------------------------------------------------------------ */
-      /*                           Insert PDF File                                */
-      /* ------------------------------------------------------------------------ */
+      const salarySlip = slipResult.rows[0];
 
       const fileResult = await client.query(
         `
         INSERT INTO salary_slip_files (
-          salary_slip_id,
-          file_path,
-          file_size,
-          created_by,
-          created_at
+          salary_slip_id, file_path, file_size,
+          created_by, created_at
         )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          CURRENT_TIMESTAMP
-        )
+        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
         RETURNING *
         `,
-        [
-          salarySlip.salary_slip_id,
-          file.path,
-          file.size,
-          created_by || null,
-        ]
+        [salarySlip.salary_slip_id, saved.webPath, saved.size, created_by || null]
       );
 
-      /* ------------------------------------------------------------------------ */
-      /*                         Add Created Data                                 */
-      /* ------------------------------------------------------------------------ */
-
-      createdSalarySlips.push({
-        salarySlip,
-        file: fileResult.rows[0],
-      });
+      created.push({ salarySlip, file: fileResult.rows[0] });
     }
-
-    /* -------------------------------------------------------------------------- */
-    /*                                Commit                                      */
-    /* -------------------------------------------------------------------------- */
 
     await client.query("COMMIT");
 
-    /* -------------------------------------------------------------------------- */
-    /*                            Success Response                                */
-    /* -------------------------------------------------------------------------- */
-
     return res.status(201).json({
       success: true,
-      message: `${createdSalarySlips.length} salary slips created successfully`,
-      count: createdSalarySlips.length,
-      data: createdSalarySlips,
+      message: `${created.length} salary slips created successfully`,
+      count: created.length,
+      data: created,
     });
-
   } catch (error) {
+    try { await client.query("ROLLBACK"); } catch (rbErr) { console.error("Rollback error:", rbErr); }
+    console.error("Create multiple salary slips error:", error);
 
-    /* -------------------------------------------------------------------------- */
-    /*                              Rollback                                      */
-    /* -------------------------------------------------------------------------- */
-
-    try {
-      await client.query("ROLLBACK");
-    } catch (rollbackError) {
-      console.error(
-        "Rollback error:",
-        rollbackError
-      );
+    for (const p of writtenFiles) {
+      try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch (e) { console.error("Failed to delete file:", p, e); }
     }
-
-    console.error(
-      "Create multiple salary slips error:",
-      error
-    );
-
-    /* -------------------------------------------------------------------------- */
-    /*                         Delete Uploaded Files                              */
-    /* -------------------------------------------------------------------------- */
-
-    for (const file of uploadedFiles) {
-      try {
-        if (
-          file.path &&
-          fs.existsSync(file.path)
-        ) {
-          fs.unlinkSync(file.path);
-
-          console.log(
-            "Deleted uploaded file:",
-            file.path
-          );
-        }
-      } catch (fileError) {
-        console.error(
-          "Failed to delete uploaded file:",
-          fileError
-        );
-      }
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /*                            Error Response                                  */
-    /* -------------------------------------------------------------------------- */
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to create salary slips",
+      message: error.message || "Failed to create salary slips",
     });
-
   } finally {
-
-    /* -------------------------------------------------------------------------- */
-    /*                           Release DB Client                                */
-    /* -------------------------------------------------------------------------- */
-
     client.release();
   }
 };
-/*
-|--------------------------------------------------------------------------
-| Get All Salary Slips
-|--------------------------------------------------------------------------
-*/
+
+/* ------------------------------------------------------------------ */
+/*   GET /  — All salary slips                                         */
+/* ------------------------------------------------------------------ */
+
 const getSalarySlips = async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
         ss.salary_slip_id,
         og.or_emp_id AS emp_id,
-        ss.month,
-        ss.year,
-        ss.salary_slip_no,
-        ss.payroll_date,
-        ss.salary_generated_date,
-        ss.is_published,
-        ss.created_by,
-        ss.created_at,
-        ss.updated_by,
-        ss.updated_at,
-
-        CONCAT_WS(
-          ' ',
-          p.pr_first_name,
-          p.pr_last_name
-        ) AS employee_name,
-
-        ssf.salary_slip_file_id,
-        ssf.file_path,
-        ssf.file_size
-
+        ss.month, ss.year, ss.salary_slip_no,
+        ss.payroll_date, ss.salary_generated_date,
+        ss.is_published, ss.created_by, ss.created_at,
+        ss.updated_by, ss.updated_at,
+        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
+        ssf.salary_slip_file_id, ssf.file_path, ssf.file_size
       FROM salary_slips ss
-
-      LEFT JOIN personal p
-        ON p.pr_id = ss.employee_id
-
-      left join organizations og
-      on og.pr_id = p.pr_id
-
+      LEFT JOIN personal p ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og ON og.pr_id = p.pr_id
       LEFT JOIN LATERAL (
-        SELECT
-          salary_slip_file_id,
-          file_path,
-          file_size
+        SELECT salary_slip_file_id, file_path, file_size
         FROM salary_slip_files
         WHERE salary_slip_id = ss.salary_slip_id
         ORDER BY created_at DESC
         LIMIT 1
       ) ssf ON TRUE
-
-      ORDER BY
-        ss.year DESC,
-        ss.month DESC,
-        ss.salary_slip_id DESC
+      ORDER BY ss.year DESC, ss.month DESC, ss.salary_slip_id DESC
     `);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: result.rows.length,
       data: result.rows,
     });
   } catch (error) {
     console.error("Get salary slips error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch salary slips",
       error: error.message,
@@ -774,80 +433,47 @@ const getSalarySlips = async (req, res) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Get Salary Slip By ID
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   GET /:id  — Single salary slip                                    */
+/* ------------------------------------------------------------------ */
+
 const getSalarySlipById = async (req, res) => {
   try {
     const { id } = req.params;
 
     const result = await pool.query(
       `
-      SELECT 
+      SELECT
         ss.salary_slip_id,
         og.or_emp_id AS emp_id,
-        ss.month,
-        ss.year,
-        ss.salary_slip_no,
-        ss.payroll_date,
-        ss.salary_generated_date,
-        ss.is_published,
-        ss.created_by,
-        ss.created_at,
-        ss.updated_by,
-        ss.updated_at,
-
-        CONCAT_WS(
-          ' ',
-          p.pr_id,
-          p.pr_first_name,
-          p.pr_last_name
-        ) AS employee_name,
-
-        ssf.salary_slip_file_id,
-        ssf.file_path,
-        ssf.file_size
-
+        ss.month, ss.year, ss.salary_slip_no,
+        ss.payroll_date, ss.salary_generated_date,
+        ss.is_published, ss.created_by, ss.created_at,
+        ss.updated_by, ss.updated_at,
+        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
+        ssf.salary_slip_file_id, ssf.file_path, ssf.file_size
       FROM salary_slips ss
-
-      LEFT JOIN personal p
-        ON p.pr_id = ss.employee_id
-
-        left join organizations og
-        ON p.pr_id = og.pr_id
-
+      LEFT JOIN personal p ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og ON og.pr_id = p.pr_id
       LEFT JOIN LATERAL (
-        SELECT 
-          salary_slip_file_id,
-          file_path,
-          file_size
+        SELECT salary_slip_file_id, file_path, file_size
         FROM salary_slip_files
         WHERE salary_slip_id = ss.salary_slip_id
         ORDER BY created_at DESC
         LIMIT 1
       ) ssf ON TRUE
-
-      WHERE p.pr_id = $1
+      WHERE ss.salary_slip_id = $1
       `,
       [id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Salary slip not found",
-      });
+      return res.status(404).json({ success: false, message: "Salary slip not found" });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: result.rows[0],
-    });
+    return res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error("Get salary slip error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch salary slip",
@@ -856,129 +482,97 @@ const getSalarySlipById = async (req, res) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Update Salary Slip
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   PUT /:id  — Update salary slip                                    */
+/* ------------------------------------------------------------------ */
+
 const updateSalarySlip = async (req, res) => {
   const client = await pool.connect();
+  let writtenFile = null;
 
   try {
     const { id } = req.params;
-
     const {
-      emp_id,
-      month,
-      year,
-      salary_slip_no,
-      payroll_date,
-      salary_generated_date,
-      updated_by,
+      emp_id, month, year, salary_slip_no,
+      payroll_date, salary_generated_date, updated_by,
     } = req.body;
 
     await client.query("BEGIN");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check Salary Slip
-    |--------------------------------------------------------------------------
-    */
-
     const existingResult = await client.query(
-      `
-      SELECT *
-      FROM salary_slips
-      WHERE salary_slip_id = $1
-      `,
+      `SELECT * FROM salary_slips WHERE salary_slip_id = $1`,
       [id]
     );
 
     if (existingResult.rows.length === 0) {
       await client.query("ROLLBACK");
-
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
-
-      return res.status(404).json({
-        success: false,
-        message: "Salary slip not found",
-      });
+      return res.status(404).json({ success: false, message: "Salary slip not found" });
     }
 
     const existingSlip = existingResult.rows[0];
 
-    /*
-    |--------------------------------------------------------------------------
-    | Check Duplicate Salary Slip Number
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Resolve employee ---------------- */
+
+    let resolvedEmployeeId = existingSlip.employee_id;
+
+    if (emp_id) {
+      const empResult = await client.query(
+        `
+        SELECT p.pr_id FROM personal p
+        INNER JOIN organizations og ON og.pr_id = p.pr_id
+        WHERE og.or_emp_id = $1
+        LIMIT 1
+        `,
+        [emp_id]
+      );
+      if (empResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ success: false, message: "Employee not found" });
+      }
+      resolvedEmployeeId = empResult.rows[0].pr_id;
+    }
+
+    /* ---------------- Duplicate checks ---------------- */
+
+    const finalSlipNo = salary_slip_no ?? existingSlip.salary_slip_no;
+    const finalMonth = month ?? existingSlip.month;
+    const finalYear = year ?? existingSlip.year;
 
     if (salary_slip_no) {
-      const duplicateSlipNo = await client.query(
+      const dupNo = await client.query(
         `
-        SELECT salary_slip_id
-        FROM salary_slips
-        WHERE salary_slip_no = $1
-          AND salary_slip_id != $2
+        SELECT salary_slip_id FROM salary_slips
+        WHERE salary_slip_no = $1 AND salary_slip_id != $2
+        LIMIT 1
         `,
         [salary_slip_no, id]
       );
-
-      if (duplicateSlipNo.rows.length > 0) {
+      if (dupNo.rows.length > 0) {
         await client.query("ROLLBACK");
-
-        if (req.file?.path && fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-
-        return res.status(409).json({
-          success: false,
-          message: "Salary slip number already exists",
-        });
+        return res.status(409).json({ success: false, message: "Salary slip number already exists" });
       }
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check Employee + Month + Year
-    |--------------------------------------------------------------------------
-    */
 
     if (emp_id && month && year) {
-      const duplicatePeriod = await client.query(
+      const dupPeriod = await client.query(
         `
-        SELECT salary_slip_id
-        FROM salary_slips
-        WHERE employee_id = $1
-          AND month = $2
-          AND year = $3
+        SELECT salary_slip_id FROM salary_slips
+        WHERE employee_id = $1 AND month = $2 AND year = $3
           AND salary_slip_id != $4
+        LIMIT 1
         `,
-        [emp_id, month, year, id]
+        [resolvedEmployeeId, month, year, id]
       );
-
-      if (duplicatePeriod.rows.length > 0) {
+      if (dupPeriod.rows.length > 0) {
         await client.query("ROLLBACK");
-
-        if (req.file?.path && fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-
         return res.status(409).json({
           success: false,
-          message:
-            "Salary slip already exists for this employee, month and year",
+          message: "Salary slip already exists for this employee, month and year",
         });
       }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Update Salary Slip
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Update ---------------- */
 
     const updatedResult = await client.query(
       `
@@ -996,10 +590,10 @@ const updateSalarySlip = async (req, res) => {
       RETURNING *
       `,
       [
-        emp_id ?? existingSlip.employee_id,
-        month ?? existingSlip.month,
-        year ?? existingSlip.year,
-        salary_slip_no ?? existingSlip.salary_slip_no,
+        resolvedEmployeeId,
+        finalMonth,
+        finalYear,
+        finalSlipNo,
         payroll_date ?? existingSlip.payroll_date,
         salary_generated_date ?? existingSlip.salary_generated_date,
         updated_by || null,
@@ -1009,17 +603,21 @@ const updateSalarySlip = async (req, res) => {
 
     let updatedFile = null;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Replace PDF If New PDF Uploaded
-    |--------------------------------------------------------------------------
-    */
+    /* ---------------- Replace PDF if uploaded ---------------- */
 
     if (req.file) {
+      const empForFile = await client.query(
+        `SELECT or_emp_id FROM organizations WHERE pr_id = $1 LIMIT 1`,
+        [resolvedEmployeeId]
+      );
+      const companyEmployeeId = empForFile.rows[0].or_emp_id;
+
+      const saved = saveFileToEmployeeFolder(req.file, companyEmployeeId);
+      writtenFile = saved.absolutePath;
+
       const oldFileResult = await client.query(
         `
-        SELECT *
-        FROM salary_slip_files
+        SELECT * FROM salary_slip_files
         WHERE salary_slip_id = $1
         ORDER BY created_at DESC
         LIMIT 1
@@ -1027,65 +625,32 @@ const updateSalarySlip = async (req, res) => {
         [id]
       );
 
-      /*
-      | Insert new file
-      */
-
       const newFileResult = await client.query(
         `
         INSERT INTO salary_slip_files (
-          salary_slip_id,
-          file_path,
-          file_size,
-          created_by,
-          created_at
+          salary_slip_id, file_path, file_size,
+          created_by, created_at
         )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          CURRENT_TIMESTAMP
-        )
+        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
         RETURNING *
         `,
-        [
-          id,
-          req.file.path,
-          req.file.size,
-          updated_by || null,
-        ]
+        [id, saved.webPath, saved.size, updated_by || null]
       );
 
       updatedFile = newFileResult.rows[0];
-
-      /*
-      | Delete old DB record
-      */
 
       if (oldFileResult.rows.length > 0) {
         const oldFile = oldFileResult.rows[0];
 
         await client.query(
-          `
-          DELETE FROM salary_slip_files
-          WHERE salary_slip_file_id = $1
-          `,
+          `DELETE FROM salary_slip_files WHERE salary_slip_file_id = $1`,
           [oldFile.salary_slip_file_id]
         );
 
-        /*
-        | Delete old physical PDF
-        */
-
-        if (oldFile.file_path && fs.existsSync(oldFile.file_path)) {
-          try {
-            fs.unlinkSync(oldFile.file_path);
-          } catch (fileError) {
-            console.error(
-              "Failed to delete old salary slip PDF:",
-              fileError
-            );
+        if (oldFile.file_path) {
+          const disk = webPathToDisk(oldFile.file_path);
+          if (fs.existsSync(disk)) {
+            try { fs.unlinkSync(disk); } catch (e) { console.error("Failed to delete old PDF:", e); }
           }
         }
       }
@@ -1093,30 +658,20 @@ const updateSalarySlip = async (req, res) => {
 
     await client.query("COMMIT");
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Salary slip updated successfully",
-      data: {
-        salarySlip: updatedResult.rows[0],
-        file: updatedFile,
-      },
+      data: { salarySlip: updatedResult.rows[0], file: updatedFile },
     });
   } catch (error) {
-    await client.query("ROLLBACK");
-
+    try { await client.query("ROLLBACK"); } catch (e) { console.error(e); }
     console.error("Update salary slip error:", error);
 
-    if (req.file?.path) {
-      try {
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-      } catch (fileError) {
-        console.error("Failed to delete uploaded file:", fileError);
-      }
+    if (writtenFile && fs.existsSync(writtenFile)) {
+      try { fs.unlinkSync(writtenFile); } catch (e) { console.error(e); }
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to update salary slip",
       error: error.message,
@@ -1126,11 +681,10 @@ const updateSalarySlip = async (req, res) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Delete Salary Slip
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   DELETE /:id  — Delete salary slip                                 */
+/* ------------------------------------------------------------------ */
+
 const deleteSalarySlip = async (req, res) => {
   const client = await pool.connect();
 
@@ -1139,80 +693,37 @@ const deleteSalarySlip = async (req, res) => {
 
     await client.query("BEGIN");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Get PDF Path Before Delete
-    |--------------------------------------------------------------------------
-    */
-
     const fileResult = await client.query(
-      `
-      SELECT file_path
-      FROM salary_slip_files
-      WHERE salary_slip_id = $1
-      `,
+      `SELECT file_path FROM salary_slip_files WHERE salary_slip_id = $1`,
       [id]
     );
 
-    /*
-    |--------------------------------------------------------------------------
-    | Delete Salary Slip
-    |--------------------------------------------------------------------------
-    |
-    | salary_slip_files will be deleted automatically
-    | because of ON DELETE CASCADE.
-    |
-    */
-
     const deleteResult = await client.query(
-      `
-      DELETE FROM salary_slips
-      WHERE salary_slip_id = $1
-      RETURNING salary_slip_id
-      `,
+      `DELETE FROM salary_slips WHERE salary_slip_id = $1 RETURNING salary_slip_id`,
       [id]
     );
 
     if (deleteResult.rows.length === 0) {
       await client.query("ROLLBACK");
-
-      return res.status(404).json({
-        success: false,
-        message: "Salary slip not found",
-      });
+      return res.status(404).json({ success: false, message: "Salary slip not found" });
     }
 
     await client.query("COMMIT");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Delete Physical PDF
-    |--------------------------------------------------------------------------
-    */
-
     for (const file of fileResult.rows) {
-      if (file.file_path && fs.existsSync(file.file_path)) {
-        try {
-          fs.unlinkSync(file.file_path);
-        } catch (fileError) {
-          console.error(
-            "Failed to delete salary slip PDF:",
-            fileError
-          );
+      if (file.file_path) {
+        const disk = webPathToDisk(file.file_path);
+        if (fs.existsSync(disk)) {
+          try { fs.unlinkSync(disk); } catch (e) { console.error("Failed to delete PDF:", e); }
         }
       }
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Salary slip deleted successfully",
-    });
+    return res.status(200).json({ success: true, message: "Salary slip deleted successfully" });
   } catch (error) {
-    await client.query("ROLLBACK");
-
+    try { await client.query("ROLLBACK"); } catch (e) { console.error(e); }
     console.error("Delete salary slip error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to delete salary slip",
       error: error.message,
@@ -1222,24 +733,19 @@ const deleteSalarySlip = async (req, res) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Get Salary Slip PDF
-|--------------------------------------------------------------------------
-*/
+/* ------------------------------------------------------------------ */
+/*   GET /:id/file  — Stream PDF                                       */
+/* ------------------------------------------------------------------ */
+
 const getSalarySlipPdf = async (req, res) => {
   try {
     const { id } = req.params;
 
     const result = await pool.query(
       `
-      SELECT
-        ss.salary_slip_id,
-        ss.salary_slip_no,
-        ssf.file_path
+      SELECT ss.salary_slip_id, ss.salary_slip_no, ssf.file_path
       FROM salary_slips ss
-      INNER JOIN salary_slip_files ssf
-        ON ssf.salary_slip_id = ss.salary_slip_id
+      INNER JOIN salary_slip_files ssf ON ssf.salary_slip_id = ss.salary_slip_id
       WHERE ss.salary_slip_id = $1
       ORDER BY ssf.created_at DESC
       LIMIT 1
@@ -1248,34 +754,215 @@ const getSalarySlipPdf = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Salary slip PDF not found",
-      });
+      return res.status(404).json({ success: false, message: "Salary slip PDF not found" });
     }
 
     const filePath = result.rows[0].file_path;
+    const absolutePath = webPathToDisk(filePath);
 
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: "PDF file does not exist on server",
-      });
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ success: false, message: "PDF file does not exist on server" });
     }
 
     res.setHeader("Content-Type", "application/pdf");
-
-    res.sendFile(path.resolve(filePath));
+    return res.sendFile(absolutePath);
   } catch (error) {
     console.error("Get salary slip PDF error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to load salary slip PDF",
       error: error.message,
     });
   }
 };
+
+
+const getSalarySlipsPaginated = async (req, res) => {
+  try {
+    /* ---------------- Parse & sanitize query ---------------- */
+
+    let {
+      page = 1,
+      limit = 10,
+      search,
+      emp_id,
+      month,
+      year,
+      is_published,
+      sort_by = "created_at",
+      sort_order = "DESC",
+    } = req.query;
+
+    page = parseInt(page, 10);
+    limit = parseInt(limit, 10);
+
+    if (isNaN(page) || page < 1) page = 1;
+    if (isNaN(limit) || limit < 1) limit = 10;
+    if (limit > 100) limit = 10000;
+
+    const offset = (page - 1) * limit;
+
+    /* ---------------- Whitelist sort columns (prevent SQL injection) ---------------- */
+
+    const allowedSortColumns = [
+      "created_at",
+      "updated_at",
+      "salary_slip_id",
+      "month",
+      "year",
+      "salary_slip_no",
+      "employee_name",
+    ];
+
+    const sortColumn = allowedSortColumns.includes(sort_by)
+      ? sort_by
+      : "created_at";
+
+    const sortDir = String(sort_order).toUpperCase() === "ASC" ? "ASC" : "DESC";
+
+    /* ---------------- Build WHERE clauses dynamically ---------------- */
+
+    const whereClauses = [];
+    const whereValues = [];
+    let paramIndex = 1;
+
+    if (emp_id) {
+      whereClauses.push(`og.or_emp_id = $${paramIndex++}`);
+      whereValues.push(emp_id);
+    }
+
+    if (month) {
+      whereClauses.push(`ss.month = $${paramIndex++}`);
+      whereValues.push(parseInt(month, 10));
+    }
+
+    if (year) {
+      whereClauses.push(`ss.year = $${paramIndex++}`);
+      whereValues.push(parseInt(year, 10));
+    }
+
+    if (is_published !== undefined && is_published !== "") {
+      whereClauses.push(`ss.is_published = $${paramIndex++}`);
+      whereValues.push(is_published === "true" || is_published === true);
+    }
+
+    if (search && String(search).trim() !== "") {
+      whereClauses.push(
+        `(ss.salary_slip_no ILIKE $${paramIndex} OR
+          CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) ILIKE $${paramIndex})`
+      );
+      whereValues.push(`%${String(search).trim()}%`);
+      paramIndex++;
+    }
+
+    const whereSQL = whereClauses.length
+      ? `WHERE ${whereClauses.join(" AND ")}`
+      : "";
+
+    /* ---------------- Count total ---------------- */
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM salary_slips ss
+      LEFT JOIN personal p ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og ON og.pr_id = p.pr_id
+      ${whereSQL}
+    `;
+
+    const countResult = await pool.query(countQuery, whereValues);
+    const total = countResult.rows[0].total;
+
+    const totalPages = Math.ceil(total / limit) || 0;
+
+    /* ---------------- Fetch page ---------------- */
+
+    const dataValues = [...whereValues, limit, offset];
+
+    // Handle sorting on employee_name (alias)
+    let orderByClause;
+    if (sortColumn === "employee_name") {
+      orderByClause = `ORDER BY employee_name ${sortDir}`;
+    } else {
+      orderByClause = `ORDER BY ss.${sortColumn} ${sortDir}`;
+    }
+
+    const dataQuery = `
+      SELECT
+        ss.salary_slip_id,
+        og.or_emp_id AS emp_id,
+        ss.month,
+        ss.year,
+        ss.salary_slip_no,
+        ss.payroll_date,
+        ss.salary_generated_date,
+        ss.is_published,
+        ss.created_by,
+        ss.created_at,
+        ss.updated_by,
+        ss.updated_at,
+        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
+        ssf.salary_slip_file_id,
+        ssf.file_path,
+        ssf.file_size
+      FROM salary_slips ss
+      LEFT JOIN personal p ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og ON og.pr_id = p.pr_id
+      LEFT JOIN LATERAL (
+        SELECT salary_slip_file_id, file_path, file_size
+        FROM salary_slip_files
+        WHERE salary_slip_id = ss.salary_slip_id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) ssf ON TRUE
+      ${whereSQL}
+      ${orderByClause}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
+
+    const dataResult = await pool.query(dataQuery, dataValues);
+
+    /* ---------------- Build response ---------------- */
+
+    return res.status(200).json({
+      success: true,
+      data: dataResult.rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        total_pages: totalPages,
+        has_next_page: page < totalPages,
+        has_prev_page: page > 1,
+        next_page: page < totalPages ? page + 1 : null,
+        prev_page: page > 1 ? page - 1 : null,
+      },
+      filters: {
+        search: search || null,
+        emp_id: emp_id || null,
+        month: month ? parseInt(month, 10) : null,
+        year: year ? parseInt(year, 10) : null,
+        is_published:
+          is_published !== undefined && is_published !== ""
+            ? is_published === "true" || is_published === true
+            : null,
+        sort_by: sortColumn,
+        sort_order: sortDir,
+      },
+    });
+  } catch (error) {
+    console.error("Get paginated salary slips error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch paginated salary slips",
+      error: error.message,
+    });
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/*   Exports                                                           */
+/* ------------------------------------------------------------------ */
+
 
 module.exports = {
   getDepartmentEmployees,
@@ -1285,5 +972,6 @@ module.exports = {
   getSalarySlipById,
   updateSalarySlip,
   deleteSalarySlip,
+  getSalarySlipsPaginated,
   getSalarySlipPdf,
 };
