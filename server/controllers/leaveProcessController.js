@@ -8,7 +8,7 @@ const {
   paginatedResponse,
   handleDbError,
 } = require("../utils/response");
-const { getPaginationParams } = require("../utils/pagination");
+const { getPaginationParams } = require("../utils/pagination"); 
 
 const { Op, literal, QueryTypes, Sequelize } = require("sequelize");
 const models = require("../models");
@@ -1867,6 +1867,83 @@ exports.getMyLeaveRequests = async (req, res) => {
   } catch (error) {
     console.error("getMyLeaveRequests Error:", error);
 
+    return handleDbError(res, error);
+  }
+};
+
+exports.getLeaveRequestById = async (req, res) => {
+  try {
+    const prId = getLoggedInPrId(req);
+    const requestId = Number(req.params.id);
+
+    if (!Number.isInteger(requestId) || requestId <= 0) {
+      return errorResponse(res, "Valid leave request ID is required.", 400);
+    }
+
+    const result = await LeaveRequests.findOne({
+      where: { lr_leave_request_id: requestId },
+      include: [
+        { model: LeaveTypes, as: "leaveType" },
+        { model: LeaveStatus, as: "status" },
+      ],
+    });
+
+    if (!result) {
+      return errorResponse(res, "Leave request not found.", 404);
+    }
+
+    const lr = result.toJSON();
+
+    const [employeePersonal, reportingPersonal, employeeOrg, reportingOrg] =
+      await Promise.all([
+        Personal.findOne({ where: { pr_id: lr.lr_pr_id } }),
+        Personal.findOne({ where: { pr_id: lr.lr_reporting_to } }),
+        Organizations.findOne({ where: { pr_id: lr.lr_pr_id } }),
+        Organizations.findOne({ where: { pr_id: lr.lr_reporting_to } }),
+      ]);
+
+    const payload = {
+      lr_leave_request_id: lr.lr_leave_request_id,
+      request_id: lr.request_id,
+      pr_first_name: employeePersonal?.pr_first_name ?? null,
+      pr_last_name: employeePersonal?.pr_last_name ?? null,
+      emp_email: employeeOrg?.or_official_email ?? null,
+      or_emp_id: employeeOrg?.or_emp_id ?? null,
+      reportingemail: reportingOrg?.or_official_email ?? null,
+      reportingname: reportingPersonal?.pr_first_name ?? null,
+      reportingLastname: reportingPersonal?.pr_last_name ?? null,
+      lr_pr_id: lr.lr_pr_id,
+      lr_leave_type_id: lr.lr_leave_type_id,
+      lr_from_date: lr.lr_from_date
+        ? String(lr.lr_from_date).slice(0, 10)
+        : null,
+      lr_to_date: lr.lr_to_date ? String(lr.lr_to_date).slice(0, 10) : null,
+      lr_total_days: lr.lr_total_days,
+      lr_reason: lr.lr_reason,
+      lr_status_id: lr.lr_status_id,
+      ls_leave_status_name: lr.status?.ls_leave_status_name ?? null,
+      lr_ismailfromrequester: lr.lr_ismailfromrequester,
+      lr_ismailfromapprover: lr.lr_ismailfromapprover,
+      lr_applied_at: lr.lr_applied_at,
+      lr_approver_by: lr.lr_approver_by,
+      lr_approver_at: lr.lr_approver_at,
+      lr_approver_remark: lr.lr_approver_remark,
+      lr_cancelled_at: lr.lr_cancelled_at,
+      lr_cancellation_reason: lr.lr_cancellation_reason,
+      lr_created_at: lr.lr_created_at,
+      lr_updated_at: lr.lr_updated_at,
+      lt_leave_type_code: lr.leaveType?.lt_leave_type_code ?? null,
+      lt_leave_type_name: lr.leaveType?.lt_leave_type_name ?? null,
+      lt_is_paid: lr.leaveType?.lt_is_paid ?? null,
+    };
+
+    return successResponse(
+      res,
+      200,
+      payload,
+      "Leave request fetched successfully."
+    );
+  } catch (error) {
     return handleDbError(res, error);
   }
 };
