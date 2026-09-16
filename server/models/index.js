@@ -138,6 +138,12 @@ db.Organizations.belongsTo(db.DepartmentMaster,   { foreignKey: "or_department_i
 db.Organizations.belongsTo(db.DesignationMaster,  { foreignKey: "or_designation_id",  as: "designation" });
 //db.Organizations.belongsTo(db.EmployeeTypeMaster, { foreignKey: "or_employee_type_id",as: "employeeType" });
 
+db.DepartmentMaster.hasMany(db.Organizations, {
+  foreignKey: "or_department_id",
+  sourceKey: "DepartmentId",
+  as: "employees",
+});
+
 // Attendance
 db.DailyAttendance.belongsTo(db.AttendanceStatus, {  foreignKey: "status_id", as: "status",});
 db.AttendanceStatus.hasMany(db.DailyAttendance, {foreignKey: "status_id", as: "attendanceRecords",});
