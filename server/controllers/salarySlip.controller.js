@@ -375,13 +375,13 @@ const createMultipleSalarySlips = async (req, res) => {
     /*                            File Count Check                                */
     /* -------------------------------------------------------------------------- */
 
-    // if (req.files.length !== salarySlips.length) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message:
-    //       "Number of salary slip records and PDF files must be the same",
-    //   });
-    // }
+    if (req.files.length !== salarySlips.length) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Number of salary slip records and PDF files must be the same",
+      });
+    }
 
     /* -------------------------------------------------------------------------- */
     /*                              Start Transaction                             */
@@ -801,6 +801,7 @@ const getSalarySlipById = async (req, res) => {
 
         CONCAT_WS(
           ' ',
+          p.pr_id,
           p.pr_first_name,
           p.pr_last_name
         ) AS employee_name,
@@ -811,11 +812,11 @@ const getSalarySlipById = async (req, res) => {
 
       FROM salary_slips ss
 
-      LEFT JOIN organization og
-        ON og.or_emp_id = ss.employee_id
-
       LEFT JOIN personal p
         ON p.pr_id = ss.employee_id
+
+        left join organizations og
+        ON p.pr_id = og.pr_id
 
       LEFT JOIN LATERAL (
         SELECT 
@@ -828,7 +829,7 @@ const getSalarySlipById = async (req, res) => {
         LIMIT 1
       ) ssf ON TRUE
 
-      WHERE og.or_emp_id = $1
+      WHERE p.pr_id = $1
       `,
       [id]
     );
@@ -840,14 +841,14 @@ const getSalarySlipById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: result.rows[0],
     });
   } catch (error) {
     console.error("Get salary slip error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch salary slip",
       error: error.message,
