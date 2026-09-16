@@ -1,28 +1,35 @@
-const { db } = require("../db/SequelizeDB");
+const db = require("../models");
+const { sequelize } = require("../db/SequelizeDB");
+const { Op, fn, col, literal, where: seqWhere } = require("sequelize");
+
 const {
   successResponse,
-  handleDbError
+  handleDbError,
 } = require("../utils/response");
+
+const {
+  Organizations,
+  DepartmentMaster,
+  AttendanceLog,
+  DailyAttendance,
+  AttendanceStatus,
+  Personal,
+} = db;
 
 const getActiveEmployeeCount = async (req, res) => {
   try {
-    const query = `
-      SELECT COUNT(*)::int AS active_employee_count
-      FROM organizations
-      WHERE Or_Is_Active = TRUE
-    `;
-
-    const result = await db.query(query);
+    const active_employee_count = await Organizations.count({
+      where: { or_is_active: true },
+    });
 
     return successResponse(
       res,
       200,
       "Active employee count fetched successfully",
-      result.rows[0]
+      { active_employee_count }
     );
   } catch (error) {
     console.error("Active employee count error:", error);
-
     return handleDbError(
       res,
       error,
@@ -33,26 +40,41 @@ const getActiveEmployeeCount = async (req, res) => {
 
 const getActive_Present_EmployeeCount = async (req, res) => {
   try {
-    const query = `
-      SELECT COUNT(DISTINCT a.emp_id)::int AS today_present_count
-      FROM attendance_logs a
-      INNER JOIN organizations u ON u.or_emp_id = a.emp_id
-      WHERE a.created_at >= CURRENT_DATE
-        AND a.created_at < CURRENT_DATE + INTERVAL '1 day'
-        AND u.or_is_active = TRUE
-    `;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
 
-    const result = await db.query(query);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    const rows = await AttendanceLog.findAll({
+      attributes: ["emp_id"],
+      where: {
+        created_at: { [Op.gte]: start, [Op.lt]: end },
+        emp_id: { [Op.ne]: null },
+      },
+      include: [
+        {
+          model: Organizations,
+          as: "organization",
+          required: true,
+          attributes: [],
+          where: { or_is_active: true },
+        },
+      ],
+      group: ["AttendanceLog.emp_id"],
+      raw: true,
+    });
+
+    const today_present_count = rows.length;
 
     return successResponse(
       res,
       200,
       "Active present employee count fetched successfully",
-      result.rows[0]
+      { today_present_count }
     );
   } catch (error) {
     console.error("Active present employee count error:", error);
-
     return handleDbError(
       res,
       error,
@@ -63,30 +85,60 @@ const getActive_Present_EmployeeCount = async (req, res) => {
 
 const getActive_Absent_EmployeeCount = async (req, res) => {
   try {
-    const query = `
-      SELECT COUNT(*)::int AS today_absent_count
-      FROM organizations u
-      WHERE u.or_is_active = TRUE
-        AND NOT EXISTS (
-          SELECT 1
-          FROM attendance_logs a
-          WHERE a.emp_id = u.or_emp_id
-            AND a.created_at >= CURRENT_DATE
-            AND a.created_at < CURRENT_DATE + INTERVAL '1 day'
-        )
-    `;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
 
-    const result = await db.query(query);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    const activeOrgs = await Organizations.findAll({
+      attributes: ["or_emp_id"],
+      where: {
+        or_is_active: true,
+        or_emp_id: { [Op.ne]: null },
+      },
+      raw: true,
+    });
+
+    const empIds = activeOrgs
+      .map((o) => o.or_emp_id)
+      .filter((id) => id && String(id).trim() !== "");
+
+    if (empIds.length === 0) {
+      return successResponse(
+        res,
+        200,
+        "Active absent employee count fetched successfully",
+        { today_absent_count: 0 }
+      );
+    }
+
+    const presentRows = await AttendanceLog.findAll({
+      attributes: ["emp_id"],
+      where: {
+        emp_id: { [Op.in]: empIds },
+        created_at: { [Op.gte]: start, [Op.lt]: end },
+      },
+      group: ["emp_id"],
+      raw: true,
+    });
+
+    const presentSet = new Set(
+      presentRows.map((r) => r.emp_id).filter(Boolean)
+    );
+
+    const today_absent_count = empIds.filter(
+      (id) => !presentSet.has(id)
+    ).length;
 
     return successResponse(
       res,
       200,
       "Active absent employee count fetched successfully",
-      result.rows[0]
+      { today_absent_count }
     );
   } catch (error) {
     console.error("Active absent employee count error:", error);
-
     return handleDbError(
       res,
       error,
@@ -97,38 +149,54 @@ const getActive_Absent_EmployeeCount = async (req, res) => {
 
 const getActive_Employee_Department_Count = async (req, res) => {
   try {
-    const query = `
-      SELECT
-          d."DepartmentName" AS department_name,
-          COUNT(o.or_id) AS number_of_users,
-          ROUND(
-              COUNT(o.or_id) * 100.0 /
-              NULLIF(SUM(COUNT(o.or_id)) OVER (), 0),
-              2
-          ) AS percent
-      FROM department_master d
-      LEFT JOIN organizations o
-          ON o.or_department_id = d."DepartmentId"
-          AND o.or_is_active = TRUE
-      WHERE d."IsActive" = TRUE
-      GROUP BY
-          d."DepartmentId",
-          d."DepartmentName"
-      ORDER BY
-          number_of_users DESC;
-    `;
+    const departments = await DepartmentMaster.findAll({
+      where: { IsActive: true },
+      attributes: ["DepartmentId", "DepartmentName"],
+      include: [
+        {
+          model: Organizations,
+          as: "employees",
+          required: false,
+          attributes: ["or_id"],
+          where: { or_is_active: true },
+        },
+      ],
+    });
 
-    const result = await db.query(query);
+    const counts = departments.map((d) => {
+      const plain = d.toJSON();
+      return {
+        department_name: plain.DepartmentName,
+        number_of_users: (plain.employees || []).length,
+      };
+    });
+
+    const total = counts.reduce(
+      (sum, c) => sum + c.number_of_users,
+      0
+    );
+
+    const result = counts
+      .map((c) => ({
+        department_name: c.department_name,
+        number_of_users: c.number_of_users,
+        percent:
+          total > 0
+            ? Number(
+                ((c.number_of_users * 100) / total).toFixed(2)
+              )
+            : 0,
+      }))
+      .sort((a, b) => b.number_of_users - a.number_of_users);
 
     return successResponse(
       res,
       200,
       "Active Department employee count fetched successfully",
-      result.rows
+      result
     );
   } catch (error) {
     console.error("Active Department employee count error:", error);
-
     return handleDbError(
       res,
       error,
@@ -139,72 +207,95 @@ const getActive_Employee_Department_Count = async (req, res) => {
 
 const getWeeklyEmployeesData = async (req, res) => {
   try {
-    const { emp_id } = req.params; // or req.query based on your routing
-    
+    const { emp_id } = req.params;
+
     if (!emp_id) {
       return res.status(400).json({
         success: false,
-        message: "Employee ID is required"
+        message: "Employee ID is required",
       });
     }
 
-    const query = `
-      WITH date_series AS (
-        SELECT 
-          generate_series(
-            DATE_TRUNC('week', CURRENT_DATE)::date,
-            DATE_TRUNC('week', CURRENT_DATE)::date + INTERVAL '6 days',
-            INTERVAL '1 day'
-          )::date AS attendance_date
-      ),
-      week_days AS (
-        SELECT 
-          attendance_date,
-          TO_CHAR(attendance_date, 'Dy') AS day_name,
-          EXTRACT(DOW FROM attendance_date) AS day_of_week
-        FROM date_series
-      )
-      SELECT 
-        wd.attendance_date,
-        wd.day_name,
-        wa.punch_in,
-        wa.punch_out,
-        wa.total_hours,
-        wa.expected_hours,
-        wa.late_arrival,
-        wa.is_late_arrived,
-        wa.early_go,
-        wa.is_early_gone,
-        wa.status_id,
-        CASE 
-          WHEN wa.attendance_date IS NULL THEN 'No Data'
-          ELSE 'Present'
-        END AS attendance_status,
-        CASE 
-          WHEN EXTRACT(DOW FROM wd.attendance_date) IN (0, 6) THEN INTERVAL '0 hours'
-          ELSE INTERVAL '9 hours 18 minutes'
-        END AS target_hours
-      FROM 
-        week_days wd
-      LEFT JOIN 
-        weekly_attendance wa 
-        ON wd.attendance_date = wa.attendance_date 
-        AND wa.emp_id = $1
-      ORDER BY 
-        wd.attendance_date
-    `;
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const diffToMonday = (dayOfWeek + 6) % 7;
 
-    const result = await db.query(query, [emp_id]);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - diffToMonday);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const startStr = weekStart.toISOString().split("T")[0];
+    const endStr = weekEnd.toISOString().split("T")[0];
+
+    const records = await DailyAttendance.findAll({
+      where: {
+        emp_id,
+        attendance_date: { [Op.between]: [startStr, endStr] },
+      },
+      attributes: [
+        "attendance_date",
+        "punch_in",
+        "punch_out",
+        "total_hours",
+        "expected_hours",
+        "late_arrival",
+        "is_late_arrived",
+        "early_go",
+        "is_early_gone",
+        "status_id",
+      ],
+      raw: true,
+    });
+
+    const recordMap = {};
+    records.forEach((r) => {
+      const key = new Date(r.attendance_date)
+        .toISOString()
+        .split("T")[0];
+      recordMap[key] = r;
+    });
+
+    const result = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+
+      const dateStr = d.toISOString().split("T")[0];
+      const dayName = d.toLocaleDateString("en-US", {
+        weekday: "short",
+      });
+      const dow = d.getDay();
+      const rec = recordMap[dateStr] || null;
+
+      result.push({
+        attendance_date: dateStr,
+        day_name: dayName,
+        punch_in: rec?.punch_in || null,
+        punch_out: rec?.punch_out || null,
+        total_hours: rec?.total_hours || null,
+        expected_hours: rec?.expected_hours || null,
+        late_arrival: rec?.late_arrival || null,
+        is_late_arrived: rec?.is_late_arrived || null,
+        early_go: rec?.early_go || null,
+        is_early_gone: rec?.is_early_gone || null,
+        status_id: rec?.status_id || null,
+        attendance_status: rec ? "Present" : "No Data",
+        target_hours:
+          dow === 0 || dow === 6 ? "00:00:00" : "09:18:00",
+      });
+    }
 
     return successResponse(
       res,
       200,
       "Weekly employee data fetched successfully",
-      result.rows
+      result
     );
   } catch (error) {
     console.error("Weekly employee data error:", error);
-
     return handleDbError(
       res,
       error,
@@ -216,67 +307,97 @@ const getWeeklyEmployeesData = async (req, res) => {
 const getEmployeeWeeklyPieChartData = async (req, res) => {
   try {
     const { emp_id } = req.params;
-    
+
     if (!emp_id) {
       return res.status(400).json({
         success: false,
-        message: "Employee ID is required"
+        message: "Employee ID is required",
       });
     }
 
-    const query = `
-      WITH current_week_dates AS (
-        SELECT (CURRENT_DATE - (EXTRACT(DOW FROM CURRENT_DATE) - 1)::integer * INTERVAL '1 day') + (n || ' days')::interval AS week_date
-        FROM generate_series(0, 6) AS n
-        WHERE (CURRENT_DATE - (EXTRACT(DOW FROM CURRENT_DATE) - 1)::integer * INTERVAL '1 day') + (n || ' days')::interval <= CURRENT_DATE
-      ),
-      attendance_data AS (
-        SELECT 
-          ad.emp_id,
-          ad.attendance_date,
-          ats.status_name
-        FROM daily_attendance ad 
-        LEFT JOIN attendence_status ats ON ad.status_id = ats.id 
-        WHERE ad.emp_id = $1
-      )
-      SELECT 
-        COUNT(cwd.week_date) AS total_days,
-        COALESCE(SUM(CASE WHEN ad.status_name IN ('Present', 'Working') THEN 1 ELSE 0 END), 0) AS present_days,
-        COALESCE(SUM(CASE WHEN ad.status_name = 'Absent' THEN 1 ELSE 0 END), 0) AS absent_days
-      FROM current_week_dates cwd
-      LEFT JOIN attendance_data ad ON cwd.week_date = DATE(ad.attendance_date)
-    `;
+    const today = new Date();
+    const dow = today.getDay();
+    const diffToMonday = (dow + 6) % 7;
 
-    const result = await db.query(query, [emp_id]);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - diffToMonday);
+    weekStart.setHours(0, 0, 0, 0);
 
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      if (d <= today) {
+        weekDates.push(d.toISOString().split("T")[0]);
+      }
+    }
 
-    const totalDays = result.rows[0]?.total_days || 0;
-    const presentDays = result.rows[0]?.present_days || 0;
-    const absentDays = result.rows[0]?.absent_days || 0;
-    const otherDays = totalDays - (presentDays + absentDays);
+    const records = await DailyAttendance.findAll({
+      where: {
+        emp_id,
+        attendance_date: { [Op.in]: weekDates },
+      },
+      include: [
+        {
+          model: AttendanceStatus,
+          as: "status",
+          attributes: ["status_name"],
+          required: false,
+        },
+      ],
+    });
+
+    const recordMap = {};
+    records.forEach((r) => {
+      const plain = r.toJSON();
+      const key = new Date(plain.attendance_date)
+        .toISOString()
+        .split("T")[0];
+      recordMap[key] = plain;
+    });
+
+    let present_days = 0;
+    let absent_days = 0;
+
+    weekDates.forEach((d) => {
+      const rec = recordMap[d];
+      const statusName = rec?.status?.status_name;
+
+      if (statusName === "Present" || statusName === "Working") {
+        present_days++;
+      } else if (statusName === "Absent") {
+        absent_days++;
+      }
+    });
+
+    const total_days = weekDates.length;
+    const other_days = total_days - (present_days + absent_days);
+
+    const pct = (v) =>
+      total_days > 0 ? ((v / total_days) * 100).toFixed(2) : 0;
 
     const responseData = {
-      total_days: totalDays,
-      present_days: presentDays,
-      absent_days: absentDays,
-      other_days: otherDays,
+      total_days,
+      present_days,
+      absent_days,
+      other_days,
       pie_chart_data: [
-        { 
-          label: 'Present', 
-          value: presentDays, 
-          percentage: totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0 
+        {
+          label: "Present",
+          value: present_days,
+          percentage: pct(present_days),
         },
-        { 
-          label: 'Absent', 
-          value: absentDays, 
-          percentage: totalDays > 0 ? ((absentDays / totalDays) * 100).toFixed(2) : 0 
+        {
+          label: "Absent",
+          value: absent_days,
+          percentage: pct(absent_days),
         },
-        { 
-          label: 'Other', 
-          value: otherDays, 
-          percentage: totalDays > 0 ? ((otherDays / totalDays) * 100).toFixed(2) : 0 
-        }
-      ]
+        {
+          label: "Other",
+          value: other_days,
+          percentage: pct(other_days),
+        },
+      ],
     };
 
     return successResponse(
@@ -287,7 +408,6 @@ const getEmployeeWeeklyPieChartData = async (req, res) => {
     );
   } catch (error) {
     console.error("Employee weekly pie chart data error:", error);
-
     return handleDbError(
       res,
       error,
@@ -303,77 +423,99 @@ const getMonthlyEmployeesData = async (req, res) => {
     if (!emp_id) {
       return res.status(400).json({
         success: false,
-        message: "Employee ID is required"
+        message: "Employee ID is required",
       });
     }
 
-    const query = `
-      WITH date_series AS (
-        SELECT 
-          generate_series(
-            DATE_TRUNC('month', CURRENT_DATE)::date,
-            (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')::date,
-            INTERVAL '1 day'
-          )::date AS attendance_date
-      ),
-      month_days AS (
-        SELECT 
-          attendance_date,
-          TO_CHAR(attendance_date, 'Dy') AS day_name,
-          EXTRACT(DOW FROM attendance_date) AS day_of_week
-        FROM date_series
-      )
-      SELECT 
-        md.attendance_date,
-        md.day_name,
-        wa.punch_in,
-        wa.punch_out,
-        wa.total_hours,
-        wa.expected_hours,
-        wa.late_arrival,
-        wa.is_late_arrived,
-        wa.early_go,
-        wa.is_early_gone,
-        wa.status_id,
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-        CASE 
-          WHEN wa.status_id = 1 THEN 'Present'
-          WHEN wa.status_id = 2 THEN 'Absent'
-          WHEN wa.status_id = 3 THEN 'Working'
-          WHEN wa.status_id = 4 THEN 'Half Day'
-          WHEN wa.status_id = 5 THEN 'Holiday'
-          WHEN wa.status_id = 6 THEN 'Leave'
-          WHEN wa.status_id = 7 THEN 'Weekly Off'
-          ELSE 'Absent'
-        END AS attendance_status,
+    const startStr = monthStart.toISOString().split("T")[0];
+    const endStr = monthEnd.toISOString().split("T")[0];
 
-        CASE 
-          WHEN EXTRACT(DOW FROM md.attendance_date) IN (0, 6) 
-            THEN INTERVAL '0 hours'
-          ELSE INTERVAL '9 hours 18 minutes'
-        END AS target_hours
+    const records = await DailyAttendance.findAll({
+      where: {
+        emp_id,
+        attendance_date: { [Op.between]: [startStr, endStr] },
+      },
+      attributes: [
+        "attendance_date",
+        "punch_in",
+        "punch_out",
+        "total_hours",
+        "expected_hours",
+        "late_arrival",
+        "is_late_arrived",
+        "early_go",
+        "is_early_gone",
+        "status_id",
+      ],
+      raw: true,
+    });
 
-      FROM month_days md
+    const recordMap = {};
+    records.forEach((r) => {
+      const key = new Date(r.attendance_date)
+        .toISOString()
+        .split("T")[0];
+      recordMap[key] = r;
+    });
 
-      LEFT JOIN weekly_attendance wa 
-        ON md.attendance_date = wa.attendance_date 
-        AND wa.emp_id = $1
+    const statusLabels = {
+      1: "Present",
+      2: "Absent",
+      3: "Working",
+      4: "Half Day",
+      5: "Holiday",
+      6: "Leave",
+      7: "Weekly Off",
+    };
 
-      ORDER BY md.attendance_date;
-    `;
+    const result = [];
+    const cursor = new Date(monthStart);
 
-    const result = await db.query(query, [emp_id]);
+    while (cursor <= monthEnd) {
+      const dateStr = cursor.toISOString().split("T")[0];
+      const dayName = cursor.toLocaleDateString("en-US", {
+        weekday: "short",
+      });
+      const dow = cursor.getDay();
+      const rec = recordMap[dateStr] || null;
+
+      let attendance_status = "Absent";
+      if (rec && rec.status_id) {
+        attendance_status = statusLabels[rec.status_id] || "Absent";
+      }
+
+      result.push({
+        attendance_date: dateStr,
+        day_name: dayName,
+        punch_in: rec?.punch_in || null,
+        punch_out: rec?.punch_out || null,
+        total_hours: rec?.total_hours || null,
+        expected_hours: rec?.expected_hours || null,
+        late_arrival: rec?.late_arrival || null,
+        is_late_arrived: rec?.is_late_arrived || null,
+        early_go: rec?.early_go || null,
+        is_early_gone: rec?.is_early_gone || null,
+        status_id: rec?.status_id || null,
+        attendance_status,
+        target_hours:
+          dow === 0 || dow === 6 ? "00:00:00" : "09:18:00",
+      });
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
 
     return successResponse(
       res,
       200,
       "Monthly employee data fetched successfully",
-      result.rows
+      result
     );
-
   } catch (error) {
     console.error("Monthly employee data error:", error);
-
     return handleDbError(
       res,
       error,
@@ -389,67 +531,84 @@ const getYearlyEmployeesData = async (req, res) => {
     if (!emp_id) {
       return res.status(400).json({
         success: false,
-        message: "Employee ID is required"
+        message: "Employee ID is required",
       });
     }
 
-    const query = `
-      WITH months AS (
-    SELECT 
-        generate_series(
-            DATE_TRUNC('year', CURRENT_DATE),
-            DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '11 months',
-            INTERVAL '1 month'
-        )::date AS month_start
-),
-attendance_data AS (
-    SELECT
-        ad.emp_id,
-        DATE(ad.attendance_date) AS attendance_date,
-        ats.status_name
-    FROM daily_attendance ad
-    LEFT JOIN attendence_status ats 
-        ON ad.status_id = ats.id
-    WHERE ad.emp_id = $1
-)
-SELECT
-    TO_CHAR(m.month_start, 'Mon - YYYY') AS month,
-    
-    COUNT(*) FILTER (
-        WHERE ad.status_name = 'Present'
-    ) AS present_days,
+    const today = new Date();
+    const yearStart = new Date(today.getFullYear(), 0, 1);
+    const yearEnd = new Date(today.getFullYear(), 11, 31);
 
-    COUNT(*) FILTER (
-        WHERE ad.status_name = 'Leave'
-    ) AS leave_days,
+    const startStr = yearStart.toISOString().split("T")[0];
+    const endStr = yearEnd.toISOString().split("T")[0];
 
-    COUNT(*) FILTER (
-        WHERE ad.status_name = 'Absent'
-    ) AS absent_days,
+    const records = await DailyAttendance.findAll({
+      where: {
+        emp_id,
+        attendance_date: { [Op.between]: [startStr, endStr] },
+      },
+      include: [
+        {
+          model: AttendanceStatus,
+          as: "status",
+          attributes: ["status_name"],
+          required: false,
+        },
+      ],
+    });
 
-    22 AS target_days
+    const monthMap = {};
+    for (let m = 0; m < 12; m++) {
+      const key = `${today.getFullYear()}-${String(m + 1).padStart(2, "0")}`;
+      monthMap[key] = {
+        present_days: 0,
+        leave_days: 0,
+        absent_days: 0,
+      };
+    }
 
-FROM months m
-LEFT JOIN attendance_data ad
-    ON ad.attendance_date >= m.month_start
-    AND ad.attendance_date < m.month_start + INTERVAL '1 month'
+    records.forEach((r) => {
+      const plain = r.toJSON();
+      const d = new Date(plain.attendance_date);
+      const key = `${d.getFullYear()}-${String(
+        d.getMonth() + 1
+      ).padStart(2, "0")}`;
 
-GROUP BY m.month_start
-ORDER BY m.month_start;
-    `;
+      if (!monthMap[key]) return;
 
-    const result = await db.query(query, [emp_id]);
+      const statusName = plain.status?.status_name;
+
+      if (statusName === "Present") monthMap[key].present_days++;
+      else if (statusName === "Leave") monthMap[key].leave_days++;
+      else if (statusName === "Absent") monthMap[key].absent_days++;
+    });
+
+    const monthNames = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    const result = Object.keys(monthMap)
+      .sort()
+      .map((key) => {
+        const [yr, mo] = key.split("-").map(Number);
+        return {
+          month: `${monthNames[mo - 1]} - ${yr}`,
+          present_days: monthMap[key].present_days,
+          leave_days: monthMap[key].leave_days,
+          absent_days: monthMap[key].absent_days,
+          target_days: 22,
+        };
+      });
 
     return successResponse(
       res,
       200,
       "Monthly employee data fetched successfully",
-      result.rows
+      result
     );
-
   } catch (error) {
     console.error("Monthly employee data error:", error);
-
     return handleDbError(
       res,
       error,
@@ -457,7 +616,6 @@ ORDER BY m.month_start;
     );
   }
 };
-
 
 module.exports = {
   getActiveEmployeeCount,
@@ -467,5 +625,5 @@ module.exports = {
   getWeeklyEmployeesData,
   getEmployeeWeeklyPieChartData,
   getMonthlyEmployeesData,
-  getYearlyEmployeesData
+  getYearlyEmployeesData,
 };

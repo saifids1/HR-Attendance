@@ -25,6 +25,7 @@ const sendNotification = require("../services/notification.services");
 /* ============================================================
    LOGIN
 ============================================================ */
+
 const loginController = async (req, res) => {
   try {
     let { email: identifier, password } = req.body;
@@ -62,15 +63,15 @@ const loginController = async (req, res) => {
 
       include: [
         {
-          model: Organizations,
-          as: "organizations",
-          required: false,
-        },
-        {
           model: Login,
           as: "login",
           required: true,
           attributes: ["lg_id", "pr_id", "lg_password"],
+        },
+        {
+          model: Organizations,
+          as: "organizations",
+          required: false,
         },
       ],
 
@@ -84,7 +85,6 @@ const loginController = async (req, res) => {
       ],
 
       subQuery: false,
-
       limit: 1,
     });
 
@@ -111,31 +111,20 @@ const loginController = async (req, res) => {
       });
     }
 
-    const org = user.organizations || {};
+    const org = user.organizations?.[0] || {};
 
     const roleRows = await UserRoleRelation.findAll({
-      where: {
-        pr_id: user.pr_id,
-      },
-
+      where: { pr_id: user.pr_id },
       include: [
         {
           model: UsrRoleMaster,
           as: "role",
           required: true,
-          attributes: [
-            "rm_role_id",
-            "rm_role_name",
-          ],
+          attributes: ["rm_role_id", "rm_role_name"],
         },
       ],
-
       order: [
-        [
-          { model: UsrRoleMaster, as: "role" },
-          "rm_role_id",
-          "ASC",
-        ],
+        [{ model: UsrRoleMaster, as: "role" }, "rm_role_id", "ASC"],
       ],
     });
 
@@ -151,9 +140,7 @@ const loginController = async (req, res) => {
         role: roles.map((r) => r.role_name),
       },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
+      { expiresIn: "1h" }
     );
 
     const decoded = jwt.decode(token);
@@ -167,27 +154,16 @@ const loginController = async (req, res) => {
 
       user: {
         id: user.pr_id,
-
-        name: `${user.pr_first_name || ""}`.trim(),
-
+        name: `${user.pr_first_name || ""}`,
         first_name: user.pr_first_name,
-
         last_name: user.pr_last_name,
-
         email: user.pr_email,
-
         emp_id: org.or_emp_id,
-
         official_email: org.or_official_email,
-
         organization_email: org.or_organization_email,
-
         organization_name: org.or_organization_name,
-
         official_contact: org.or_official_contact,
-
         profile_image: user.pr_profile_image,
-
         role: roles.map((r) => r.role_name),
       },
     });
@@ -200,7 +176,6 @@ const loginController = async (req, res) => {
     });
   }
 };
-
 
 
 /* ============================================================

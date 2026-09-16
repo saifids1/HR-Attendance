@@ -30,6 +30,15 @@ db.Experience        = require("./experience")(sequelize, DataTypes);
 db.Nominee           = require("./nominee")(sequelize, DataTypes);
 db.VendorMaster      = require("./vendorMaster")(sequelize, DataTypes);
 
+/* ---------- Attendance & Holiday Models ---------- */
+db.ActivityLog       = require("./activityLog")(sequelize, DataTypes);
+db.AttendanceLog     = require("./attendanceLog")(sequelize, DataTypes);
+db.AttendanceStatus  = require("./attendenceStatus")(sequelize, DataTypes);
+db.DailyAttendance   = require("./dailyAttendance")(sequelize, DataTypes);
+db.Holiday           = require("./holiday")(sequelize, DataTypes);
+db.HolidayTypeMaster = require("./holidayTypeMaster")(sequelize, DataTypes);
+db.EmployeeEmail     = require("./employeeEmail")(sequelize, DataTypes);
+
 /* ---------- Associations ---------- */
 
 // Personal <-> Organizations
@@ -128,5 +137,13 @@ db.Organizations.belongsTo(db.VendorMaster,       { foreignKey: "or_vendor_id", 
 db.Organizations.belongsTo(db.DepartmentMaster,   { foreignKey: "or_department_id",   as: "department" });
 db.Organizations.belongsTo(db.DesignationMaster,  { foreignKey: "or_designation_id",  as: "designation" });
 //db.Organizations.belongsTo(db.EmployeeTypeMaster, { foreignKey: "or_employee_type_id",as: "employeeType" });
+
+// Attendance
+db.DailyAttendance.belongsTo(db.AttendanceStatus, {  foreignKey: "status_id", as: "status",});
+db.AttendanceStatus.hasMany(db.DailyAttendance, {foreignKey: "status_id", as: "attendanceRecords",});
+// Holidays
+db.Holiday.belongsTo(db.HolidayTypeMaster, { foreignKey: "holiday_id", targetKey: "holiday_type_id", as: "holidayType",});
+// Employee ↔ Attendance
+db.Organizations.hasMany(db.DailyAttendance, { foreignKey: "emp_id", sourceKey: "or_emp_id", as: "attendance",});
 
 module.exports = db;

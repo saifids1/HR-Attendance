@@ -3288,6 +3288,301 @@ exports.getManagerLeaveRequests = async (req, res) => {
   }
 };
 
+
+exports.getLeaveRequestsByReportingToId = async (req, res) => {
+  try {
+    const managerPrId = getLoggedInPrId(req);
+
+    let page = parseInt(req.query.page, 10);
+    let limit = parseInt(req.query.limit, 10);
+
+    if (!Number.isInteger(page) || page < 1) {
+      page = 1;
+    }
+
+    if (!Number.isInteger(limit) || limit < 1) {
+      limit = 10;
+    }
+
+    if (limit > 1000) {
+      limit = 1000;
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { employee_id, request_status, leave_type_code } = req.query;
+
+    const {
+      LeaveRequests,
+      Organizations,
+      Personal,
+      LeaveTypes,
+      LeaveStatus,
+    } = db;
+
+    const employeeWhere = { or_is_active: true };
+
+    if (employee_id) {
+      employeeWhere[Op.or] = [
+        sequelize.where(
+          sequelize.cast(sequelize.col("employee.or_emp_id"), "TEXT"),
+          { [Op.iLike]: `%${employee_id}%` }
+        ),
+        { or_organization_name: { [Op.iLike]: `%${employee_id}%` } },
+        { or_official_email: { [Op.iLike]: `%${employee_id}%` } },
+        { or_official_contact: { [Op.iLike]: `%${employee_id}%` } },
+      ];
+    }
+
+    const leaveTypeWhere = {};
+    if (leave_type_code) {
+      leaveTypeWhere[Op.and] = sequelize.where(
+        sequelize.fn(
+          "LOWER",
+          sequelize.col("leaveType.lt_leave_type_code")
+        ),
+        leave_type_code.toLowerCase()
+      );
+    }
+
+    const leaveStatusWhere = {};
+    if (request_status) {
+      leaveStatusWhere[Op.and] = sequelize.where(
+        sequelize.fn(
+          "LOWER",
+          sequelize.col("status.ls_leave_status_name")
+        ),
+        request_status.toLowerCase()
+      );
+    }
+
+    const includeClause = [
+      {
+        model: Organizations,
+        as: "employee",
+        required: true,
+        where: employeeWhere,
+        attributes: [
+          "or_id",
+          "or_emp_id",
+          "or_official_email",
+          "or_official_contact",
+        ],
+      },
+      {
+        model: Personal,
+        as: "personal",
+        required: true,
+        attributes: ["pr_first_name", "pr_last_name"],
+      },
+      {
+        model: LeaveTypes,
+        as: "leaveType",
+        required: true,
+        where: Object.keys(leaveTypeWhere).length
+          ? leaveTypeWhere
+          : undefined,
+        attributes: [
+          "lt_leave_type_id",
+          "lt_leave_type_code",
+          "lt_leave_type_name",
+          "lt_total_days_per_year",
+          "lt_is_paid",
+        ],
+      },
+      {
+        model: LeaveStatus,
+        as: "status",
+        required: true,
+        where: Object.keys(leaveStatusWhere).length
+          ? leaveStatusWhere
+          : undefined,
+        attributes: ["ls_leave_status_id", "ls_leave_status_name"],
+      },
+    ];
+
+    const whereClause = { lr_reporting_to: managerPrId };
+
+    if (employee_id) {
+      whereClause[Op.or] = [
+        sequelize.where(
+          sequelize.cast(sequelize.col("employee.or_emp_id"), "TEXT"),
+          { [Op.iLike]: `%${employee_id}%` }
+        ),
+        sequelize.where(
+          sequelize.col("employee.or_organization_name"),
+          { [Op.iLike]: `%${employee_id}%` }
+        ),
+        sequelize.where(
+          sequelize.col("employee.or_official_email"),
+          { [Op.iLike]: `%${employee_id}%` }
+        ),
+        sequelize.where(
+          sequelize.col("employee.or_official_contact"),
+          { [Op.iLike]: `%${employee_id}%` }
+        ),
+        sequelize.where(
+          sequelize.cast(sequelize.col("LeaveRequests.request_id"), "TEXT"),
+          { [Op.iLike]: `%${employee_id}%` }
+        ),
+      ];
+    }
+
+    const total = await LeaveRequests.count({
+      where: whereClause,
+      include: includeClause,
+      distinct: true,
+      col: "lr_leave_request_id",
+      subQuery: false,
+    });
+
+    const orderClause = [
+      [
+        sequelize.literal(`
+          CASE
+            WHEN LOWER("status"."ls_leave_status_name") = 'pending' THEN 0
+            WHEN LOWER("status"."ls_leave_status_name") = 'approved' THEN 1
+            WHEN LOWER("status"."ls_leave_status_name") = 'rejected' THEN 2
+            WHEN LOWER("status"."ls_leave_status_name") = 'cancelled' THEN 3
+            ELSE 4
+          END
+        `),
+        "ASC",
+      ],
+      ["lr_created_at", "DESC"],
+    ];
+
+    const rows = await LeaveRequests.findAll({
+      where: whereClause,
+      include: includeClause,
+      attributes: [
+        "lr_leave_request_id",
+        "lr_pr_id",
+        "request_id",
+        "lr_reporting_to",
+        "lr_leave_type_id",
+        [
+          sequelize.fn(
+            "TO_CHAR",
+            sequelize.col("LeaveRequests.lr_from_date"),
+            "YYYY-MM-DD"
+          ),
+          "lr_from_date",
+        ],
+        [
+          sequelize.fn(
+            "TO_CHAR",
+            sequelize.col("LeaveRequests.lr_to_date"),
+            "YYYY-MM-DD"
+          ),
+          "lr_to_date",
+        ],
+        "lr_total_days",
+        "lr_reason",
+        "lr_status_id",
+        "lr_ismailfromrequester",
+        "lr_applied_at",
+        "lr_approver_by",
+        "lr_approver_at",
+        "lr_approver_remark",
+        "lr_ismailfromapprover",
+        "lr_cancelled_at",
+        "lr_cancellation_reason",
+        "lr_created_at",
+        "lr_created_by",
+        "lr_updated_at",
+        "lr_updated_by",
+      ],
+      order: orderClause,
+      limit,
+      offset,
+      subQuery: false,
+    });
+
+    const formattedRows = rows.map((r) => {
+      const plain = r.toJSON();
+
+      return {
+        lr_leave_request_id: plain.lr_leave_request_id,
+        lr_pr_id: plain.lr_pr_id,
+        request_id: plain.request_id,
+        lr_reporting_to: plain.lr_reporting_to,
+
+        employee_or_id: plain.employee?.or_id || null,
+        employee_id: plain.employee?.or_emp_id || null,
+        or_official_email: plain.employee?.or_official_email || null,
+        or_official_contact: plain.employee?.or_official_contact || null,
+
+        pr_first_name: plain.personal?.pr_first_name || null,
+        pr_last_name: plain.personal?.pr_last_name || null,
+
+        lr_leave_type_id: plain.lr_leave_type_id,
+        lt_leave_type_code: plain.leaveType?.lt_leave_type_code || null,
+        lt_leave_type_name: plain.leaveType?.lt_leave_type_name || null,
+        lt_total_days_per_year:
+          plain.leaveType?.lt_total_days_per_year || null,
+        lt_is_paid: plain.leaveType?.lt_is_paid || null,
+
+        lr_from_date: plain.lr_from_date,
+        lr_to_date: plain.lr_to_date,
+
+        lr_total_days: plain.lr_total_days,
+        lr_reason: plain.lr_reason,
+
+        lr_status_id: plain.lr_status_id,
+        request_status: plain.status?.ls_leave_status_name || null,
+
+        lr_ismailfromrequester: plain.lr_ismailfromrequester,
+        lr_applied_at: plain.lr_applied_at,
+
+        lr_approver_by: plain.lr_approver_by,
+        lr_approver_at: plain.lr_approver_at,
+        lr_approver_remark: plain.lr_approver_remark,
+        lr_ismailfromapprover: plain.lr_ismailfromapprover,
+
+        lr_cancelled_at: plain.lr_cancelled_at,
+        lr_cancellation_reason: plain.lr_cancellation_reason,
+
+        lr_created_at: plain.lr_created_at,
+        lr_created_by: plain.lr_created_by,
+        lr_updated_at: plain.lr_updated_at,
+        lr_updated_by: plain.lr_updated_by,
+      };
+    });
+
+    const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
+
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    return res.status(200).json({
+      success: true,
+
+      data: formattedRows,
+
+      pagination: {
+        page,
+        limit,
+        offset,
+
+        totalRecords: total,
+        totalPages,
+
+        hasNextPage,
+        hasPreviousPage,
+
+        nextPage: hasNextPage ? page + 1 : null,
+
+        previousPage: hasPreviousPage ? page - 1 : null,
+      },
+    });
+  } catch (error) {
+    console.error("getManagerLeaveRequests Error:", error);
+
+    return handleDbError(res, error);
+  }
+};
+
 /* ============================================================
    MY REPORTING DETAILS (flat, identical to raw)
 ============================================================ */
