@@ -9,6 +9,7 @@ const {
 const {
   getDepartmentEmployees,
   createSalarySlip,
+   createMultipleSalarySlips,
   getSalarySlips,
   getSalarySlipById,
   updateSalarySlip,
@@ -17,85 +18,50 @@ const {
 } = require("../controllers/salarySlip.controller");
 
 
-/*
-|--------------------------------------------------------------------------
-| Employee Dropdown
-|--------------------------------------------------------------------------
-*/
-
+/*Employee Dropdown*/
 router.get(
   "/department/:or_department_id/employees",
   getDepartmentEmployees
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| Create Salary Slip
-|--------------------------------------------------------------------------
-*/
+/*Create Salary Slip*/
 
 router.post(
   "/",
   salarySlipPdfUpload,
   createSalarySlip
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| Get All Salary Slips
-|--------------------------------------------------------------------------
-*/
+/*Create Salary Slip for multi record*/
+router.post(
+  "/bulk",
+  salarySlipPdfUpload,
+  createMultipleSalarySlips
+);
+/*Get All Salary Slips*/
 
 router.get(
   "/",
   getSalarySlips
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| Get Salary Slip By ID
-|--------------------------------------------------------------------------
-*/
+/*Get Salary Slip By ID*/
 
 router.get(
   "/:id",
   getSalarySlipById
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| Update Salary Slip
-|--------------------------------------------------------------------------
-*/
+/*Update Salary Slip*/
 
 router.put(
   "/:id",
   salarySlipPdfUpload,
   updateSalarySlip
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| Delete Salary Slip
-|--------------------------------------------------------------------------
-*/
+/*Delete Salary Slip*/
 
 router.delete(
   "/:id",
   deleteSalarySlip
 );
-
-
-/*
-|--------------------------------------------------------------------------
-| View Salary Slip PDF
-|--------------------------------------------------------------------------
-*/
+/*View Salary Slip PDF*/
 
 router.get(
   "/:id/file",

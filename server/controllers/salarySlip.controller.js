@@ -313,9 +313,14 @@ const createMultipleSalarySlips = async (req, res) => {
   let uploadedFiles = [];
 
   try {
-    /*Get Salary Slip Data*/
+    /* -------------------------------------------------------------------------- */
+    /*                         Get Salary Slip Data                              */
+    /* -------------------------------------------------------------------------- */
 
-    let salarySlips = req.body.salary_slips;
+    let salarySlips = req.body?.salary_slips;
+
+    console.log("Salary Slips Raw Data:", salarySlips);
+    console.log("Uploaded Files:", req.files);
 
     if (!salarySlips) {
       return res.status(400).json({
@@ -324,7 +329,9 @@ const createMultipleSalarySlips = async (req, res) => {
       });
     }
 
-    /*Parse JSON*/
+    /* -------------------------------------------------------------------------- */
+    /*                              Parse JSON                                    */
+    /* -------------------------------------------------------------------------- */
 
     if (typeof salarySlips === "string") {
       try {
@@ -351,7 +358,9 @@ const createMultipleSalarySlips = async (req, res) => {
       });
     }
 
-    /*Check Uploaded Files*/
+    /* -------------------------------------------------------------------------- */
+    /*                         Check Uploaded Files                               */
+    /* -------------------------------------------------------------------------- */
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -362,7 +371,9 @@ const createMultipleSalarySlips = async (req, res) => {
 
     uploadedFiles = req.files;
 
-    /*File Count Check*/
+    /* -------------------------------------------------------------------------- */
+    /*                            File Count Check                                */
+    /* -------------------------------------------------------------------------- */
 
     if (req.files.length !== salarySlips.length) {
       return res.status(400).json({
@@ -372,11 +383,17 @@ const createMultipleSalarySlips = async (req, res) => {
       });
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                              Start Transaction                             */
+    /* -------------------------------------------------------------------------- */
+
     await client.query("BEGIN");
 
     const createdSalarySlips = [];
 
-    /*Process Each Salary Slip*/
+    /* -------------------------------------------------------------------------- */
+    /*                         Process Each Salary Slip                           */
+    /* -------------------------------------------------------------------------- */
 
     for (let i = 0; i < salarySlips.length; i++) {
       const slip = salarySlips[i];
@@ -393,7 +410,9 @@ const createMultipleSalarySlips = async (req, res) => {
 
       const file = req.files[i];
 
-      /*Validation*/
+      /* ------------------------------------------------------------------------ */
+      /*                              Validation                                  */
+      /* ------------------------------------------------------------------------ */
 
       if (!emp_id) {
         throw new Error(
@@ -425,15 +444,38 @@ const createMultipleSalarySlips = async (req, res) => {
         );
       }
 
-      /*Check Employee*/
+      /* ------------------------------------------------------------------------ */
+      /*                     Check Employee Using Employee Code                   */
+      /* ------------------------------------------------------------------------ */
+
+      /*
+        emp_id from Postman is actually organizations.or_emp_id.
+
+        Example:
+
+        or_emp_id   = 202000002
+        pr_id       = 25
+
+        salary_slips.employee_id should store 25.
+      */
 
       const employeeResult = await client.query(
         `
-        SELECT pr_id
-        FROM personal
-        WHERE pr_id = $1
+        SELECT
+          p.pr_id,
+          og.or_emp_id
+        FROM personal p
+        INNER JOIN organizations og
+          ON p.pr_id = og.pr_id
+        WHERE og.or_emp_id = $1
+        LIMIT 1
         `,
         [emp_id]
+      );
+
+      console.log(
+        `Employee Result for ${emp_id}:`,
+        employeeResult.rows
       );
 
       if (employeeResult.rows.length === 0) {
@@ -442,13 +484,22 @@ const createMultipleSalarySlips = async (req, res) => {
         );
       }
 
-      /*Check Salary Slip Number*/
+      const employeeId = employeeResult.rows[0].pr_id;
+
+      console.log(
+        `Employee ${emp_id} mapped to personal.pr_id: ${employeeId}`
+      );
+
+      /* ------------------------------------------------------------------------ */
+      /*                    Check Salary Slip Number                              */
+      /* ------------------------------------------------------------------------ */
 
       const slipNoResult = await client.query(
         `
         SELECT salary_slip_id
         FROM salary_slips
         WHERE salary_slip_no = $1
+        LIMIT 1
         `,
         [salary_slip_no]
       );
@@ -459,7 +510,9 @@ const createMultipleSalarySlips = async (req, res) => {
         );
       }
 
-      /*Check Employee + Month + Year*/
+      /* ------------------------------------------------------------------------ */
+      /*                 Check Employee + Month + Year                            */
+      /* ------------------------------------------------------------------------ */
 
       const duplicateResult = await client.query(
         `
@@ -468,9 +521,10 @@ const createMultipleSalarySlips = async (req, res) => {
         WHERE employee_id = $1
           AND month = $2
           AND year = $3
+        LIMIT 1
         `,
         [
-          emp_id,
+          employeeId,
           month,
           year,
         ]
@@ -482,7 +536,9 @@ const createMultipleSalarySlips = async (req, res) => {
         );
       }
 
-      /*Insert Salary Slip*/
+      /* ------------------------------------------------------------------------ */
+      /*                         Insert Salary Slip                               */
+      /* ------------------------------------------------------------------------ */
 
       const salarySlipResult = await client.query(
         `
@@ -511,7 +567,7 @@ const createMultipleSalarySlips = async (req, res) => {
         RETURNING *
         `,
         [
-          emp_id,
+          employeeId,
           month,
           year,
           salary_slip_no,
@@ -521,10 +577,11 @@ const createMultipleSalarySlips = async (req, res) => {
         ]
       );
 
-      const salarySlip =
-        salarySlipResult.rows[0];
+      const salarySlip = salarySlipResult.rows[0];
 
-      /*Insert File*/
+      /* ------------------------------------------------------------------------ */
+      /*                           Insert PDF File                                */
+      /* ------------------------------------------------------------------------ */
 
       const fileResult = await client.query(
         `
@@ -552,16 +609,25 @@ const createMultipleSalarySlips = async (req, res) => {
         ]
       );
 
+      /* ------------------------------------------------------------------------ */
+      /*                         Add Created Data                                 */
+      /* ------------------------------------------------------------------------ */
+
       createdSalarySlips.push({
         salarySlip,
         file: fileResult.rows[0],
       });
     }
-   
+
+    /* -------------------------------------------------------------------------- */
+    /*                                Commit                                      */
+    /* -------------------------------------------------------------------------- */
 
     await client.query("COMMIT");
 
-    /*Success Response*/
+    /* -------------------------------------------------------------------------- */
+    /*                            Success Response                                */
+    /* -------------------------------------------------------------------------- */
 
     return res.status(201).json({
       success: true,
@@ -572,16 +638,27 @@ const createMultipleSalarySlips = async (req, res) => {
 
   } catch (error) {
 
-    /*Rollback Databas*/
+    /* -------------------------------------------------------------------------- */
+    /*                              Rollback                                      */
+    /* -------------------------------------------------------------------------- */
 
-    await client.query("ROLLBACK");
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error(
+        "Rollback error:",
+        rollbackError
+      );
+    }
 
     console.error(
       "Create multiple salary slips error:",
       error
     );
 
-    /*Delete Uploaded Files*/
+    /* -------------------------------------------------------------------------- */
+    /*                         Delete Uploaded Files                              */
+    /* -------------------------------------------------------------------------- */
 
     for (const file of uploadedFiles) {
       try {
@@ -590,6 +667,11 @@ const createMultipleSalarySlips = async (req, res) => {
           fs.existsSync(file.path)
         ) {
           fs.unlinkSync(file.path);
+
+          console.log(
+            "Deleted uploaded file:",
+            file.path
+          );
         }
       } catch (fileError) {
         console.error(
@@ -599,6 +681,10 @@ const createMultipleSalarySlips = async (req, res) => {
       }
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                            Error Response                                  */
+    /* -------------------------------------------------------------------------- */
+
     return res.status(400).json({
       success: false,
       message:
@@ -607,10 +693,14 @@ const createMultipleSalarySlips = async (req, res) => {
     });
 
   } finally {
+
+    /* -------------------------------------------------------------------------- */
+    /*                           Release DB Client                                */
+    /* -------------------------------------------------------------------------- */
+
     client.release();
   }
 };
-
 /*
 |--------------------------------------------------------------------------
 | Get All Salary Slips
@@ -621,7 +711,7 @@ const getSalarySlips = async (req, res) => {
     const result = await pool.query(`
       SELECT
         ss.salary_slip_id,
-        ss.employee_id AS emp_id,
+        og.or_emp_id AS emp_id,
         ss.month,
         ss.year,
         ss.salary_slip_no,
@@ -647,6 +737,9 @@ const getSalarySlips = async (req, res) => {
 
       LEFT JOIN personal p
         ON p.pr_id = ss.employee_id
+
+      left join organizations og
+      on og.pr_id = p.pr_id
 
       LEFT JOIN LATERAL (
         SELECT
