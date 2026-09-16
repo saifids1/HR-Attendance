@@ -74,6 +74,12 @@ router.get(
     leaveProcessController.getManagerLeaveRequests
 );
 
+router.get(
+  "/manager/requests/byreportingid",
+  auth,
+  leaveProcessController.getLeaveRequestsByReportingToId,
+);
+
 // Get logged-in employee's particular leave request
 router.get(
     "/request/:id",
