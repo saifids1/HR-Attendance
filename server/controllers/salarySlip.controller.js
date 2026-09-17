@@ -903,7 +903,6 @@ const getSalarySlipById = async (req, res) => {
         file_size: file?.file_size || null,
       };
     });
-    
 
     return res.status(200).json({
       success: true,
