@@ -689,11 +689,36 @@ const getSalarySlips = async (req, res) => {
   }
 };
 
+
 const getSalarySlipById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const salarySlip = await SalarySlips.findByPk(id, {
+    let { page, limit } = req.query;
+
+    page = page ? parseInt(page, 10) : 1;
+
+    limit =
+      limit !== undefined &&
+      limit !== null &&
+      limit !== ""
+        ? parseInt(limit, 10)
+        : null;
+
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+
+    if (limit !== null && (isNaN(limit) || limit < 1)) {
+      limit = null;
+    }
+
+    const where = {
+      employee_id: id,
+    };
+
+    const queryOptions = {
+      where,
       include: [
         {
           model: Personal,
@@ -714,6 +739,7 @@ const getSalarySlipById = async (req, res) => {
               required: false,
             },
           ],
+          required: false,
         },
         {
           model: SalarySlipFiles,
@@ -730,65 +756,173 @@ const getSalarySlipById = async (req, res) => {
           limit: 1,
         },
       ],
-    });
+      order: [
+        ["year", "DESC"],
+        ["month", "DESC"],
+        ["salary_slip_id", "DESC"],
+      ],
+    };
 
-    if (!salarySlip) {
-      return res.status(404).json({
-        success: false,
-        message: "Salary slip not found",
+    if (limit !== null) {
+      const offset = (page - 1) * limit;
+
+      queryOptions.limit = limit;
+      queryOptions.offset = offset;
+
+      const result = await SalarySlips.findAndCountAll({
+        ...queryOptions,
+        distinct: true,
+      });
+
+      const total = result.count;
+      const totalPages = Math.ceil(total / limit) || 0;
+
+      if (total === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No salary slips found for this employee",
+          data: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            total_pages: 0,
+            has_next_page: false,
+            has_prev_page: page > 1,
+            next_page: null,
+            prev_page: page > 1 ? page - 1 : null,
+          },
+        });
+      }
+
+      const data = result.rows.map((slip) => {
+        const employee = slip.employee;
+        const organization =
+          employee?.organizations?.[0] || null;
+        const file = slip.files?.[0] || null;
+
+        return {
+          salary_slip_id: slip.salary_slip_id,
+          employee_id: slip.employee_id,
+
+          emp_id: organization?.or_emp_id || null,
+          department_id:
+            organization?.or_department_id || null,
+
+          employee_name: employee
+            ? `${employee.pr_first_name || ""} ${
+                employee.pr_last_name || ""
+              }`.trim()
+            : null,
+
+          month: slip.month,
+          year: slip.year,
+          salary_slip_no: slip.salary_slip_no,
+          payroll_date: slip.payroll_date,
+          salary_generated_date:
+            slip.salary_generated_date,
+          is_published: slip.is_published,
+          created_by: slip.created_by,
+          created_at: slip.created_at,
+          updated_by: slip.updated_by,
+          updated_at: slip.updated_at,
+
+          salary_slip_file_id:
+            file?.salary_slip_file_id || null,
+          file_path: file?.file_path || null,
+          file_size: file?.file_size || null,
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Salary slips fetched successfully",
+        data,
+        pagination: {
+          total,
+          page,
+          limit,
+          total_pages: totalPages,
+          has_next_page: page < totalPages,
+          has_prev_page: page > 1,
+          next_page:
+            page < totalPages ? page + 1 : null,
+          prev_page:
+            page > 1 ? page - 1 : null,
+        },
       });
     }
 
-    const employee = salarySlip.employee;
-    const organization =
-      employee?.organizations?.[0] || null;
-    const file = salarySlip.files?.[0] || null;
+    const salarySlips =
+      await SalarySlips.findAll(queryOptions);
 
-    const data = {
-      salary_slip_id: salarySlip.salary_slip_id,
-      emp_id: organization?.or_emp_id || null,
-      department_id:
-        organization?.or_department_id || null,
-      month: salarySlip.month,
-      year: salarySlip.year,
-      salary_slip_no: salarySlip.salary_slip_no,
-      payroll_date: salarySlip.payroll_date,
-      salary_generated_date:
-        salarySlip.salary_generated_date,
-      is_published: salarySlip.is_published,
-      created_by: salarySlip.created_by,
-      created_at: salarySlip.created_at,
-      updated_by: salarySlip.updated_by,
-      updated_at: salarySlip.updated_at,
-      employee_name: employee
-        ? `${employee.pr_first_name || ""} ${
-            employee.pr_last_name || ""
-          }`.trim()
-        : null,
-      salary_slip_file_id:
-        file?.salary_slip_file_id || null,
-      file_path: file?.file_path || null,
-      file_size: file?.file_size || null,
-    };
+    if (!salarySlips || salarySlips.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No salary slips found for this employee",
+        data: [],
+        pagination: null,
+      });
+    }
+
+    const data = salarySlips.map((slip) => {
+      const employee = slip.employee;
+      const organization =
+        employee?.organizations?.[0] || null;
+      const file = slip.files?.[0] || null;
+
+      return {
+        salary_slip_id: slip.salary_slip_id,
+        employee_id: slip.employee_id,
+
+        emp_id: organization?.or_emp_id || null,
+        department_id:
+          organization?.or_department_id || null,
+
+        employee_name: employee
+          ? `${employee.pr_first_name || ""} ${
+              employee.pr_last_name || ""
+            }`.trim()
+          : null,
+
+        month: slip.month,
+        year: slip.year,
+        salary_slip_no: slip.salary_slip_no,
+        payroll_date: slip.payroll_date,
+        salary_generated_date:
+          slip.salary_generated_date,
+        is_published: slip.is_published,
+        created_by: slip.created_by,
+        created_at: slip.created_at,
+        updated_by: slip.updated_by,
+        updated_at: slip.updated_at,
+
+        salary_slip_file_id:
+          file?.salary_slip_file_id || null,
+        file_path: file?.file_path || null,
+        file_size: file?.file_size || null,
+      };
+    });
 
     return res.status(200).json({
       success: true,
+      message: "Salary slips fetched successfully",
       data,
+      pagination: null,
     });
   } catch (error) {
     console.error(
-      "Get salary slip error:",
+      "Error fetching salary slips:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch salary slip",
+      message: "Failed to fetch salary slips",
       error: error.message,
     });
   }
 };
-
 const updateSalarySlip = async (req, res) => {
   const client = await pool.connect();
   let writtenFile = null;
