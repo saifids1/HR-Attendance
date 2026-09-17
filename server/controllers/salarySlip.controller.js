@@ -693,97 +693,35 @@ const getSalarySlipById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const salarySlip = await SalarySlips.findByPk(id, {
-      include: [
-        {
-          model: Personal,
-          as: "employee",
-          attributes: [
-            "pr_id",
-            "pr_first_name",
-            "pr_last_name",
-          ],
-          include: [
-            {
-              model: Organizations,
-              as: "organizations",
-              attributes: [
-                "or_emp_id",
-                "or_department_id",
-              ],
-              required: false,
-            },
-          ],
-        },
-        {
-          model: SalarySlipFiles,
-          as: "files",
-          attributes: [
-            "salary_slip_file_id",
-            "file_path",
-            "file_size",
-            "created_at",
-          ],
-          required: false,
-          separate: true,
-          order: [["created_at", "DESC"]],
-          limit: 1,
-        },
+    const salarySlips = await SalarySlips.findAll({
+      where: {
+        employee_id: id,
+      },
+      order: [
+        ["year", "DESC"],
+        ["month", "DESC"],
       ],
     });
 
-    if (!salarySlip) {
+    if (!salarySlips || salarySlips.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Salary slip not found",
+        message: "No salary slips found for this employee",
+        data: [],
       });
     }
 
-    const employee = salarySlip.employee;
-    const organization =
-      employee?.organizations?.[0] || null;
-    const file = salarySlip.files?.[0] || null;
-
-    const data = {
-      salary_slip_id: salarySlip.salary_slip_id,
-      emp_id: organization?.or_emp_id || null,
-      department_id:
-        organization?.or_department_id || null,
-      month: salarySlip.month,
-      year: salarySlip.year,
-      salary_slip_no: salarySlip.salary_slip_no,
-      payroll_date: salarySlip.payroll_date,
-      salary_generated_date:
-        salarySlip.salary_generated_date,
-      is_published: salarySlip.is_published,
-      created_by: salarySlip.created_by,
-      created_at: salarySlip.created_at,
-      updated_by: salarySlip.updated_by,
-      updated_at: salarySlip.updated_at,
-      employee_name: employee
-        ? `${employee.pr_first_name || ""} ${
-            employee.pr_last_name || ""
-          }`.trim()
-        : null,
-      salary_slip_file_id:
-        file?.salary_slip_file_id || null,
-      file_path: file?.file_path || null,
-      file_size: file?.file_size || null,
-    };
-
     return res.status(200).json({
       success: true,
-      data,
+      message: "Salary slips fetched successfully",
+      data: salarySlips,
     });
   } catch (error) {
-    console.error(
-      "Get salary slip error:",
-      error
-    );
+    console.error("Error fetching salary slips:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch salary slip",
+      message: "Failed to fetch salary slips",
       error: error.message,
     });
   }
