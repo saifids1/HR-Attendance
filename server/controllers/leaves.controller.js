@@ -496,6 +496,8 @@ exports.getPendingLeaves = async (req, res) => {
       [managerIdParsed]
     );
 
+
+    
     // 3. Return results
     // Even if empty [], this is a success state for the UI
     res.json(result.rows);
