@@ -1,4 +1,4 @@
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 
 exports.getLeaves = async (req, res) => {
   try {
@@ -496,6 +496,8 @@ exports.getPendingLeaves = async (req, res) => {
       [managerIdParsed]
     );
 
+
+    
     // 3. Return results
     // Even if empty [], this is a success state for the UI
     res.json(result.rows);

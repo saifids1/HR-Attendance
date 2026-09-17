@@ -1,4 +1,4 @@
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 
 const CARRY_FORWARD_PERCENTAGE = 0.50;
 const JOINING_DATE_CUTOFF = 15;
