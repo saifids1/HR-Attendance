@@ -1254,44 +1254,106 @@ exports.cancelLeave = async (req, res) => {
                 result.manager.emp_id
         };
 
-        if (result.employee.or_official_email) {
+        console.log(
+            "================ EMPLOYEE EMAIL ================"
+        );
+
+        console.log(
+            "Employee:",
+            result.employee.name
+        );
+
+        console.log(
+            "Employee Email:",
+            result.employee.email
+        );
+
+        console.log(
+            "================================================="
+        );
+
+        if (result.employee.email) {
             try {
                 await sendEmail(
-                    result.employee.or_official_email,
-                    `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
+                    result.employee.email,
+                    `Leave Request Cancelled - ${
+                        request.request_id ||
+                        request.lr_leave_request_id
+                    }`,
                     "leave_cancelled",
                     emailData
                 );
 
                 console.log(
-                    `[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${
+                        request.request_id ||
+                        request.lr_leave_request_id
+                    } To=${result.employee.email}`
                 );
             } catch (emailError) {
                 console.error(
-                    `[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`,
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${
+                        request.request_id ||
+                        request.lr_leave_request_id
+                    } To=${result.employee.email}`,
                     emailError
                 );
             }
+        } else {
+            console.log(
+                "[LEAVE CANCELLATION] Employee email not found."
+            );
         }
 
-        if (result.manager.or_official_email) {
+        console.log(
+            "================ MANAGER EMAIL ================"
+        );
+
+        console.log(
+            "Manager:",
+            result.manager.name
+        );
+
+        console.log(
+            "Manager Email:",
+            result.manager.email
+        );
+
+        console.log(
+            "================================================="
+        );
+
+        if (result.manager.email) {
             try {
                 await sendEmail(
-                    result.manager.or_official_email,
-                    `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
+                    result.manager.email,
+                    `Leave Request Cancelled - ${
+                        request.request_id ||
+                        request.lr_leave_request_id
+                    }`,
                     "leave_cancelled_manager",
                     emailData
                 );
 
                 console.log(
-                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`
+                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${
+                        request.request_id ||
+                        request.lr_leave_request_id
+                    } To=${result.manager.email}`
                 );
             } catch (emailError) {
                 console.error(
-                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`,
+                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${
+                        request.request_id ||
+                        request.lr_leave_request_id
+                    } To=${result.manager.email}`,
                     emailError
                 );
             }
+        } else {
+            console.log(
+                "[LEAVE CANCELLATION] Manager email not found."
+            );
         }
 
         return successResponse(
