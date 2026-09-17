@@ -1,4 +1,4 @@
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 
 const {
   successResponse,

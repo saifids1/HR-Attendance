@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 
 const {
   syncMachineToActivityLog,

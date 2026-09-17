@@ -1,5 +1,5 @@
 const express = require("express");
-const { db } = require("../db/connectDB"); 
+const { db } = require("../db/SequelizeDB"); 
 const cron = require('node-cron');
 const authMiddleware = require("../middlewares/authMiddleware");
 const { runAttendanceTask } = require("../controllers/attendance.controller");
