@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const { add, loginController,  getAllEmployees, getAllEmployeesPaginated, getCountOfEmployees, updateUserActiveOrInActiveStatus } = require('../controllers/user.controllers');
 const authMiddleware = require('../middlewares/authMiddleware');
 require("dotenv").config();

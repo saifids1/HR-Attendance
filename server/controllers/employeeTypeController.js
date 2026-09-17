@@ -1,4 +1,4 @@
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const { successResponse, errorResponse, paginatedResponse, handleDbError } = require('../utils/response');
 const { getPaginationParams, buildIsActiveClause } = require('../utils/pagination');
 

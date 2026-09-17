@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const sendEmail = require("../utils/mailer");
 
 // ======================================================

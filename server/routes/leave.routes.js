@@ -1,7 +1,7 @@
 
 const express = require("express");
 const authMiddleware = require("../middlewares/authMiddleware");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const { getLeaves, getBalanceLeaves, applyLeaves, getMyLeaves, getSummaryLeaves, getPendingLeaves, updateApproveLeaves, getMyLeaveHistory } = require("../controllers/leaves.controller");
 const router = express.Router();
 

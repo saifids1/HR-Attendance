@@ -1,6 +1,6 @@
 const express = require("express");
 const authMiddleware = require("../middlewares/authMiddleware");
-const { db } = require("../db/connectDB");
+const { db } = require("../db/SequelizeDB");
 const { getSettings, getSettingByKey } = require("../controllers/settings.controller");
 const router = express.Router();
 
