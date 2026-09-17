@@ -1070,89 +1070,67 @@ exports.getMyTodayAttendance = async (req, res) => {
 
     const formatTime = (ts) => {
       if (!ts) return null;
-
       return new Date(ts).toLocaleTimeString("en-IN", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-        timeZone: "Asia/Kolkata",
       });
     };
 
     const secondsToHHMM = (seconds) => {
-      const total = Math.max(Number(seconds || 0), 0);
+      const total = Number(seconds || 0);
       const hrs = Math.floor(total / 3600);
       const mins = Math.floor((total % 3600) / 60);
-
-      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(
-        2,
-        "0"
-      )}`;
+      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
     };
 
-    const todayResult = await DailyAttendance.findOne({
+    /* ---------------- TODAY via model ---------------- */
+    const dailyRow = await DailyAttendance.findOne({
       where: {
         emp_id: empId,
-        [Op.and]: [
-          seqWhere(
-            col("attendance_date"),
-            "=",
-            literal("CURRENT_DATE")
-          ),
-        ],
+        attendance_date: sequelize.fn("CURRENT_DATE"),
       },
-      attributes: [
-        "punch_in",
-        "punch_out",
-        "total_hours",
-      ],
+      attributes: ["punch_in", "punch_out", "total_hours"],
       raw: true,
     });
 
     let today;
 
-    if (todayResult) {
-      const punchIn = todayResult.punch_in;
+    if (dailyRow) {
+      const isSamePunch =
+        dailyRow.punch_out &&
+        dailyRow.punch_in &&
+        new Date(dailyRow.punch_out).getTime() ===
+          new Date(dailyRow.punch_in).getTime();
 
-      const samePunch =
-        punchIn &&
-        todayResult.punch_out &&
-        new Date(todayResult.punch_out).getTime() ===
-          new Date(punchIn).getTime();
-
-      const punchOut = samePunch
-        ? null
-        : todayResult.punch_out;
+      const punchOut = isSamePunch ? null : dailyRow.punch_out;
 
       let totalHours = "00:00";
-
-      if (punchIn && punchOut) {
-        const totalSeconds =
-          (new Date(punchOut) - new Date(punchIn)) / 1000;
-
-        totalHours = secondsToHHMM(totalSeconds);
+      if (dailyRow.punch_in && punchOut) {
+        const secs =
+          (new Date(punchOut) - new Date(dailyRow.punch_in)) / 1000;
+        totalHours = secondsToHHMM(secs);
       }
 
       today = {
-        punch_in: formatTime(punchIn),
+        punch_in: formatTime(dailyRow.punch_in),
         punch_out: formatTime(punchOut),
         total_hours: totalHours,
-        status: !punchIn
+        status: !dailyRow.punch_in
           ? "Absent"
           : !punchOut
           ? "Working"
           : "Present",
       };
     } else {
+      /* ---------------- Fallback: ActivityLog ---------------- */
       const liveRow = await ActivityLog.findOne({
         where: {
           emp_id: empId,
-          [Op.and]: [
-            seqWhere(
-              fn("DATE", col("punch_time")),
-              literal("CURRENT_DATE")
-            ),
-          ],
+          [Op.and]: seqWhere(
+            fn("DATE", col("punch_time")),
+            fn("CURRENT_DATE")
+          ),
         },
         attributes: [
           [fn("MIN", col("punch_time")), "punch_in"],
@@ -1161,7 +1139,9 @@ exports.getMyTodayAttendance = async (req, res) => {
         raw: true,
       });
 
-      if (!liveRow || !liveRow.punch_in) {
+      const row = liveRow;
+
+      if (!row || !row.punch_in) {
         today = {
           punch_in: null,
           punch_out: null,
@@ -1169,64 +1149,49 @@ exports.getMyTodayAttendance = async (req, res) => {
           status: "Absent",
         };
       } else {
-        const samePunch =
-          liveRow.punch_out &&
-          new Date(liveRow.punch_out).getTime() ===
-            new Date(liveRow.punch_in).getTime();
-
-        const punchOut = samePunch
-          ? null
-          : liveRow.punch_out;
-
-        const totalSeconds = punchOut
-          ? (new Date(punchOut) - new Date(liveRow.punch_in)) / 1000
-          : (new Date() - new Date(liveRow.punch_in)) / 1000;
+        const totalSeconds =
+          row.punch_out && row.punch_out !== row.punch_in
+            ? (new Date(row.punch_out) - new Date(row.punch_in)) / 1000
+            : (new Date() - new Date(row.punch_in)) / 1000;
 
         today = {
-          punch_in: formatTime(liveRow.punch_in),
-          punch_out: formatTime(punchOut),
+          punch_in: formatTime(row.punch_in),
+          punch_out:
+            row.punch_out !== row.punch_in ? formatTime(row.punch_out) : null,
           total_hours: secondsToHHMM(totalSeconds),
-          status: punchOut ? "Present" : "Working",
+          status:
+            row.punch_out && row.punch_out !== row.punch_in
+              ? "Present"
+              : "Working",
         };
       }
     }
 
+    /* ---------------- WEEKLY ---------------- */
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+    const todayStr = new Date().toISOString().split("T")[0];
+
     const weeklyDays = await DailyAttendance.count({
       where: {
         emp_id: empId,
-        [Op.and]: [
-          seqWhere(
-            col("attendance_date"),
-            ">=",
-            literal("DATE_TRUNC('week', CURRENT_DATE)::date")
-          ),
-          seqWhere(
-            col("attendance_date"),
-            "<=",
-            literal("CURRENT_DATE")
-          ),
-        ],
-        punch_in: {
-          [Op.ne]: null,
+        attendance_date: {
+          [Op.between]: [weekStartStr, todayStr],
         },
+        punch_in: { [Op.ne]: null },
       },
       distinct: true,
       col: "attendance_date",
     });
 
-    return res.status(200).json({
+    res.json({
       today,
-      weekly: {
-        days: Number(weeklyDays || 0),
-      },
+      weekly: { days: Number(weeklyDays || 0) },
     });
   } catch (err) {
     console.error("getMyTodayAttendance error:", err);
-
-    return res.status(500).json({
-      message: "Server error",
-      error: err.message,
-    });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
