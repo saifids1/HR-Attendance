@@ -630,15 +630,28 @@ exports.applyLeave = async (req, res) => {
 exports.getMyLeaveRequests = async (req, res) => {
   try {
     const prId = Number(req.query.pr_id);
+
     const { page, limit, offset } = getPaginationParams(req);
 
-    const total = await LeaveRequests.count({ where: { lr_pr_id: prId } });
+    const total = await LeaveRequests.count({
+      where: {
+        lr_pr_id: prId,
+      },
+    });
 
     const rows = await LeaveRequests.findAll({
-      where: { lr_pr_id: prId },
+      where: {
+        lr_pr_id: prId,
+      },
       include: [
-        { model: LeaveTypes, as: "leaveType" },
-        { model: LeaveStatus, as: "status" },
+        {
+          model: LeaveTypes,
+          as: "leaveType",
+        },
+        {
+          model: LeaveStatus,
+          as: "status",
+        },
       ],
       order: [["lr_created_at", "DESC"]],
       limit,
@@ -647,48 +660,86 @@ exports.getMyLeaveRequests = async (req, res) => {
 
     const data = rows.map((r) => {
       const j = r.toJSON();
+
       return {
         lr_leave_request_id: j.lr_leave_request_id,
         request_id: j.request_id,
         lr_pr_id: j.lr_pr_id,
         lr_leave_type_id: j.lr_leave_type_id,
-        lt_leave_type_code: j.leaveType?.lt_leave_type_code ?? null,
-        lt_leave_type_name: j.leaveType?.lt_leave_type_name ?? null,
-        lt_total_days_per_year: j.leaveType?.lt_total_days_per_year ?? null,
-        lt_is_paid: j.leaveType?.lt_is_paid ?? null,
-        lr_from_date: j.lr_from_date ? String(j.lr_from_date).slice(0, 10) : null,
-        lr_to_date: j.lr_to_date ? String(j.lr_to_date).slice(0, 10) : null,
+
+        lt_leave_type_code:
+          j.leaveType?.lt_leave_type_code ?? null,
+
+        lt_leave_type_name:
+          j.leaveType?.lt_leave_type_name ?? null,
+
+        lt_total_days_per_year:
+          j.leaveType?.lt_total_days_per_year ?? null,
+
+        lt_is_paid:
+          j.leaveType?.lt_is_paid ?? null,
+
+        lr_from_date:
+          j.lr_from_date
+            ? String(j.lr_from_date).slice(0, 10)
+            : null,
+
+        lr_to_date:
+          j.lr_to_date
+            ? String(j.lr_to_date).slice(0, 10)
+            : null,
+
         lr_total_days: j.lr_total_days,
         lr_reason: j.lr_reason,
         lr_status_id: j.lr_status_id,
-        request_status: j.status?.ls_leave_status_name ?? null,
-        lr_ismailfromrequester: j.lr_ismailfromrequester,
-        lr_applied_at: j.lr_applied_at,
-        lr_approver_by: j.lr_approver_by,
-        lr_approver_at: j.lr_approver_at,
-        lr_approver_remark: j.lr_approver_remark,
-        lr_ismailfromapprover: j.lr_ismailfromapprover,
-        lr_cancelled_at: j.lr_cancelled_at,
-        lr_cancellation_reason: j.lr_cancellation_reason,
-        lr_created_at: j.lr_created_at,
-        lr_created_by: j.lr_created_by,
-        lr_updated_at: j.lr_updated_at,
-        lr_updated_by: j.lr_updated_by,
+
+        request_status:
+          j.status?.ls_leave_status_name ?? null,
+
+        lr_ismailfromrequester:
+          j.lr_ismailfromrequester,
+
+        lr_applied_at:
+          j.lr_applied_at,
+
+        lr_approver_by:
+          j.lr_approver_by,
+
+        lr_approver_at:
+          j.lr_approver_at,
+
+        lr_approver_remark:
+          j.lr_approver_remark,
+
+        lr_ismailfromapprover:
+          j.lr_ismailfromapprover,
+
+        lr_cancelled_at:
+          j.lr_cancelled_at,
+
+        lr_cancellation_reason:
+          j.lr_cancellation_reason,
+
+        lr_created_at:
+          j.lr_created_at,
+
+        lr_created_by:
+          j.lr_created_by,
+
+        lr_updated_at:
+          j.lr_updated_at,
+
+        lr_updated_by:
+          j.lr_updated_by,
       };
     });
 
-    return paginatedResponse(
-  res,
-  200,
-  "Leave requests fetched successfully",
-  data,
-  {
-    page,
-    limit,
-    total,
-    totalPages: Math.ceil(total / limit),
-  }
-);
+    return res.status(200).json({
+  success: true,
+  message: data,
+  data: total,
+  pagination: limit,
+});
   } catch (error) {
     return handleDbError(res, error);
   }
