@@ -38,6 +38,8 @@ db.DailyAttendance   = require("./dailyAttendance")(sequelize, DataTypes);
 db.Holiday           = require("./holiday")(sequelize, DataTypes);
 db.HolidayTypeMaster = require("./holidayTypeMaster")(sequelize, DataTypes);
 db.EmployeeEmail     = require("./employeeEmail")(sequelize, DataTypes);
+db.SalarySlips = require("./salarySlips")(sequelize, DataTypes);
+db.SalarySlipFiles = require("./salarySlipFiles")(sequelize, DataTypes);
 
 /* ---------- Associations ---------- */
 
@@ -151,5 +153,29 @@ db.AttendanceStatus.hasMany(db.DailyAttendance, {foreignKey: "status_id", as: "a
 db.Holiday.belongsTo(db.HolidayTypeMaster, { foreignKey: "holiday_id", targetKey: "holiday_type_id", as: "holidayType",});
 // Employee ↔ Attendance
 db.Organizations.hasMany(db.DailyAttendance, { foreignKey: "emp_id", sourceKey: "or_emp_id", as: "attendance",});
+
+db.SalarySlips.belongsTo(db.Personal, {
+  foreignKey: "employee_id",
+  targetKey: "pr_id",
+  as: "employee",
+});
+
+db.Personal.hasMany(db.SalarySlips, {
+  foreignKey: "employee_id",
+  sourceKey: "pr_id",
+  as: "salarySlips",
+});
+
+db.SalarySlips.hasMany(db.SalarySlipFiles, {
+  foreignKey: "salary_slip_id",
+  sourceKey: "salary_slip_id",
+  as: "files",
+});
+
+db.SalarySlipFiles.belongsTo(db.SalarySlips, {
+  foreignKey: "salary_slip_id",
+  targetKey: "salary_slip_id",
+  as: "salarySlip",
+});
 
 module.exports = db;

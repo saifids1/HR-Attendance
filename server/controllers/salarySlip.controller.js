@@ -1,22 +1,19 @@
-// controllers/salarySlip.controller.js
+const { Op, Sequelize } = require("sequelize");
 const fs = require("fs");
 const path = require("path");
 const { db: pool } = require("../db/connectDB");
-
-/* ------------------------------------------------------------------ */
-/*   Self-contained base upload dir                                    */
-/* ------------------------------------------------------------------ */
+const {
+  Personal,
+  Organizations,
+  SalarySlips,
+  SalarySlipFiles,
+} = require("../models");
 
 const baseUploadDir = path.join(__dirname, "..", "IHRDocument");
 
 if (!fs.existsSync(baseUploadDir)) {
   fs.mkdirSync(baseUploadDir, { recursive: true });
 }
-
-/* ------------------------------------------------------------------ */
-/*   Helper: write memory buffer to employee folder                    */
-/*   Returns { filename, absolutePath, webPath, size }                 */
-/* ------------------------------------------------------------------ */
 
 const saveFileToEmployeeFolder = (file, companyEmployeeId) => {
   const ext = path.extname(file.originalname).toLowerCase();
@@ -39,42 +36,61 @@ const saveFileToEmployeeFolder = (file, companyEmployeeId) => {
   };
 };
 
-/* ------------------------------------------------------------------ */
-/*   Helper: convert web path -> absolute disk path                    */
-/* ------------------------------------------------------------------ */
-
 const webPathToDisk = (webPath) => {
   const clean = String(webPath).replace(/^\/+/, "");
   return path.join(__dirname, "..", clean);
 };
 
-/* ------------------------------------------------------------------ */
-/*   GET /department/:or_department_id/employees                       */
-/* ------------------------------------------------------------------ */
-
 const getDepartmentEmployees = async (req, res) => {
   try {
     const { or_department_id } = req.params;
 
-    const result = await pool.query(
-      `
-      SELECT
-        og.or_emp_id AS emp_id,
-        p.pr_id,
-        p.pr_first_name AS first_name,
-        p.pr_last_name AS last_name
-      FROM organizations og
-      INNER JOIN personal p ON p.pr_id = og.pr_id
-      WHERE og.or_is_active = true
-        AND og.or_department_id = $1
-      ORDER BY p.pr_first_name ASC, p.pr_last_name ASC
-      `,
-      [or_department_id]
-    );
+    const employees = await Organizations.findAll({
+      where: {
+        or_is_active: true,
+        or_department_id,
+      },
+      attributes: ["or_emp_id", "pr_id"],
+      include: [
+        {
+          model: Personal,
+          as: "personal",
+          attributes: [
+            "pr_id",
+            "pr_first_name",
+            "pr_last_name",
+          ],
+          required: true,
+        },
+      ],
+      order: [
+        [
+          { model: Personal, as: "personal" },
+          "pr_first_name",
+          "ASC",
+        ],
+        [
+          { model: Personal, as: "personal" },
+          "pr_last_name",
+          "ASC",
+        ],
+      ],
+    });
 
-    return res.status(200).json({ success: true, data: result.rows });
+    const data = employees.map((employee) => ({
+      emp_id: employee.or_emp_id,
+      pr_id: employee.pr_id,
+      first_name: employee.personal?.pr_first_name || null,
+      last_name: employee.personal?.pr_last_name || null,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
   } catch (error) {
     console.error("Get department employees error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch department employees",
@@ -82,10 +98,6 @@ const getDepartmentEmployees = async (req, res) => {
     });
   }
 };
-
-/* ------------------------------------------------------------------ */
-/*   POST /  — Create single salary slip                               */
-/* ------------------------------------------------------------------ */
 
 const createSalarySlip = async (req, res) => {
   const client = await pool.connect();
@@ -101,8 +113,6 @@ const createSalarySlip = async (req, res) => {
       salary_generated_date,
       created_by,
     } = req.body;
-
-    /* ---------------- Validation ---------------- */
 
     if (!salary_slip_no) {
       return res.status(400).json({ success: false, message: "Salary slip number is required" });
@@ -125,8 +135,6 @@ const createSalarySlip = async (req, res) => {
 
     await client.query("BEGIN");
 
-    /* ---------------- Map emp_id (or_emp_id) -> pr_id + or_emp_id ---------------- */
-
     const empResult = await client.query(
       `
       SELECT p.pr_id, og.or_emp_id
@@ -144,8 +152,6 @@ const createSalarySlip = async (req, res) => {
     }
 
     const { pr_id: employeeId, or_emp_id: companyEmployeeId } = empResult.rows[0];
-
-    /* ---------------- Duplicate checks ---------------- */
 
     const dupNo = await client.query(
       `SELECT salary_slip_id FROM salary_slips WHERE salary_slip_no = $1 LIMIT 1`,
@@ -172,12 +178,8 @@ const createSalarySlip = async (req, res) => {
       });
     }
 
-    /* ---------------- Save file ---------------- */
-
     const saved = saveFileToEmployeeFolder(req.file, companyEmployeeId);
     writtenFile = saved.absolutePath;
-
-    /* ---------------- Insert slip ---------------- */
 
     const slipResult = await client.query(
       `
@@ -198,8 +200,6 @@ const createSalarySlip = async (req, res) => {
     );
 
     const salarySlip = slipResult.rows[0];
-
-    /* ---------------- Insert file (WEB PATH) ---------------- */
 
     const fileResult = await client.query(
       `
@@ -237,10 +237,6 @@ const createSalarySlip = async (req, res) => {
     client.release();
   }
 };
-
-/* ------------------------------------------------------------------ */
-/*   POST /bulk — Create multiple salary slips                         */
-/* ------------------------------------------------------------------ */
 
 const createMultipleSalarySlips = async (req, res) => {
   const client = await pool.connect();
@@ -389,42 +385,85 @@ const createMultipleSalarySlips = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------------------------ */
-/*   GET /  — All salary slips                                         */
-/* ------------------------------------------------------------------ */
-
 const getSalarySlips = async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT
-        ss.salary_slip_id,
-        og.or_emp_id AS emp_id,
-        ss.month, ss.year, ss.salary_slip_no,
-        ss.payroll_date, ss.salary_generated_date,
-        ss.is_published, ss.created_by, ss.created_at,
-        ss.updated_by, ss.updated_at,
-        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
-        ssf.salary_slip_file_id, ssf.file_path, ssf.file_size
-      FROM salary_slips ss
-      LEFT JOIN personal p ON p.pr_id = ss.employee_id
-      LEFT JOIN organizations og ON og.pr_id = p.pr_id
-      LEFT JOIN LATERAL (
-        SELECT salary_slip_file_id, file_path, file_size
-        FROM salary_slip_files
-        WHERE salary_slip_id = ss.salary_slip_id
-        ORDER BY created_at DESC
-        LIMIT 1
-      ) ssf ON TRUE
-      ORDER BY ss.year DESC, ss.month DESC, ss.salary_slip_id DESC
-    `);
+    const salarySlips = await SalarySlips.findAll({
+      include: [
+        {
+          model: Personal,
+          as: "employee",
+          attributes: [
+            "pr_id",
+            "pr_first_name",
+            "pr_last_name",
+          ],
+          include: [
+            {
+              model: Organizations,
+              as: "organization",
+              attributes: ["or_emp_id", "or_department_id"],
+              required: false,
+            },
+          ],
+        },
+        {
+          model: SalarySlipFiles,
+          as: "files",
+          attributes: [
+            "salary_slip_file_id",
+            "file_path",
+            "file_size",
+            "created_at",
+          ],
+          required: false,
+          separate: true,
+          order: [["created_at", "DESC"]],
+          limit: 1,
+        },
+      ],
+      order: [
+        ["year", "DESC"],
+        ["month", "DESC"],
+        ["salary_slip_id", "DESC"],
+      ],
+    });
+
+    const data = salarySlips.map((slip) => {
+      const employee = slip.employee;
+      const organization = employee?.organization;
+      const file = slip.files?.[0] || null;
+
+      return {
+        salary_slip_id: slip.salary_slip_id,
+        emp_id: organization?.or_emp_id || null,
+        department_id: organization?.or_department_id || null,
+        month: slip.month,
+        year: slip.year,
+        salary_slip_no: slip.salary_slip_no,
+        payroll_date: slip.payroll_date,
+        salary_generated_date: slip.salary_generated_date,
+        is_published: slip.is_published,
+        created_by: slip.created_by,
+        created_at: slip.created_at,
+        updated_by: slip.updated_by,
+        updated_at: slip.updated_at,
+        employee_name: employee
+          ? `${employee.pr_first_name || ""} ${employee.pr_last_name || ""}`.trim()
+          : null,
+        salary_slip_file_id: file?.salary_slip_file_id || null,
+        file_path: file?.file_path || null,
+        file_size: file?.file_size || null,
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      count: result.rows.length,
-      data: result.rows,
+      count: data.length,
+      data,
     });
   } catch (error) {
     console.error("Get salary slips error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch salary slips",
@@ -433,47 +472,86 @@ const getSalarySlips = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------------------------ */
-/*   GET /:id  — Single salary slip                                    */
-/* ------------------------------------------------------------------ */
-
 const getSalarySlipById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      `
-      SELECT
-        ss.salary_slip_id,
-        og.or_emp_id AS emp_id,
-        ss.month, ss.year, ss.salary_slip_no,
-        ss.payroll_date, ss.salary_generated_date,
-        ss.is_published, ss.created_by, ss.created_at,
-        ss.updated_by, ss.updated_at,
-        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
-        ssf.salary_slip_file_id, ssf.file_path, ssf.file_size
-      FROM salary_slips ss
-      LEFT JOIN personal p ON p.pr_id = ss.employee_id
-      LEFT JOIN organizations og ON og.pr_id = p.pr_id
-      LEFT JOIN LATERAL (
-        SELECT salary_slip_file_id, file_path, file_size
-        FROM salary_slip_files
-        WHERE salary_slip_id = ss.salary_slip_id
-        ORDER BY created_at DESC
-        LIMIT 1
-      ) ssf ON TRUE
-      WHERE ss.salary_slip_id = $1
-      `,
-      [id]
-    );
+    const salarySlip = await SalarySlips.findByPk(id, {
+      include: [
+        {
+          model: Personal,
+          as: "employee",
+          attributes: [
+            "pr_id",
+            "pr_first_name",
+            "pr_last_name",
+          ],
+          include: [
+            {
+              model: Organizations,
+              as: "organization",
+              attributes: ["or_emp_id", "or_department_id"],
+              required: false,
+            },
+          ],
+        },
+        {
+          model: SalarySlipFiles,
+          as: "files",
+          attributes: [
+            "salary_slip_file_id",
+            "file_path",
+            "file_size",
+            "created_at",
+          ],
+          required: false,
+          separate: true,
+          order: [["created_at", "DESC"]],
+          limit: 1,
+        },
+      ],
+    });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Salary slip not found" });
+    if (!salarySlip) {
+      return res.status(404).json({
+        success: false,
+        message: "Salary slip not found",
+      });
     }
 
-    return res.status(200).json({ success: true, data: result.rows[0] });
+    const employee = salarySlip.employee;
+    const organization = employee?.organization;
+    const file = salarySlip.files?.[0] || null;
+
+    const data = {
+      salary_slip_id: salarySlip.salary_slip_id,
+      emp_id: organization?.or_emp_id || null,
+      department_id: organization?.or_department_id || null,
+      month: salarySlip.month,
+      year: salarySlip.year,
+      salary_slip_no: salarySlip.salary_slip_no,
+      payroll_date: salarySlip.payroll_date,
+      salary_generated_date: salarySlip.salary_generated_date,
+      is_published: salarySlip.is_published,
+      created_by: salarySlip.created_by,
+      created_at: salarySlip.created_at,
+      updated_by: salarySlip.updated_by,
+      updated_at: salarySlip.updated_at,
+      employee_name: employee
+        ? `${employee.pr_first_name || ""} ${employee.pr_last_name || ""}`.trim()
+        : null,
+      salary_slip_file_id: file?.salary_slip_file_id || null,
+      file_path: file?.file_path || null,
+      file_size: file?.file_size || null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
   } catch (error) {
     console.error("Get salary slip error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch salary slip",
@@ -481,10 +559,6 @@ const getSalarySlipById = async (req, res) => {
     });
   }
 };
-
-/* ------------------------------------------------------------------ */
-/*   PUT /:id  — Update salary slip                                    */
-/* ------------------------------------------------------------------ */
 
 const updateSalarySlip = async (req, res) => {
   const client = await pool.connect();
@@ -511,8 +585,6 @@ const updateSalarySlip = async (req, res) => {
 
     const existingSlip = existingResult.rows[0];
 
-    /* ---------------- Resolve employee ---------------- */
-
     let resolvedEmployeeId = existingSlip.employee_id;
 
     if (emp_id) {
@@ -531,8 +603,6 @@ const updateSalarySlip = async (req, res) => {
       }
       resolvedEmployeeId = empResult.rows[0].pr_id;
     }
-
-    /* ---------------- Duplicate checks ---------------- */
 
     const finalSlipNo = salary_slip_no ?? existingSlip.salary_slip_no;
     const finalMonth = month ?? existingSlip.month;
@@ -572,8 +642,6 @@ const updateSalarySlip = async (req, res) => {
       }
     }
 
-    /* ---------------- Update ---------------- */
-
     const updatedResult = await client.query(
       `
       UPDATE salary_slips
@@ -602,8 +670,6 @@ const updateSalarySlip = async (req, res) => {
     );
 
     let updatedFile = null;
-
-    /* ---------------- Replace PDF if uploaded ---------------- */
 
     if (req.file) {
       const empForFile = await client.query(
@@ -681,10 +747,6 @@ const updateSalarySlip = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------------------------ */
-/*   DELETE /:id  — Delete salary slip                                 */
-/* ------------------------------------------------------------------ */
-
 const deleteSalarySlip = async (req, res) => {
   const client = await pool.connect();
 
@@ -733,41 +795,54 @@ const deleteSalarySlip = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------------------------ */
-/*   GET /:id/file  — Stream PDF                                       */
-/* ------------------------------------------------------------------ */
-
 const getSalarySlipPdf = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      `
-      SELECT ss.salary_slip_id, ss.salary_slip_no, ssf.file_path
-      FROM salary_slips ss
-      INNER JOIN salary_slip_files ssf ON ssf.salary_slip_id = ss.salary_slip_id
-      WHERE ss.salary_slip_id = $1
-      ORDER BY ssf.created_at DESC
-      LIMIT 1
-      `,
-      [id]
-    );
+    const salarySlip = await SalarySlips.findByPk(id, {
+      attributes: [
+        "salary_slip_id",
+        "salary_slip_no",
+      ],
+      include: [
+        {
+          model: SalarySlipFiles,
+          as: "files",
+          attributes: [
+            "salary_slip_file_id",
+            "file_path",
+          ],
+          required: true,
+          separate: true,
+          order: [["created_at", "DESC"]],
+          limit: 1,
+        },
+      ],
+    });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Salary slip PDF not found" });
+    if (!salarySlip || !salarySlip.files?.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Salary slip PDF not found",
+      });
     }
 
-    const filePath = result.rows[0].file_path;
+    const filePath = salarySlip.files[0].file_path;
     const absolutePath = webPathToDisk(filePath);
 
     if (!fs.existsSync(absolutePath)) {
-      return res.status(404).json({ success: false, message: "PDF file does not exist on server" });
+      return res.status(404).json({
+        success: false,
+        message: "PDF file does not exist on server",
+      });
     }
 
     res.setHeader("Content-Type", "application/pdf");
+
     return res.sendFile(absolutePath);
   } catch (error) {
     console.error("Get salary slip PDF error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to load salary slip PDF",
@@ -775,7 +850,6 @@ const getSalarySlipPdf = async (req, res) => {
     });
   }
 };
-
 
 const getSalarySlipsPaginated = async (req, res) => {
   try {
@@ -795,11 +869,64 @@ const getSalarySlipsPaginated = async (req, res) => {
     page = parseInt(page, 10);
     limit = parseInt(limit, 10);
 
-    if (isNaN(page) || page < 1) page = 1;
-    if (isNaN(limit) || limit < 1) limit = 10;
-    if (limit > 100) limit = 10000;
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+
+    if (isNaN(limit) || limit < 1) {
+      limit = 10;
+    }
+
+    if (limit > 100) {
+      limit = 10000;
+    }
 
     const offset = (page - 1) * limit;
+
+    const where = {};
+
+    if (month) {
+      where.month = parseInt(month, 10);
+    }
+
+    if (year) {
+      where.year = parseInt(year, 10);
+    }
+
+    if (is_published !== undefined && is_published !== "") {
+      where.is_published =
+        is_published === "true" || is_published === true;
+    }
+
+    const employeeWhere = {};
+
+    if (search && String(search).trim() !== "") {
+      employeeWhere[Op.or] = [
+        {
+          pr_first_name: {
+            [Op.iLike]: `%${String(search).trim()}%`,
+          },
+        },
+        {
+          pr_last_name: {
+            [Op.iLike]: `%${String(search).trim()}%`,
+          },
+        },
+      ];
+    }
+
+    const organizationWhere = {};
+
+    if (emp_id) {
+      organizationWhere.or_emp_id = emp_id;
+    }
+
+    if (department) {
+      organizationWhere.or_department_id = parseInt(
+        department,
+        10
+      );
+    }
 
     const allowedSortColumns = [
       "created_at",
@@ -808,118 +935,117 @@ const getSalarySlipsPaginated = async (req, res) => {
       "month",
       "year",
       "salary_slip_no",
-      "employee_name",
     ];
 
     const sortColumn = allowedSortColumns.includes(sort_by)
       ? sort_by
       : "created_at";
 
-    const sortDir = String(sort_order).toUpperCase() === "ASC" ? "ASC" : "DESC";
+    const sortDir =
+      String(sort_order).toUpperCase() === "ASC"
+        ? "ASC"
+        : "DESC";
 
-    const whereClauses = [];
-    const whereValues = [];
-    let paramIndex = 1;
+    const result = await SalarySlips.findAndCountAll({
+      where,
 
-    if (emp_id) {
-      whereClauses.push(`og.or_emp_id = $${paramIndex++}`);
-      whereValues.push(emp_id);
-    }
+      include: [
+        {
+          model: Personal,
+          as: "employee",
+          attributes: [
+            "pr_id",
+            "pr_first_name",
+            "pr_last_name",
+          ],
+          where:
+            Object.keys(employeeWhere).length > 0
+              ? employeeWhere
+              : undefined,
+          required:
+            Object.keys(employeeWhere).length > 0 ||
+            Object.keys(organizationWhere).length > 0,
 
-    if (month) {
-      whereClauses.push(`ss.month = $${paramIndex++}`);
-      whereValues.push(parseInt(month, 10));
-    }
+          include: [
+            {
+              model: Organizations,
+              as: "organization",
+              attributes: [
+                "or_emp_id",
+                "or_department_id",
+              ],
+              where:
+                Object.keys(organizationWhere).length > 0
+                  ? organizationWhere
+                  : undefined,
+              required:
+                Object.keys(organizationWhere).length > 0,
+            },
+          ],
+        },
+        {
+          model: SalarySlipFiles,
+          as: "files",
+          attributes: [
+            "salary_slip_file_id",
+            "file_path",
+            "file_size",
+            "created_at",
+          ],
+          required: false,
+          separate: true,
+          order: [["created_at", "DESC"]],
+          limit: 1,
+        },
+      ],
 
-    if (year) {
-      whereClauses.push(`ss.year = $${paramIndex++}`);
-      whereValues.push(parseInt(year, 10));
-    }
+      distinct: true,
 
-    if (department) {
-      whereClauses.push(`og.or_department_id = $${paramIndex++}`);
-      whereValues.push(parseInt(department, 10));
-    }
+      order: [[sortColumn, sortDir]],
 
-    if (is_published !== undefined && is_published !== "") {
-      whereClauses.push(`ss.is_published = $${paramIndex++}`);
-      whereValues.push(is_published === "true" || is_published === true);
-    }
+      limit,
+      offset,
+    });
 
-    if (search && String(search).trim() !== "") {
-      whereClauses.push(
-        `(ss.salary_slip_no ILIKE $${paramIndex} OR
-          CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) ILIKE $${paramIndex})`
-      );
-      whereValues.push(`%${String(search).trim()}%`);
-      paramIndex++;
-    }
+    const data = result.rows.map((slip) => {
+      const employee = slip.employee;
+      const organization = employee?.organization;
+      const file = slip.files?.[0] || null;
 
-    const whereSQL = whereClauses.length
-      ? `WHERE ${whereClauses.join(" AND ")}`
-      : "";
+      return {
+        salary_slip_id: slip.salary_slip_id,
+        emp_id: organization?.or_emp_id || null,
+        department_id:
+          organization?.or_department_id || null,
+        month: slip.month,
+        year: slip.year,
+        salary_slip_no: slip.salary_slip_no,
+        payroll_date: slip.payroll_date,
+        salary_generated_date:
+          slip.salary_generated_date,
+        is_published: slip.is_published,
+        created_by: slip.created_by,
+        created_at: slip.created_at,
+        updated_by: slip.updated_by,
+        updated_at: slip.updated_at,
+        employee_name: employee
+          ? `${employee.pr_first_name || ""} ${
+              employee.pr_last_name || ""
+            }`.trim()
+          : null,
+        salary_slip_file_id:
+          file?.salary_slip_file_id || null,
+        file_path: file?.file_path || null,
+        file_size: file?.file_size || null,
+      };
+    });
 
-    const countQuery = `
-      SELECT COUNT(*)::int AS total
-      FROM salary_slips ss
-      LEFT JOIN personal p ON p.pr_id = ss.employee_id
-      LEFT JOIN organizations og ON og.pr_id = p.pr_id
-      ${whereSQL}
-    `;
-
-    const countResult = await pool.query(countQuery, whereValues);
-    const total = countResult.rows[0].total;
-
+    const total = result.count;
     const totalPages = Math.ceil(total / limit) || 0;
-
-    const dataValues = [...whereValues, limit, offset];
-
-    let orderByClause;
-    if (sortColumn === "employee_name") {
-      orderByClause = `ORDER BY employee_name ${sortDir}`;
-    } else {
-      orderByClause = `ORDER BY ss.${sortColumn} ${sortDir}`;
-    }
-
-    const dataQuery = `
-      SELECT
-        ss.salary_slip_id,
-        og.or_emp_id AS emp_id,
-        og.or_department_id AS department_id,
-        ss.month,
-        ss.year,
-        ss.salary_slip_no,
-        ss.payroll_date,
-        ss.salary_generated_date,
-        ss.is_published,
-        ss.created_by,
-        ss.created_at,
-        ss.updated_by,
-        ss.updated_at,
-        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
-        ssf.salary_slip_file_id,
-        ssf.file_path,
-        ssf.file_size
-      FROM salary_slips ss
-      LEFT JOIN personal p ON p.pr_id = ss.employee_id
-      LEFT JOIN organizations og ON og.pr_id = p.pr_id
-      LEFT JOIN LATERAL (
-        SELECT salary_slip_file_id, file_path, file_size
-        FROM salary_slip_files
-        WHERE salary_slip_id = ss.salary_slip_id
-        ORDER BY created_at DESC
-        LIMIT 1
-      ) ssf ON TRUE
-      ${whereSQL}
-      ${orderByClause}
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
-    `;
-
-    const dataResult = await pool.query(dataQuery, dataValues);
 
     return res.status(200).json({
       success: true,
-      data: dataResult.rows,
+      data,
       pagination: {
         total,
         page,
@@ -927,25 +1053,35 @@ const getSalarySlipsPaginated = async (req, res) => {
         total_pages: totalPages,
         has_next_page: page < totalPages,
         has_prev_page: page > 1,
-        next_page: page < totalPages ? page + 1 : null,
-        prev_page: page > 1 ? page - 1 : null,
+        next_page:
+          page < totalPages ? page + 1 : null,
+        prev_page:
+          page > 1 ? page - 1 : null,
       },
       filters: {
         search: search || null,
         emp_id: emp_id || null,
         month: month ? parseInt(month, 10) : null,
         year: year ? parseInt(year, 10) : null,
-        department: department ? parseInt(department, 10) : null,
+        department: department
+          ? parseInt(department, 10)
+          : null,
         is_published:
-          is_published !== undefined && is_published !== ""
-            ? is_published === "true" || is_published === true
+          is_published !== undefined &&
+          is_published !== ""
+            ? is_published === "true" ||
+              is_published === true
             : null,
         sort_by: sortColumn,
         sort_order: sortDir,
       },
     });
   } catch (error) {
-    console.error("Get paginated salary slips error:", error);
+    console.error(
+      "Get paginated salary slips error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch paginated salary slips",
@@ -953,11 +1089,6 @@ const getSalarySlipsPaginated = async (req, res) => {
     });
   }
 };
-
-/* ------------------------------------------------------------------ */
-/*   Exports                                                           */
-/* ------------------------------------------------------------------ */
-
 
 module.exports = {
   getDepartmentEmployees,
@@ -970,4 +1101,3 @@ module.exports = {
   getSalarySlipsPaginated,
   getSalarySlipPdf,
 };
-
