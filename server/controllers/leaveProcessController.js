@@ -815,201 +815,495 @@ exports.getLeaveRequestById = async (req, res) => {
 };
 
 exports.cancelLeave = async (req, res) => {
-  try {
-    const prId = getLoggedInPrId(req);
-    const requestId = Number(req.params.id);
-    const reason = req.body?.reason || null;
+    try {
+        const prId = getLoggedInPrId(req);
+        const requestId = Number(req.params.id);
+        const reason = req.body?.reason || null;
 
-    if (!Number.isInteger(requestId) || requestId <= 0) {
-      return errorResponse(res, "Valid leave request ID is required.", 400);
-    }
-    if (!prId) {
-      return errorResponse(res, "Unable to identify logged-in employee.", 401);
-    }
+        if (!Number.isInteger(requestId) || requestId <= 0) {
+            return errorResponse(
+                res,
+                "Valid leave request ID is required.",
+                400
+            );
+        }
 
-    const result = await withTransaction(async (client) => {
-      const cancelledStatusId = await getLeaveStatusId(client, "Cancelled");
+        if (!prId) {
+            return errorResponse(
+                res,
+                "Unable to identify logged-in employee.",
+                401
+            );
+        }
 
-      const requestResult = await client.query(
-        `SELECT lr.*, ls.ls_leave_status_name, o.or_id, o.pr_id, o.or_emp_id AS employee_emp_id, o.or_official_email AS employee_official_email, o.or_organization_email AS employee_organization_email, o.or_reporting_to_id, p.pr_email AS employee_personal_email, p.pr_first_name AS employee_first_name, p.pr_last_name AS employee_last_name, manager.pr_id AS manager_pr_id, manager.or_emp_id AS manager_emp_id, manager.or_official_email AS manager_official_email, manager.or_organization_email AS manager_organization_email, manager_personal.pr_email AS manager_personal_email, manager_personal.pr_first_name AS manager_first_name, manager_personal.pr_last_name AS manager_last_name, lt.lt_leave_type_name, lt.lt_leave_type_code
-        FROM public.leave_requests lr
-        INNER JOIN public.leave_status ls ON ls.ls_leave_status_id = lr.lr_status_id
-        INNER JOIN public.organizations o ON o.pr_id = lr.lr_pr_id
-        LEFT JOIN public.personal p ON p.pr_id = lr.lr_pr_id
-        INNER JOIN public.leave_types lt ON lt.lt_leave_type_id = lr.lr_leave_type_id
-        LEFT JOIN public.organizations manager ON manager.or_id = o.or_reporting_to_id AND manager.or_is_active = TRUE
-        LEFT JOIN public.personal manager_personal ON manager_personal.pr_id = manager.pr_id
-        WHERE lr.lr_leave_request_id = $1 AND lr.lr_pr_id = $2
-        FOR UPDATE OF lr`,
-        [requestId, prId]
-      );
+        const result = await withTransaction(async (client) => {
+            const cancelledStatusId =
+                await getLeaveStatusId(client, "Cancelled");
 
-      if (requestResult.rows.length === 0) {
-        const error = new Error("Leave request not found.");
-        error.statusCode = 404;
-        throw error;
-      }
+            const requestResult = await client.query(
+                `
+                SELECT
+                    lr.*,
+                    ls.ls_leave_status_name,
 
-      const leaveRequest = requestResult.rows[0];
-      const currentStatus = String(leaveRequest.ls_leave_status_name || "").toLowerCase();
+                    o.or_id,
+                    o.pr_id,
+                    o.or_emp_id AS employee_emp_id,
+                    o.or_official_email AS employee_official_email,
+                    o.or_organization_email AS employee_organization_email,
+                    o.or_reporting_to_id,
 
-      if (currentStatus !== "pending" && currentStatus !== "approved") {
-        const error = new Error(`Leave cannot be cancelled because current status is ${leaveRequest.ls_leave_status_name}.`);
-        error.statusCode = 400;
-        throw error;
-      }
+                    p.pr_email AS employee_personal_email,
+                    p.pr_first_name AS employee_first_name,
+                    p.pr_last_name AS employee_last_name,
 
-      const today = new Date().toISOString().slice(0, 10);
-      const fromDate = String(leaveRequest.lr_from_date).slice(0, 10);
+                    manager.pr_id AS manager_pr_id,
+                    manager.or_emp_id AS manager_emp_id,
+                    manager.or_official_email AS manager_official_email,
+                    manager.or_organization_email AS manager_organization_email,
 
-      if (fromDate <= today) {
-        const error = new Error("Leave cannot be cancelled on or after the leave start date.");
-        error.statusCode = 400;
-        throw error;
-      }
+                    manager_personal.pr_email AS manager_personal_email,
+                    manager_personal.pr_first_name AS manager_first_name,
+                    manager_personal.pr_last_name AS manager_last_name,
 
-      const quotaResult = await client.query(
-        `SELECT * FROM public.leave_quota WHERE lq_pr_id = $1 AND lq_leave_type_id = $2 AND lq_leave_year = EXTRACT(YEAR FROM $3::date) FOR UPDATE`,
-        [prId, leaveRequest.lr_leave_type_id, leaveRequest.lr_from_date]
-      );
+                    lt.lt_leave_type_name,
+                    lt.lt_leave_type_code
 
-      if (quotaResult.rows.length === 0) {
-        const error = new Error("Leave quota not found.");
-        error.statusCode = 400;
-        throw error;
-      }
+                FROM public.leave_requests lr
 
-      const quota = quotaResult.rows[0];
-      const requestedDays = Number(leaveRequest.lr_total_days || 0);
+                INNER JOIN public.leave_status ls
+                    ON ls.ls_leave_status_id = lr.lr_status_id
 
-      if (requestedDays <= 0) {
-        const error = new Error("Invalid leave request days.");
-        error.statusCode = 400;
-        throw error;
-      }
+                INNER JOIN public.organizations o
+                    ON o.pr_id = lr.lr_pr_id
 
-      const pendingBefore = Number(quota.lq_pending_days || 0);
-      const usedBefore = Number(quota.lq_used_days || 0);
-      let pendingAfter = pendingBefore;
-      let usedAfter = usedBefore;
+                LEFT JOIN public.personal p
+                    ON p.pr_id = lr.lr_pr_id
 
-      if (currentStatus === "pending") {
-        pendingAfter = Math.max(pendingBefore - requestedDays, 0);
-        await client.query(
-          `UPDATE public.leave_quota SET lq_pending_days = $1, lq_updated_at = CURRENT_TIMESTAMP, lq_updated_by = $2 WHERE lq_id = $3`,
-          [pendingAfter, prId, quota.lq_id]
+                INNER JOIN public.leave_types lt
+                    ON lt.lt_leave_type_id = lr.lr_leave_type_id
+
+                LEFT JOIN public.organizations manager
+                    ON manager.or_id = o.or_reporting_to_id
+                    AND manager.or_is_active = TRUE
+
+                LEFT JOIN public.personal manager_personal
+                    ON manager_personal.pr_id = manager.pr_id
+
+                WHERE lr.lr_leave_request_id = $1
+                  AND lr.lr_pr_id = $2
+
+                FOR UPDATE OF lr
+                `,
+                [
+                    requestId,
+                    prId
+                ]
+            );
+
+            if (requestResult.rows.length === 0) {
+                const error = new Error(
+                    "Leave request not found."
+                );
+
+                error.statusCode = 404;
+                throw error;
+            }
+
+            const leaveRequest = requestResult.rows[0];
+
+            const currentStatus = String(
+                leaveRequest.ls_leave_status_name || ""
+            ).toLowerCase();
+
+            if (
+                currentStatus !== "pending" &&
+                currentStatus !== "approved"
+            ) {
+                const error = new Error(
+                    `Leave cannot be cancelled because current status is ${leaveRequest.ls_leave_status_name}.`
+                );
+
+                error.statusCode = 400;
+                throw error;
+            }
+
+            const today = new Date()
+                .toISOString()
+                .slice(0, 10);
+
+            const fromDate = String(
+                leaveRequest.lr_from_date
+            ).slice(0, 10);
+
+            if (fromDate <= today) {
+                const error = new Error(
+                    "Leave cannot be cancelled on or after the leave start date."
+                );
+
+                error.statusCode = 400;
+                throw error;
+            }
+
+            const quotaResult = await client.query(
+                `
+                SELECT
+                    *
+                FROM public.leave_quota
+                WHERE lq_pr_id = $1
+                  AND lq_leave_type_id = $2
+                  AND lq_leave_year = EXTRACT(
+                      YEAR FROM $3::date
+                  )
+                FOR UPDATE
+                `,
+                [
+                    prId,
+                    leaveRequest.lr_leave_type_id,
+                    leaveRequest.lr_from_date
+                ]
+            );
+
+            if (quotaResult.rows.length === 0) {
+                const error = new Error(
+                    "Leave quota not found."
+                );
+
+                error.statusCode = 400;
+                throw error;
+            }
+
+            const quota = quotaResult.rows[0];
+
+            const requestedDays = Number(
+                leaveRequest.lr_total_days || 0
+            );
+
+            if (requestedDays <= 0) {
+                const error = new Error(
+                    "Invalid leave request days."
+                );
+
+                error.statusCode = 400;
+                throw error;
+            }
+
+            const pendingBefore = Number(
+                quota.lq_pending_days || 0
+            );
+
+            const usedBefore = Number(
+                quota.lq_used_days || 0
+            );
+
+            let pendingAfter = pendingBefore;
+            let usedAfter = usedBefore;
+
+            if (currentStatus === "pending") {
+                pendingAfter = Math.max(
+                    pendingBefore - requestedDays,
+                    0
+                );
+
+                await client.query(
+                    `
+                    UPDATE public.leave_quota
+                    SET
+                        lq_pending_days = $1,
+                        lq_updated_at = CURRENT_TIMESTAMP,
+                        lq_updated_by = $2
+                    WHERE lq_id = $3
+                    `,
+                    [
+                        pendingAfter,
+                        prId,
+                        quota.lq_id
+                    ]
+                );
+            }
+
+            if (currentStatus === "approved") {
+                usedAfter = Math.max(
+                    usedBefore - requestedDays,
+                    0
+                );
+
+                await client.query(
+                    `
+                    UPDATE public.leave_quota
+                    SET
+                        lq_used_days = $1,
+                        lq_updated_at = CURRENT_TIMESTAMP,
+                        lq_updated_by = $2
+                    WHERE lq_id = $3
+                    `,
+                    [
+                        usedAfter,
+                        prId,
+                        quota.lq_id
+                    ]
+                );
+            }
+
+            const updateResult = await client.query(
+                `
+                UPDATE public.leave_requests
+                SET
+                    lr_status_id = $1,
+                    lr_cancelled_at = CURRENT_TIMESTAMP,
+                    lr_cancellation_reason = $2,
+                    lr_updated_at = CURRENT_TIMESTAMP,
+                    lr_updated_by = $3
+                WHERE lr_leave_request_id = $4
+                RETURNING *
+                `,
+                [
+                    cancelledStatusId,
+                    reason,
+                    prId,
+                    requestId
+                ]
+            );
+
+            const employeeName = [
+                leaveRequest.employee_first_name,
+                leaveRequest.employee_last_name
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+
+            const managerName = [
+                leaveRequest.manager_first_name,
+                leaveRequest.manager_last_name
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+
+            const employeeEmail =
+                leaveRequest.employee_official_email ||
+                leaveRequest.employee_organization_email ||
+                leaveRequest.employee_personal_email ||
+                null;
+
+            const managerEmail =
+                leaveRequest.manager_official_email ||
+                leaveRequest.manager_organization_email ||
+                leaveRequest.manager_personal_email ||
+                null;
+
+            return {
+                request: updateResult.rows[0],
+
+                employee: {
+                    name:
+                        employeeName ||
+                        leaveRequest.employee_emp_id ||
+                        "Employee",
+
+                    emp_id:
+                        leaveRequest.employee_emp_id,
+
+                    email:
+                        employeeEmail
+                },
+
+                manager: {
+                    name:
+                        managerName ||
+                        leaveRequest.manager_emp_id ||
+                        "Manager",
+
+                    emp_id:
+                        leaveRequest.manager_emp_id,
+
+                    email:
+                        managerEmail
+                },
+
+                leave_type: {
+                    name:
+                        leaveRequest.lt_leave_type_name,
+
+                    code:
+                        leaveRequest.lt_leave_type_code
+                },
+
+                original_status:
+                    leaveRequest.ls_leave_status_name,
+
+                quota: {
+                    pending_days_before:
+                        pendingBefore,
+
+                    pending_days_after:
+                        pendingAfter,
+
+                    used_days_before:
+                        usedBefore,
+
+                    used_days_after:
+                        usedAfter,
+
+                    released_days:
+                        requestedDays
+                }
+            };
+        });
+
+        const formatDateTime = (value) => {
+            if (!value) {
+                return "-";
+            }
+
+            const date = new Date(value);
+
+            if (Number.isNaN(date.getTime())) {
+                return "-";
+            }
+
+            const day = String(
+                date.getDate()
+            ).padStart(2, "0");
+
+            const month = String(
+                date.getMonth() + 1
+            ).padStart(2, "0");
+
+            const year =
+                date.getFullYear();
+
+            const hours = String(
+                date.getHours()
+            ).padStart(2, "0");
+
+            const minutes = String(
+                date.getMinutes()
+            ).padStart(2, "0");
+
+            return `${day}-${month}-${year}:${hours}:${minutes}`;
+        };
+
+        const request = result.request;
+
+        const emailData = {
+            employee_name:
+                result.employee.name,
+
+            employee_id:
+                result.employee.emp_id,
+
+            leave_request_id:
+                request.request_id ||
+                request.lr_leave_request_id,
+
+            leave_type:
+                result.leave_type.name,
+
+            leave_type_code:
+                result.leave_type.code || "-",
+
+            from_date:
+                formatDateTime(
+                    request.lr_from_date
+                ),
+
+            to_date:
+                formatDateTime(
+                    request.lr_to_date
+                ),
+
+            total_days:
+                request.lr_total_days,
+
+            original_status:
+                result.original_status,
+
+            reason:
+                request.lr_reason ||
+                "No reason provided",
+
+            cancellation_reason:
+                request.lr_cancellation_reason ||
+                "No cancellation reason provided",
+
+            status:
+                "Cancelled",
+
+            applied_at:
+                formatDateTime(
+                    request.lr_applied_at
+                ),
+
+            cancelled_at:
+                formatDateTime(
+                    request.lr_cancelled_at
+                ),
+
+            pending_days:
+                result.quota.pending_days_after,
+
+            used_days:
+                result.quota.used_days_after,
+
+            manager_name:
+                result.manager.name,
+
+            manager_id:
+                result.manager.emp_id
+        };
+
+        if (result.employee.or_official_email) {
+            try {
+                await sendEmail(
+                    result.employee.or_official_email,
+                    `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
+                    "leave_cancelled",
+                    emailData
+                );
+
+                console.log(
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`
+                );
+            } catch (emailError) {
+                console.error(
+                    `[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`,
+                    emailError
+                );
+            }
+        }
+
+        if (result.manager.or_official_email) {
+            try {
+                await sendEmail(
+                    result.manager.or_official_email,
+                    `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
+                    "leave_cancelled_manager",
+                    emailData
+                );
+
+                console.log(
+                    `[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`
+                );
+            } catch (emailError) {
+                console.error(
+                    `[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`,
+                    emailError
+                );
+            }
+        }
+
+        return successResponse(
+            res,
+            200,
+            result,
+            "Leave cancelled successfully."
         );
-      }
 
-      if (currentStatus === "approved") {
-        usedAfter = Math.max(usedBefore - requestedDays, 0);
-        await client.query(
-          `UPDATE public.leave_quota SET lq_used_days = $1, lq_updated_at = CURRENT_TIMESTAMP, lq_updated_by = $2 WHERE lq_id = $3`,
-          [usedAfter, prId, quota.lq_id]
-        );
-      }
-
-      const updateResult = await client.query(
-        `UPDATE public.leave_requests SET lr_status_id = $1, lr_cancelled_at = CURRENT_TIMESTAMP, lr_cancellation_reason = $2, lr_updated_at = CURRENT_TIMESTAMP, lr_updated_by = $3 WHERE lr_leave_request_id = $4 RETURNING *`,
-        [cancelledStatusId, reason, prId, requestId]
-      );
-
-      const employeeName = [leaveRequest.employee_first_name, leaveRequest.employee_last_name].filter(Boolean).join(" ").trim();
-      const managerName = [leaveRequest.manager_first_name, leaveRequest.manager_last_name].filter(Boolean).join(" ").trim();
-      const employeeEmail = leaveRequest.employee_official_email || leaveRequest.employee_organization_email || leaveRequest.employee_personal_email || null;
-      const managerEmail = leaveRequest.manager_official_email || leaveRequest.manager_organization_email || leaveRequest.manager_personal_email || null;
-
-      return {
-        request: updateResult.rows[0],
-        employee: {
-          name: employeeName || leaveRequest.employee_emp_id || "Employee",
-          emp_id: leaveRequest.employee_emp_id,
-          email: employeeEmail,
-        },
-        manager: {
-          name: managerName || leaveRequest.manager_emp_id || "Manager",
-          emp_id: leaveRequest.manager_emp_id,
-          email: managerEmail,
-        },
-        leave_type: { name: leaveRequest.lt_leave_type_name, code: leaveRequest.lt_leave_type_code },
-        original_status: leaveRequest.ls_leave_status_name,
-        quota: {
-          pending_days_before: pendingBefore,
-          pending_days_after: pendingAfter,
-          used_days_before: usedBefore,
-          used_days_after: usedAfter,
-          released_days: requestedDays,
-        },
-      };
-    });
-
-    const formatDateTimeLocal = (value) => {
-      if (!value) return "-";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return "-";
-      const day = String(date.getDate()).padStart(2, "0");
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const year = date.getFullYear();
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${day}-${month}-${year}:${hours}:${minutes}`;
-    };
-
-    const request = result.request;
-
-    const emailData = {
-      employee_name: result.employee.name,
-      employee_id: result.employee.emp_id,
-      leave_request_id: request.request_id || request.lr_leave_request_id,
-      leave_type: result.leave_type.name,
-      leave_type_code: result.leave_type.code || "-",
-      from_date: formatDateTimeLocal(request.lr_from_date),
-      to_date: formatDateTimeLocal(request.lr_to_date),
-      total_days: request.lr_total_days,
-      original_status: result.original_status,
-      reason: request.lr_reason || "No reason provided",
-      cancellation_reason: request.lr_cancellation_reason || "No cancellation reason provided",
-      status: "Cancelled",
-      applied_at: formatDateTimeLocal(request.lr_applied_at),
-      cancelled_at: formatDateTimeLocal(request.lr_cancelled_at),
-      pending_days: result.quota.pending_days_after,
-      used_days: result.quota.used_days_after,
-      manager_name: result.manager.name,
-      manager_id: result.manager.emp_id,
-    };
-
-    if (result.employee.or_official_email) {
-      try {
-        await sendEmail(
-          result.employee.or_official_email,
-          `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
-          "leave_cancelled",
-          emailData
-        );
-        console.log(`[LEAVE CANCELLATION EMPLOYEE EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`);
-      } catch (emailError) {
-        console.error(`[LEAVE CANCELLATION EMPLOYEE EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.employee.or_official_email}`, emailError);
-      }
+    } catch (error) {
+        return handleDbError(res, error);
     }
-
-    if (result.manager.or_official_email) {
-      try {
-        await sendEmail(
-          result.manager.or_official_email,
-          `Leave Request Cancelled - ${request.request_id || request.lr_leave_request_id}`,
-          "leave_cancelled_manager",
-          emailData
-        );
-        console.log(`[LEAVE CANCELLATION MANAGER EMAIL SENT] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`);
-      } catch (emailError) {
-        console.error(`[LEAVE CANCELLATION MANAGER EMAIL ERROR] Request=${request.request_id || request.lr_leave_request_id} To=${result.manager.or_official_email}`, emailError);
-      }
-    }
-
-    return successResponse(res, 200, result, "Leave cancelled successfully.");
-  } catch (error) {
-    return handleDbError(res, error);
-  }
 };
 
 exports.getPendingApprovals = async (req, res) => {
