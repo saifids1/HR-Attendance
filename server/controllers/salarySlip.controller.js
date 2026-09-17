@@ -970,3 +970,4 @@ module.exports = {
   getSalarySlipsPaginated,
   getSalarySlipPdf,
 };
+
