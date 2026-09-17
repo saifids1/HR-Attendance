@@ -677,7 +677,18 @@ exports.getMyLeaveRequests = async (req, res) => {
       };
     });
 
-    return paginatedResponse(res, data, page, limit, total);
+    return paginatedResponse(
+  res,
+  200,
+  "Leave requests fetched successfully",
+  data,
+  {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  }
+);
   } catch (error) {
     return handleDbError(res, error);
   }
@@ -1001,7 +1012,18 @@ exports.getPendingApprovals = async (req, res) => {
       };
     });
 
-    return paginatedResponse(res, 200, mapped, page, limit, total);
+    return paginatedResponse(
+  res,
+  200,
+  "Leave requests fetched successfully",
+  data,
+  {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  }
+);
   } catch (error) {
     return handleDbError(res, error);
   }
@@ -1991,7 +2013,18 @@ exports.getAllLeaveRequests = async (req, res) => {
       [...values, limit, offset]
     );
 
-    return paginatedResponse(res, result.rows, page, limit, total);
+    return paginatedResponse(
+  res,
+  200,
+  "Leave requests fetched successfully",
+  data,
+  {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  }
+);
   } catch (error) {
     return handleDbError(res, error);
   }
@@ -2078,7 +2111,18 @@ exports.getEmployeeLeaveRequests = async (req, res) => {
       };
     });
 
-    return paginatedResponse(res, 200, data, page, limit, count);
+    return paginatedResponse(
+  res,
+  200,
+  "Leave requests fetched successfully",
+  data,
+  {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  }
+);
   } catch (error) {
     return handleDbError(res, error);
   }
