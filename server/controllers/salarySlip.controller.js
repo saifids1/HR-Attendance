@@ -781,7 +781,7 @@ const getSalarySlipsPaginated = async (req, res) => {
   try {
     let {
       page = 1,
-      limit = 10,
+      limit,
       search,
       emp_id,
       month,
@@ -793,13 +793,41 @@ const getSalarySlipsPaginated = async (req, res) => {
     } = req.query;
 
     page = parseInt(page, 10);
-    limit = parseInt(limit, 10);
 
-    if (isNaN(page) || page < 1) page = 1;
-    if (isNaN(limit) || limit < 1) limit = 10;
-    if (limit > 100) limit = 10000;
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
 
-    const offset = (page - 1) * limit;
+    /*
+     * limit behavior:
+     * - limit not provided  -> fetch all
+     * - limit = null        -> fetch all
+     * - limit = ""          -> fetch all
+     * - limit = "null"      -> fetch all
+     * - valid number        -> pagination
+     */
+    const isFetchAll =
+      limit === undefined ||
+      limit === null ||
+      limit === "" ||
+      String(limit).toLowerCase() === "null";
+
+    if (!isFetchAll) {
+      limit = parseInt(limit, 10);
+
+      if (isNaN(limit) || limit < 1) {
+        limit = 10;
+      }
+
+      // Maximum limit
+      if (limit > 100) {
+        limit = 100;
+      }
+    } else {
+      limit = null;
+    }
+
+    const offset = isFetchAll ? 0 : (page - 1) * limit;
 
     const allowedSortColumns = [
       "created_at",
@@ -815,11 +843,16 @@ const getSalarySlipsPaginated = async (req, res) => {
       ? sort_by
       : "created_at";
 
-    const sortDir = String(sort_order).toUpperCase() === "ASC" ? "ASC" : "DESC";
+    const sortDir =
+      String(sort_order).toUpperCase() === "ASC" ? "ASC" : "DESC";
 
     const whereClauses = [];
     const whereValues = [];
     let paramIndex = 1;
+
+    /* -------------------------------------------------------------------------- */
+    /*                                FILTERS                                     */
+    /* -------------------------------------------------------------------------- */
 
     if (emp_id) {
       whereClauses.push(`og.or_emp_id = $${paramIndex++}`);
@@ -843,7 +876,10 @@ const getSalarySlipsPaginated = async (req, res) => {
 
     if (is_published !== undefined && is_published !== "") {
       whereClauses.push(`ss.is_published = $${paramIndex++}`);
-      whereValues.push(is_published === "true" || is_published === true);
+
+      whereValues.push(
+        is_published === "true" || is_published === true
+      );
     }
 
     if (search && String(search).trim() !== "") {
@@ -851,6 +887,7 @@ const getSalarySlipsPaginated = async (req, res) => {
         `(ss.salary_slip_no ILIKE $${paramIndex} OR
           CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) ILIKE $${paramIndex})`
       );
+
       whereValues.push(`%${String(search).trim()}%`);
       paramIndex++;
     }
@@ -859,29 +896,48 @@ const getSalarySlipsPaginated = async (req, res) => {
       ? `WHERE ${whereClauses.join(" AND ")}`
       : "";
 
+    /* -------------------------------------------------------------------------- */
+    /*                              COUNT QUERY                                   */
+    /* -------------------------------------------------------------------------- */
+
     const countQuery = `
       SELECT COUNT(*)::int AS total
       FROM salary_slips ss
-      LEFT JOIN personal p ON p.pr_id = ss.employee_id
-      LEFT JOIN organizations og ON og.pr_id = p.pr_id
+      LEFT JOIN personal p 
+        ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og 
+        ON og.pr_id = p.pr_id
       ${whereSQL}
     `;
 
-    const countResult = await pool.query(countQuery, whereValues);
+    const countResult = await pool.query(
+      countQuery,
+      whereValues
+    );
+
     const total = countResult.rows[0].total;
 
-    const totalPages = Math.ceil(total / limit) || 0;
+    const totalPages = isFetchAll
+      ? 1
+      : Math.ceil(total / limit) || 0;
 
-    const dataValues = [...whereValues, limit, offset];
+    /* -------------------------------------------------------------------------- */
+    /*                              ORDER BY                                      */
+    /* -------------------------------------------------------------------------- */
 
     let orderByClause;
+
     if (sortColumn === "employee_name") {
       orderByClause = `ORDER BY employee_name ${sortDir}`;
     } else {
       orderByClause = `ORDER BY ss.${sortColumn} ${sortDir}`;
     }
 
-    const dataQuery = `
+    /* -------------------------------------------------------------------------- */
+    /*                              DATA QUERY                                    */
+    /* -------------------------------------------------------------------------- */
+
+    let dataQuery = `
       SELECT
         ss.salary_slip_id,
         og.or_emp_id AS emp_id,
@@ -896,15 +952,24 @@ const getSalarySlipsPaginated = async (req, res) => {
         ss.created_at,
         ss.updated_by,
         ss.updated_at,
-        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
+        CONCAT_WS(
+          ' ',
+          p.pr_first_name,
+          p.pr_last_name
+        ) AS employee_name,
         ssf.salary_slip_file_id,
         ssf.file_path,
         ssf.file_size
       FROM salary_slips ss
-      LEFT JOIN personal p ON p.pr_id = ss.employee_id
-      LEFT JOIN organizations og ON og.pr_id = p.pr_id
+      LEFT JOIN personal p 
+        ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og 
+        ON og.pr_id = p.pr_id
       LEFT JOIN LATERAL (
-        SELECT salary_slip_file_id, file_path, file_size
+        SELECT
+          salary_slip_file_id,
+          file_path,
+          file_size
         FROM salary_slip_files
         WHERE salary_slip_id = ss.salary_slip_id
         ORDER BY created_at DESC
@@ -912,40 +977,94 @@ const getSalarySlipsPaginated = async (req, res) => {
       ) ssf ON TRUE
       ${whereSQL}
       ${orderByClause}
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
 
-    const dataResult = await pool.query(dataQuery, dataValues);
+    let dataValues = [...whereValues];
+
+    /* -------------------------------------------------------------------------- */
+    /*                         ADD PAGINATION ONLY IF NEEDED                       */
+    /* -------------------------------------------------------------------------- */
+
+    if (!isFetchAll) {
+      dataQuery += `
+        LIMIT $${paramIndex++}
+        OFFSET $${paramIndex++}
+      `;
+
+      dataValues.push(limit, offset);
+    }
+
+    const dataResult = await pool.query(
+      dataQuery,
+      dataValues
+    );
+
+    /* -------------------------------------------------------------------------- */
+    /*                              RESPONSE                                      */
+    /* -------------------------------------------------------------------------- */
 
     return res.status(200).json({
       success: true,
       data: dataResult.rows,
+
       pagination: {
         total,
-        page,
-        limit,
+        page: isFetchAll ? 1 : page,
+        limit: isFetchAll ? null : limit,
         total_pages: totalPages,
-        has_next_page: page < totalPages,
-        has_prev_page: page > 1,
-        next_page: page < totalPages ? page + 1 : null,
-        prev_page: page > 1 ? page - 1 : null,
+
+        has_next_page: isFetchAll
+          ? false
+          : page < totalPages,
+
+        has_prev_page: isFetchAll
+          ? false
+          : page > 1,
+
+        next_page:
+          !isFetchAll && page < totalPages
+            ? page + 1
+            : null,
+
+        prev_page:
+          !isFetchAll && page > 1
+            ? page - 1
+            : null,
       },
+
       filters: {
         search: search || null,
         emp_id: emp_id || null,
-        month: month ? parseInt(month, 10) : null,
-        year: year ? parseInt(year, 10) : null,
-        department: department ? parseInt(department, 10) : null,
+
+        month: month
+          ? parseInt(month, 10)
+          : null,
+
+        year: year
+          ? parseInt(year, 10)
+          : null,
+
+        department: department
+          ? parseInt(department, 10)
+          : null,
+
         is_published:
-          is_published !== undefined && is_published !== ""
-            ? is_published === "true" || is_published === true
+          is_published !== undefined &&
+          is_published !== ""
+            ? is_published === "true" ||
+              is_published === true
             : null,
+
         sort_by: sortColumn,
         sort_order: sortDir,
       },
     });
   } catch (error) {
-    console.error("Get paginated salary slips error:", error);
+    console.error(
+      "Get paginated salary slips error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch paginated salary slips",
