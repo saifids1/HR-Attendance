@@ -779,8 +779,6 @@ const getSalarySlipPdf = async (req, res) => {
 
 const getSalarySlipsPaginated = async (req, res) => {
   try {
-    /* ---------------- Parse & sanitize query ---------------- */
-
     let {
       page = 1,
       limit = 10,
@@ -788,6 +786,7 @@ const getSalarySlipsPaginated = async (req, res) => {
       emp_id,
       month,
       year,
+      department,
       is_published,
       sort_by = "created_at",
       sort_order = "DESC",
@@ -801,8 +800,6 @@ const getSalarySlipsPaginated = async (req, res) => {
     if (limit > 100) limit = 10000;
 
     const offset = (page - 1) * limit;
-
-    /* ---------------- Whitelist sort columns (prevent SQL injection) ---------------- */
 
     const allowedSortColumns = [
       "created_at",
@@ -819,8 +816,6 @@ const getSalarySlipsPaginated = async (req, res) => {
       : "created_at";
 
     const sortDir = String(sort_order).toUpperCase() === "ASC" ? "ASC" : "DESC";
-
-    /* ---------------- Build WHERE clauses dynamically ---------------- */
 
     const whereClauses = [];
     const whereValues = [];
@@ -841,6 +836,11 @@ const getSalarySlipsPaginated = async (req, res) => {
       whereValues.push(parseInt(year, 10));
     }
 
+    if (department) {
+      whereClauses.push(`og.or_department_id = $${paramIndex++}`);
+      whereValues.push(parseInt(department, 10));
+    }
+
     if (is_published !== undefined && is_published !== "") {
       whereClauses.push(`ss.is_published = $${paramIndex++}`);
       whereValues.push(is_published === "true" || is_published === true);
@@ -859,8 +859,6 @@ const getSalarySlipsPaginated = async (req, res) => {
       ? `WHERE ${whereClauses.join(" AND ")}`
       : "";
 
-    /* ---------------- Count total ---------------- */
-
     const countQuery = `
       SELECT COUNT(*)::int AS total
       FROM salary_slips ss
@@ -874,11 +872,8 @@ const getSalarySlipsPaginated = async (req, res) => {
 
     const totalPages = Math.ceil(total / limit) || 0;
 
-    /* ---------------- Fetch page ---------------- */
-
     const dataValues = [...whereValues, limit, offset];
 
-    // Handle sorting on employee_name (alias)
     let orderByClause;
     if (sortColumn === "employee_name") {
       orderByClause = `ORDER BY employee_name ${sortDir}`;
@@ -890,6 +885,7 @@ const getSalarySlipsPaginated = async (req, res) => {
       SELECT
         ss.salary_slip_id,
         og.or_emp_id AS emp_id,
+        og.or_department_id AS department_id,
         ss.month,
         ss.year,
         ss.salary_slip_no,
@@ -921,8 +917,6 @@ const getSalarySlipsPaginated = async (req, res) => {
 
     const dataResult = await pool.query(dataQuery, dataValues);
 
-    /* ---------------- Build response ---------------- */
-
     return res.status(200).json({
       success: true,
       data: dataResult.rows,
@@ -941,6 +935,7 @@ const getSalarySlipsPaginated = async (req, res) => {
         emp_id: emp_id || null,
         month: month ? parseInt(month, 10) : null,
         year: year ? parseInt(year, 10) : null,
+        department: department ? parseInt(department, 10) : null,
         is_published:
           is_published !== undefined && is_published !== ""
             ? is_published === "true" || is_published === true
