@@ -974,6 +974,7 @@ const getSalarySlipById = async (req, res) => {
 
     const where = {
       employee_id: id,
+      is_published: true,
     };
 
     const queryOptions = {
@@ -1039,7 +1040,7 @@ const getSalarySlipById = async (req, res) => {
       if (total === 0) {
         return res.status(404).json({
           success: false,
-          message: "No salary slips found for this employee",
+          message: "No published salary slips found for this employee",
           data: [],
           pagination: {
             total: 0,
@@ -1095,7 +1096,7 @@ const getSalarySlipById = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: "Salary slips fetched successfully",
+        message: "Published salary slips fetched successfully",
         data,
         pagination: {
           total,
@@ -1118,7 +1119,7 @@ const getSalarySlipById = async (req, res) => {
     if (!salarySlips || salarySlips.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "No salary slips found for this employee",
+        message: "No published salary slips found for this employee",
         data: [],
         pagination: null,
       });
@@ -1165,7 +1166,7 @@ const getSalarySlipById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Salary slips fetched successfully",
+      message: "Published salary slips fetched successfully",
       data,
       pagination: null,
     });
@@ -1680,7 +1681,7 @@ const getSalarySlipsPaginated = async (
       sort_by = "created_at",
       sort_order = "DESC",
     } = req.query;
-
+    
     page = parseInt(page, 10);
     limit = parseInt(limit, 10);
 
