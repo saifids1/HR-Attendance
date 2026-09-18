@@ -49,7 +49,9 @@ const leaveTypeRoutes        = require("./routes/leaveTypeRoutes");
 const leaveStatusRoutes      = require("./routes/LeaveStatusRoutes");
 const leaveProcessRoutes     = require("./routes/leaveProcessRoutes");
 const leaveQuotaRoutes       = require("./routes/LeaveQuotaRoutes");
-const salarySlipRoutes = require("./routes/salarySlip.routes");
+const salarySlipRoutes       = require("./routes/salarySlip.routes");
+const bulkEmployeeUploadRoutes = require("./routes/bulkEmployeeUpload.routes");
+
 
 
 require("./cron/attendance.cron");
@@ -161,6 +163,7 @@ app.use("/api/punch-types", punchTypeRoutes);
 app.use("/api/update-schedule", cronRoutes);
 
 app.use("/api/salary-slips", salarySlipRoutes);
+app.use("/api/employees", bulkEmployeeUploadRoutes);
 
 app.get("/health", async (req, res) => {
   try {
