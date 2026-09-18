@@ -689,6 +689,7 @@ const getSalarySlips = async (req, res) => {
   }
 };
 
+
 const getSalarySlipById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -922,7 +923,6 @@ const getSalarySlipById = async (req, res) => {
     });
   }
 };
-
 const updateSalarySlip = async (req, res) => {
   const client = await pool.connect();
   let writtenFile = null;
