@@ -1,4 +1,4 @@
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 const fs = require("fs");
 const path = require("path");
 const { db: pool } = require("../db/connectDB");
@@ -100,6 +100,265 @@ const getDepartmentEmployees = async (req, res) => {
     });
   }
 };
+
+const getDepartmentEmployeesSalarySlipsV2 = async (req, res) => {
+  try {
+    let {
+      or_department_id,
+      month,
+      year,
+      page = 1,
+      limit = 10,
+      search,
+      is_published,
+      sort_order = "ASC",
+    } = req.query;
+
+    page = parseInt(page, 10);
+    limit = parseInt(limit, 10);
+
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+
+    if (isNaN(limit) || limit < 1) {
+      limit = 10;
+    }
+
+    if (limit > 100) {
+      limit = 100;
+    }
+
+    const offset = (page - 1) * limit;
+
+    const organizationWhere = {
+      or_is_active: true,
+    };
+
+    if (
+      or_department_id !== undefined &&
+      or_department_id !== null &&
+      String(or_department_id).trim() !== ""
+    ) {
+      const departmentId = parseInt(or_department_id, 10);
+
+      if (isNaN(departmentId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid department ID",
+        });
+      }
+
+      organizationWhere.or_department_id = departmentId;
+    }
+
+    if (search !== undefined && search !== null && String(search).trim() !== "") {
+      const searchValue = String(search).trim();
+
+      organizationWhere[Op.or] = [
+        { or_emp_id: { [Op.iLike]: `%${searchValue}%` } },
+        { "$personal.pr_first_name$": { [Op.iLike]: `%${searchValue}%` } },
+        { "$personal.pr_last_name$": { [Op.iLike]: `%${searchValue}%` } },
+        Sequelize.where(
+          Sequelize.fn(
+            "concat",
+            Sequelize.col("personal.pr_first_name"),
+            " ",
+            Sequelize.col("personal.pr_last_name")
+          ),
+          { [Op.iLike]: `%${searchValue}%` }
+        ),
+      ];
+    }
+
+    const employeeResult = await Organizations.findAndCountAll({
+      where: organizationWhere,
+      attributes: ["or_emp_id", "pr_id", "or_department_id"],
+      include: [
+        {
+          model: Personal,
+          as: "personal",
+          attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+          required: true,
+        },
+      ],
+      order: [
+        [{ model: Personal, as: "personal" }, "pr_first_name", String(sort_order).toUpperCase() === "DESC" ? "DESC" : "ASC"],
+        [{ model: Personal, as: "personal" }, "pr_last_name", String(sort_order).toUpperCase() === "DESC" ? "DESC" : "ASC"],
+      ],
+      limit,
+      offset,
+      distinct: true,
+      subQuery: false,
+    });
+
+    const employees = employeeResult.rows;
+
+    const employeeIds = employees
+      .map((employee) => employee.pr_id)
+      .filter((id) => id !== null && id !== undefined);
+
+    let salarySlips = [];
+
+    if (employeeIds.length > 0) {
+      const salaryWhere = {
+        employee_id: {
+          [Op.in]: employeeIds,
+        },
+      };
+
+      if (month !== undefined && month !== null && String(month).trim() !== "") {
+        const parsedMonth = parseInt(month, 10);
+
+        if (isNaN(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
+          return res.status(400).json({
+            success: false,
+            message: "Month must be between 1 and 12",
+          });
+        }
+
+        salaryWhere.month = parsedMonth;
+      }
+
+      if (year !== undefined && year !== null && String(year).trim() !== "") {
+        const parsedYear = parseInt(year, 10);
+
+        if (isNaN(parsedYear)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid year",
+          });
+        }
+
+        salaryWhere.year = parsedYear;
+      }
+
+      if (is_published !== undefined && is_published !== null && String(is_published).trim() !== "") {
+        const publishedValue = String(is_published).toLowerCase();
+
+        if (publishedValue !== "true" && publishedValue !== "false") {
+          return res.status(400).json({
+            success: false,
+            message: "is_published must be true or false",
+          });
+        }
+
+        salaryWhere.is_published = publishedValue === "true";
+      }
+
+      salarySlips = await SalarySlips.findAll({
+        where: salaryWhere,
+        include: [
+          {
+            model: SalarySlipFiles,
+            as: "files",
+            attributes: ["salary_slip_file_id", "salary_slip_id", "file_path", "file_size", "created_by", "created_at", "updated_by", "updated_at"],
+            required: false,
+            separate: true,
+            order: [["created_at", "DESC"]],
+            limit: 1,
+          },
+        ],
+        order: [["created_at", "DESC"]],
+      });
+    }
+
+    const salarySlipMap = new Map();
+
+    salarySlips.forEach((slip) => {
+      if (!salarySlipMap.has(slip.employee_id)) {
+        salarySlipMap.set(slip.employee_id, slip);
+      }
+    });
+
+    const data = employees.map((employee) => {
+      const personal = employee.personal;
+      const salarySlip = salarySlipMap.get(employee.pr_id) || null;
+      const file = salarySlip?.files?.[0] || null;
+
+      return {
+        emp_id: employee.or_emp_id || null,
+        pr_id: employee.pr_id || null,
+        department_id: employee.or_department_id || null,
+        first_name: personal?.pr_first_name || null,
+        last_name: personal?.pr_last_name || null,
+        employee_name: personal
+          ? `${personal.pr_first_name || ""} ${personal.pr_last_name || ""}`.trim()
+          : null,
+        salary_slip: salarySlip
+          ? {
+              salary_slip_id: salarySlip.salary_slip_id,
+              employee_id: salarySlip.employee_id,
+              month: salarySlip.month,
+              year: salarySlip.year,
+              salary_slip_no: salarySlip.salary_slip_no,
+              payroll_date: salarySlip.payroll_date,
+              salary_generated_date: salarySlip.salary_generated_date,
+              is_published: salarySlip.is_published,
+              created_by: salarySlip.created_by,
+              created_at: salarySlip.created_at,
+              updated_by: salarySlip.updated_by,
+              updated_at: salarySlip.updated_at,
+              file: file
+                ? {
+                    salary_slip_file_id: file.salary_slip_file_id,
+                    salary_slip_id: file.salary_slip_id,
+                    file_path: file.file_path,
+                    file_size: file.file_size,
+                    created_by: file.created_by,
+                    created_at: file.created_at,
+                    updated_by: file.updated_by,
+                    updated_at: file.updated_at,
+                  }
+                : null,
+            }
+          : null,
+      };
+    });
+
+    const total = employeeResult.count;
+    const totalPages = Math.ceil(total / limit) || 0;
+
+    return res.status(200).json({
+      success: true,
+      message: "Employees and salary slip details fetched successfully",
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        total_pages: totalPages,
+        has_next_page: page < totalPages,
+        has_prev_page: page > 1,
+        next_page: page < totalPages ? page + 1 : null,
+        prev_page: page > 1 ? page - 1 : null,
+      },
+      filters: {
+        department_id:
+          or_department_id !== undefined && or_department_id !== null && String(or_department_id).trim() !== ""
+            ? parseInt(or_department_id, 10)
+            : null,
+        month: month !== undefined && month !== null && String(month).trim() !== "" ? parseInt(month, 10) : null,
+        year: year !== undefined && year !== null && String(year).trim() !== "" ? parseInt(year, 10) : null,
+        search: search !== undefined && search !== null && String(search).trim() !== "" ? String(search).trim() : null,
+        is_published:
+          is_published !== undefined && is_published !== null && String(is_published).trim() !== ""
+            ? String(is_published).toLowerCase() === "true"
+            : null,
+        sort_order: String(sort_order).toUpperCase() === "DESC" ? "DESC" : "ASC",
+      },
+    });
+  } catch (error) {
+    console.error("Get employees salary slips V2 error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch employees and salary slip details",
+      error: error.message,
+    });
+  }
+};
+
 
 const createSalarySlip = async (req, res) => {
   const client = await pool.connect();
@@ -1747,4 +2006,5 @@ module.exports = {
   deleteSalarySlip,
   getSalarySlipsPaginated,
   getSalarySlipPdf,
+  getDepartmentEmployeesSalarySlipsV2,
 };

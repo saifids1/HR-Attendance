@@ -16,6 +16,7 @@ const {
   updateSalarySlip,
   deleteSalarySlip,
   getSalarySlipPdf,
+  getDepartmentEmployeesSalarySlipsV2,
 } = require("../controllers/salarySlip.controller");
 
 /* ---------------- STATIC / SPECIFIC ROUTES FIRST ---------------- */
@@ -34,6 +35,8 @@ router.get("/", getSalarySlips);
 
 // ✅ Paginated MUST come BEFORE "/:id"
 router.get("/paginated", getSalarySlipsPaginated);
+
+router.get("/EmpyDepartpaginated_v2", getDepartmentEmployeesSalarySlipsV2);
 
 /* ---------------- DYNAMIC ROUTES AFTER ---------------- */
 
