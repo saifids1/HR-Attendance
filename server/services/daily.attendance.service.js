@@ -72,20 +72,20 @@ today_pairs AS
     )
 ),
 
-    first_punch_per_emp AS
-    (
-      SELECT
-        TRIM(al.emp_id) AS emp_id,
-        MIN((al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE) AS first_punch_date
+first_punch_per_emp AS
+(
+  SELECT
+    TRIM(al.emp_id) AS emp_id,
+    MIN((al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE) AS first_punch_date
 
-      FROM public.attendance_logs al
+  FROM public.attendance_logs al
 
-      WHERE al.emp_id IS NOT NULL
-        AND TRIM(al.emp_id) <> ''
-        AND al.punch_time IS NOT NULL
+  WHERE al.emp_id IS NOT NULL
+    AND TRIM(al.emp_id) <> ''
+    AND al.punch_time IS NOT NULL
 
-      GROUP BY TRIM(al.emp_id)
-    ),
+  GROUP BY TRIM(al.emp_id)
+),
 
 backfill_pairs AS
 (
@@ -141,14 +141,6 @@ distinct_target_dates AS
   FROM target_pairs
 ),
 
-/* =====================================================
-   PRIOR STATE: whatever daily_attendance already had
-   for each target (emp_id, date) pair BEFORE this run.
-   Used to detect "punch_in/punch_out just got recorded"
-   vs. "was already recorded on an earlier run" — an
-   upsert's RETURNING alone can't tell you that.
-===================================================== */
-
 prior_state AS
 (
   SELECT
@@ -169,7 +161,8 @@ active_setting AS
     s.office_start_time,
     s.office_end_time,
     s.grace_period_minutes,
-    s.half_day_after_minutes
+    s.half_day_after_minutes,
+    s.early_go_minutes
   FROM public.attendance_settings s
   WHERE s.is_active = TRUE
   ORDER BY s.id DESC
@@ -179,23 +172,23 @@ active_setting AS
 day_rule AS
 (
   SELECT
+    d.attendance_date,
 
-        d.attendance_date,
+    s.id AS setting_id,
+    s.grace_period_minutes,
+    s.half_day_after_minutes,
+    s.early_go_minutes,
 
-        s.id AS setting_id,
-        s.grace_period_minutes,
-        s.half_day_after_minutes,
+    r.full_day_hours,
+    r.half_day_hours,
 
-        r.full_day_hours,
-        r.half_day_hours,
+    COALESCE(r.is_working_day, TRUE) AS is_working_day,
+    COALESCE(r.start_time, s.office_start_time) AS start_time,
+    COALESCE(r.end_time, s.office_end_time) AS end_time
 
-        COALESCE(r.is_working_day, TRUE) AS is_working_day,
-        COALESCE(r.start_time, s.office_start_time) AS start_time,
-        COALESCE(r.end_time, s.office_end_time) AS end_time
+  FROM distinct_target_dates d
 
-      FROM distinct_target_dates d
-
-      CROSS JOIN active_setting s
+  CROSS JOIN active_setting s
 
   LEFT JOIN public.attendance_weekly_rules r
     ON r.attendance_setting_id = s.id
@@ -321,7 +314,7 @@ punch_data AS
 punches AS
 (
   SELECT
-  
+
     e.emp_id,
     e.attendance_date,
 
@@ -442,7 +435,14 @@ calculated AS
       WHEN p.punch_out IS NULL THEN FALSE
       WHEN h.holiday_id IS NOT NULL THEN FALSE
       WHEN dr.is_working_day = FALSE THEN FALSE
-      WHEN p.punch_out::TIME < dr.end_time THEN TRUE
+      WHEN p.punch_out::TIME <
+           (
+             dr.end_time -
+             MAKE_INTERVAL(
+               mins => dr.early_go_minutes
+             )
+           )
+        THEN TRUE
       ELSE FALSE
     END AS is_early_gone,
 
@@ -555,43 +555,43 @@ upserted AS
 
 
 SELECT
-      u.emp_id,
-      TRIM(COALESCE(p.pr_first_name, '') || ' ' || COALESCE(p.pr_last_name, '')) AS emp_name,
-      o.or_official_email AS emp_email,
+  u.emp_id,
+  TRIM(COALESCE(p.pr_first_name, '') || ' ' || COALESCE(p.pr_last_name, '')) AS emp_name,
+  o.or_official_email AS emp_email,
 
-      TO_CHAR(u.attendance_date, 'DD Mon YYYY') AS date_text,
-      TO_CHAR(u.attendance_date, 'FMDay')       AS day_text,
-      TO_CHAR(u.punch_in,  'HH12:MI AM')        AS punch_in_text,
-      TO_CHAR(u.punch_out, 'HH12:MI AM')        AS punch_out_text,
+  TO_CHAR(u.attendance_date, 'DD Mon YYYY') AS date_text,
+  TO_CHAR(u.attendance_date, 'FMDay')       AS day_text,
+  TO_CHAR(u.punch_in,  'HH12:MI AM')        AS punch_in_text,
+  TO_CHAR(u.punch_out, 'HH12:MI AM')        AS punch_out_text,
 
-      CASE WHEN u.punch_out IS NOT NULL THEN
-        FLOOR(EXTRACT(EPOCH FROM u.total_hours) / 3600)::INT || 'h ' ||
-        FLOOR(MOD(EXTRACT(EPOCH FROM u.total_hours)::INT, 3600) / 60)::INT || 'm'
-      END AS duration_text,
+  CASE WHEN u.punch_out IS NOT NULL THEN
+      FLOOR(EXTRACT(EPOCH FROM u.total_hours) / 3600)::INT || 'h ' ||
+      FLOOR(MOD(EXTRACT(EPOCH FROM u.total_hours)::INT, 3600) / 60)::INT || 'm'
+  END AS duration_text,
 
-      (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)   AS send_punch_in,
-      (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL) AS send_punch_out
+  (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL) AS send_punch_in,
+  (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL) AS send_punch_out
 
-    FROM upserted u
+FROM upserted u
 
-    JOIN public.organizations o
-      ON TRIM(o.or_emp_id) = u.emp_id
+JOIN public.organizations o
+  ON TRIM(o.or_emp_id) = u.emp_id
 
-    JOIN public.personal p
-      ON p.pr_id = o.pr_id
+JOIN public.personal p
+  ON p.pr_id = o.pr_id
 
 LEFT JOIN prior_state os
-      ON os.emp_id = u.emp_id
-     AND os.attendance_date = u.attendance_date
+  ON os.emp_id = u.emp_id
+ AND os.attendance_date = u.attendance_date
 
-    WHERE (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)
-       OR (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL);
-  `;
+WHERE (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)
+   OR (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL);
+`;
 
   const result = await client.query(query);
 
   for (const row of result.rows) {
-    if (!row.emp_email) continue; // no email on file, skip
+    if (!row.emp_email) continue;
 
     if (row.send_punch_in) {
       await sendEmail(
@@ -625,7 +625,7 @@ LEFT JOIN prior_state os
       );
     }
   }
-return { touched: result.rowCount };
+  return { touched: result.rowCount };
 }
 
 

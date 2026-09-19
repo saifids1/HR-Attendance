@@ -17,6 +17,7 @@ const {
   deleteSalarySlip,
   getSalarySlipPdf,
   getDepartmentEmployeesSalarySlipsV2,
+  bulkPublishSalarySlips,
 } = require("../controllers/salarySlip.controller");
 
 /* ---------------- STATIC / SPECIFIC ROUTES FIRST ---------------- */
@@ -51,5 +52,7 @@ router.delete("/:id", deleteSalarySlip);
 
 // View PDF
 router.get("/:id/file", getSalarySlipPdf);
+
+router.patch("/bulk-publish", bulkPublishSalarySlips);
 
 module.exports = router;

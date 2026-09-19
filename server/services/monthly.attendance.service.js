@@ -13,13 +13,13 @@
 const BACKFILL_START_DATE = process.env.ATTENDANCE_BACKFILL_START_DATE || "2025-07-01";
 
 async function generateMonthlyAttendance(client) {
-const query = `
+  const query = `
 WITH stale_pairs AS
 (
-SELECT DISTINCT
-TRIM(al.emp_id) AS emp_id,
-(al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
-AS attendance_date
+  SELECT DISTINCT
+    TRIM(al.emp_id) AS emp_id,
+    (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
+     AS attendance_date
 
 
   FROM public.attendance_logs al
@@ -126,7 +126,8 @@ active_setting AS
     s.office_start_time,
     s.office_end_time,
     s.grace_period_minutes,
-    s.half_day_after_minutes
+    s.half_day_after_minutes,
+    s.early_go_minutes
   FROM public.attendance_settings s
   WHERE s.is_active = TRUE
   ORDER BY s.id DESC
@@ -138,26 +139,27 @@ day_rule AS
   SELECT
     d.attendance_date,
 
-        s.id AS setting_id,
-        s.grace_period_minutes,
-        s.half_day_after_minutes,
+    s.id AS setting_id,
+    s.grace_period_minutes,
+    s.half_day_after_minutes,
+    s.early_go_minutes,
 
-        r.full_day_hours,
-        r.half_day_hours,
+    r.full_day_hours,
+    r.half_day_hours,
 
-        COALESCE(r.is_working_day, TRUE) AS is_working_day,
-        COALESCE(r.start_time, s.office_start_time) AS start_time,
-        COALESCE(r.end_time, s.office_end_time) AS end_time
+    COALESCE(r.is_working_day, TRUE) AS is_working_day,
+    COALESCE(r.start_time, s.office_start_time) AS start_time,
+    COALESCE(r.end_time, s.office_end_time) AS end_time
 
-      FROM distinct_target_dates d
+  FROM distinct_target_dates d
 
-      CROSS JOIN active_setting s
+  CROSS JOIN active_setting s
 
-      LEFT JOIN public.attendance_weekly_rules r
-        ON r.attendance_setting_id = s.id
-       AND r.day_of_week =
-           EXTRACT(ISODOW FROM d.attendance_date)::INTEGER
-    ),
+  LEFT JOIN public.attendance_weekly_rules r
+    ON r.attendance_setting_id = s.id
+   AND r.day_of_week =
+       EXTRACT(ISODOW FROM d.attendance_date)::INTEGER
+),
 
 holiday_info AS
 (
@@ -217,9 +219,9 @@ statuses AS
       WHERE LOWER(TRIM(status_name)) = 'leave'
     ) AS leave_id
 
-      FROM public.attendence_status
-      WHERE is_active = TRUE
-    ),
+  FROM public.attendence_status
+  WHERE is_active = TRUE
+),
 
 employees AS
 (
@@ -393,7 +395,14 @@ calculated AS
       WHEN p.punch_out IS NULL THEN FALSE
       WHEN h.holiday_id IS NOT NULL THEN FALSE
       WHEN dr.is_working_day = FALSE THEN FALSE
-      WHEN p.punch_out::TIME < dr.end_time THEN TRUE
+      WHEN p.punch_out::TIME <
+           (
+             dr.end_time -
+             MAKE_INTERVAL(
+               mins => dr.early_go_minutes
+             )
+           )
+        THEN TRUE
       ELSE FALSE
     END AS is_early_gone,
 
@@ -498,9 +507,9 @@ DO UPDATE SET
 
 `;
 
-const result = await client.query(query);
+  const result = await client.query(query);
 
-return { touched: result.rowCount };
+  return { touched: result.rowCount };
 }
 
 
