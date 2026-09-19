@@ -1967,6 +1967,151 @@ const getSalarySlipsPaginated = async (
   }
 };
 
+const bulkPublishSalarySlips = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    let { salary_slip_ids, updated_by } = req.body;
+
+    if (salary_slip_ids === undefined || salary_slip_ids === null) {
+      return res.status(400).json({
+        success: false,
+        message: "salary_slip_ids is required",
+      });
+    }
+
+    if (typeof salary_slip_ids === "string") {
+      try {
+        salary_slip_ids = JSON.parse(salary_slip_ids);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid salary_slip_ids JSON format",
+        });
+      }
+    }
+
+    if (!Array.isArray(salary_slip_ids) || salary_slip_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "salary_slip_ids must be a non-empty array",
+      });
+    }
+
+    const ids = [
+      ...new Set(
+        salary_slip_ids
+          .map((v) => Number(v))
+          .filter((v) => Number.isInteger(v) && v > 0)
+      ),
+    ];
+
+    if (ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "salary_slip_ids must contain valid numeric IDs",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    const existingResult = await client.query(
+      `
+      SELECT salary_slip_id, is_published
+      FROM salary_slips
+      WHERE salary_slip_id = ANY($1::int[])
+      `,
+      [ids]
+    );
+
+    if (existingResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        success: false,
+        message: "No salary slips found for the provided IDs",
+      });
+    }
+
+    const foundIds = existingResult.rows.map((row) => row.salary_slip_id);
+
+    const missingIds = ids.filter((id) => !foundIds.includes(id));
+
+    const alreadyPublishedIds = existingResult.rows
+      .filter((row) => row.is_published === true)
+      .map((row) => row.salary_slip_id);
+
+    const idsToUpdate = existingResult.rows
+      .filter((row) => row.is_published !== true)
+      .map((row) => row.salary_slip_id);
+
+    let updatedRows = [];
+
+    if (idsToUpdate.length > 0) {
+      const updateResult = await client.query(
+        `
+        UPDATE salary_slips
+        SET
+          is_published = TRUE,
+          published_at = CURRENT_TIMESTAMP,
+          published_by = $1,
+          updated_by = $1,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE salary_slip_id = ANY($2::int[])
+        RETURNING
+          salary_slip_id,
+          employee_id,
+          month,
+          year,
+          salary_slip_no,
+          is_published,
+          published_at,
+          published_by,
+          updated_by,
+          updated_at
+        `,
+        [updated_by || null, idsToUpdate]
+      );
+
+      updatedRows = updateResult.rows;
+    }
+
+    await client.query("COMMIT");
+
+    return res.status(200).json({
+      success: true,
+      message: `${updatedRows.length} salary slip(s) published successfully`,
+      summary: {
+        requested: ids.length,
+        updated: updatedRows.length,
+        already_published: alreadyPublishedIds.length,
+        not_found: missingIds.length,
+      },
+      data: {
+        published: updatedRows,
+        already_published_ids: alreadyPublishedIds,
+        not_found_ids: missingIds,
+      },
+    });
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Rollback error:", rollbackError);
+    }
+
+    console.error("Bulk publish salary slips error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to publish salary slips",
+      error: error.message,
+    });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getDepartmentEmployees,
   createSalarySlip,
