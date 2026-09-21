@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Support Status Updated</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f5f6f8;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #333333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .header {
+            background-color: #ffffff;
+            padding: 25px;
+            text-align: center;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .header img {
+            max-width: 180px;
+            height: auto;
+        }
+
+        .system-name {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #336298;
+            margin-bottom: 20px;
+        }
+
+        .text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #444444;
+        }
+
+        .card {
+            margin-top: 20px;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .row {
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .row:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #555555;
+        }
+
+        .value {
+            color: #333333;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background-color: #336298;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .footer {
+            background-color: #336298;
+            color: #ffffff;
+            text-align: center;
+            padding: 18px;
+            font-size: 12px;
+        }
+
+        @media only screen and (max-width: 600px) {
+            .container {
+                margin: 10px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <img src="https://www.i-diligence.com/images/logo/new%20ids18.png"
+             alt="iDiligence Solutions">
+        <div class="system-name">HR-Management System</div>
+    </div>
+
+    <div class="content">
+
+        <div class="title">HR Support Status Updated</div>
+
+        <p class="text">
+            Hello {{hr_name}},
+        </p>
+
+        <p class="text">
+            The status of an HR support request has been updated.
+            Please find the request details below.
+        </p>
+
+        <div class="card">
+
+            <div class="row">
+                <span class="label">Request No:</span>
+                <span class="value">{{request_no}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Employee Name:</span>
+                <span class="value">{{employee_name}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Employee ID:</span>
+                <span class="value">{{employee_id}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Request Type:</span>
+                <span class="value">{{request_type}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Subject:</span>
+                <span class="value">{{subject}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Previous Status:</span>
+                <span class="value">{{old_status}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Current Status:</span>
+                <span class="status">{{status}}</span>
+            </div>
+
+            <div class="row">
+                <span class="label">Updated By:</span>
+                <span class="value">{{updated_by}}</span>
+            </div>
+
+        </div>
+
+        <p class="text" style="margin-top: 25px;">
+            Please review the request in the HR-Management System for further action.
+        </p>
+
+    </div>
+
+    <div class="footer">
+        © iDiligence Solutions Pvt. Ltd. All rights reserved.
+    </div>
+
+</div>
+
+</body>
+</html>

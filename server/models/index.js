@@ -178,4 +178,173 @@ db.SalarySlipFiles.belongsTo(db.SalarySlips, {
   as: "salarySlip",
 });
 
+/* ---------- HR Support Models ---------- */
+
+db.HrSupportRequest = require("./hrSupportRequest")(sequelize, DataTypes);
+
+db.HrSupportRequestType = require("./hrSupportRequestType")(
+  sequelize,
+  DataTypes
+);
+
+db.HrSupportStatus = require("./hrSupportStatus")(
+  sequelize,
+  DataTypes
+);
+
+db.HrSupportMessage = require("./hrSupportMessage")(
+  sequelize,
+  DataTypes
+);
+
+db.HrSupportMessageRead = require("./hrSupportMessageRead")(
+  sequelize,
+  DataTypes
+);
+
+db.HrSupportAttachment = require("./hrSupportAttachment")(
+  sequelize,
+  DataTypes
+);
+
+db.HrSupportActivity = require("./hrSupportActivity")(
+  sequelize,
+  DataTypes
+);
+
+
+
+/* ---------- HR Support Associations ---------- */
+
+// Request -> Employee
+db.HrSupportRequest.belongsTo(db.Personal, {
+  foreignKey: "hsr_pr_id",
+  as: "employee",
+});
+
+// Request -> Request Type
+db.HrSupportRequest.belongsTo(db.HrSupportRequestType, {
+  foreignKey: "hsr_request_type_id",
+  as: "requestType",
+});
+
+// Request -> Status
+db.HrSupportRequest.belongsTo(db.HrSupportStatus, {
+  foreignKey: "hsr_status_id",
+  as: "status",
+});
+
+// Request -> Assigned HR/User
+db.HrSupportRequest.belongsTo(db.Personal, {
+  foreignKey: "hsr_assigned_to",
+  as: "assignedTo",
+});
+
+// Request -> Created By
+db.HrSupportRequest.belongsTo(db.Personal, {
+  foreignKey: "hsr_created_by",
+  as: "createdBy",
+});
+
+// Request -> Updated By
+db.HrSupportRequest.belongsTo(db.Personal, {
+  foreignKey: "hsr_updated_by",
+  as: "updatedBy",
+});
+
+// Request -> Closed By
+db.HrSupportRequest.belongsTo(db.Personal, {
+  foreignKey: "hsr_closed_by",
+  as: "closedBy",
+});
+
+// Request Type -> Created By
+db.HrSupportRequestType.belongsTo(db.Personal, {
+  foreignKey: "rst_created_by",
+  as: "createdBy",
+});
+
+// Request Type -> Updated By
+db.HrSupportRequestType.belongsTo(db.Personal, {
+  foreignKey: "rst_updated_by",
+  as: "updatedBy",
+});
+
+// Status -> Created By
+db.HrSupportStatus.belongsTo(db.Personal, {
+  foreignKey: "hss_created_by",
+  as: "createdBy",
+});
+
+// Status -> Updated By
+db.HrSupportStatus.belongsTo(db.Personal, {
+  foreignKey: "hss_updated_by",
+  as: "updatedBy",
+});
+
+// Message -> Request
+db.HrSupportMessage.belongsTo(db.HrSupportRequest, {
+  foreignKey: "hsm_request_id",
+  as: "request",
+});
+
+// Message -> Sender
+db.HrSupportMessage.belongsTo(db.Personal, {
+  foreignKey: "hsm_sender_pr_id",
+  as: "sender",
+});
+
+// Message Read -> Message
+db.HrSupportMessageRead.belongsTo(db.HrSupportMessage, {
+  foreignKey: "hsmr_message_id",
+  as: "message",
+});
+
+// Message Read -> User
+db.HrSupportMessageRead.belongsTo(db.Personal, {
+  foreignKey: "hsmr_user_id",
+  as: "user",
+});
+
+// Attachment -> Request
+db.HrSupportAttachment.belongsTo(db.HrSupportRequest, {
+  foreignKey: "hsa_request_id",
+  as: "request",
+});
+
+// Attachment -> Message
+db.HrSupportAttachment.belongsTo(db.HrSupportMessage, {
+  foreignKey: "hsa_message_id",
+  as: "message",
+});
+
+// Attachment -> Uploaded By
+db.HrSupportAttachment.belongsTo(db.Personal, {
+  foreignKey: "hsa_uploaded_by",
+  as: "uploadedBy",
+});
+
+// Activity -> Request
+db.HrSupportActivity.belongsTo(db.HrSupportRequest, {
+  foreignKey: "hsa_request_id",
+  as: "request",
+});
+
+// Activity -> Performed By
+db.HrSupportActivity.belongsTo(db.Personal, {
+  foreignKey: "hsa_performed_by",
+  as: "performedBy",
+});
+
+// Message -> Read Records
+db.HrSupportMessage.hasMany(db.HrSupportMessageRead, {
+  foreignKey: "hsmr_message_id",
+  as: "readRecords",
+});
+
+db.HrSupportMessage.hasMany(db.HrSupportAttachment, {
+  foreignKey: "hsa_message_id",
+  as: "attachments",
+});
+
 module.exports = db;

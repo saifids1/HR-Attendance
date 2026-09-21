@@ -51,6 +51,7 @@ const leaveProcessRoutes     = require("./routes/leaveProcessRoutes");
 const leaveQuotaRoutes       = require("./routes/LeaveQuotaRoutes");
 const salarySlipRoutes       = require("./routes/salarySlip.routes");
 const bulkEmployeeUploadRoutes = require("./routes/bulkEmployeeUpload.routes");
+const hrSupportRoutes        = require("./routes/hrSupport.routes");
 
 
 
@@ -164,6 +165,8 @@ app.use("/api/update-schedule", cronRoutes);
 
 app.use("/api/salary-slips", salarySlipRoutes);
 app.use("/api/employees", bulkEmployeeUploadRoutes);
+
+app.use("/api/hr-support", hrSupportRoutes);
 
 app.get("/health", async (req, res) => {
   try {
