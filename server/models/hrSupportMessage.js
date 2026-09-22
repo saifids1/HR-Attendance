@@ -36,8 +36,7 @@ module.exports = (sequelize, DataTypes) => {
 
       hsm_updated_at: {
         type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
     },
     {

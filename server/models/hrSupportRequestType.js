@@ -37,8 +37,7 @@ module.exports = (sequelize, DataTypes) => {
 
       rst_updated_at: {
         type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
     },
     {
