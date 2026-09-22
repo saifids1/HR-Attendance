@@ -43,8 +43,7 @@ module.exports = (sequelize, DataTypes) => {
 
       hss_updated_at: {
         type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
     },
     {
