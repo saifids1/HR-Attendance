@@ -49,6 +49,20 @@ const getLoggedInPrId = (req) =>
   req.user?.id ||
   null;
 
+/**
+ * Format a Date object (or date string) as DD-MM-YYYY.
+ * Returns an empty string for null/undefined/invalid dates.
+ */
+const formatDateDDMMYYYY = (dateValue) => {
+  if (!dateValue) return "";
+  const d = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 const getEmployee = async (prId, transaction = null) => {
   const employee = await Personal.findOne({
     where: { pr_id: prId },
@@ -371,10 +385,13 @@ const createSupportRequest = async (req, res) => {
       description: description?.trim() || "(No description)",
       status: pendingStatus.hss_name,
       employee_name: employeeData.employeeName,
-      employee_id: prId,
+      employee_id: employeeData.organization?.or_emp_id || "",
       hr_name: "HR Support Team",
       updated_by: employeeData.employeeName,
       message: description?.trim() || "(No description)",
+      created_at: formatDateDDMMYYYY(now),
+      updated_at: formatDateDDMMYYYY(now),
+      date: formatDateDDMMYYYY(now),
     };
 
     const emailResult = await sendSupportEmails({
@@ -1060,10 +1077,14 @@ const replyToSupportRequest = async (req, res) => {
       reply_message: message.trim(),
       status: newStatus?.hss_name || supportRequest.status?.hss_name,
       employee_name: employeeData?.employeeName,
-      employee_id: supportRequest.hsr_pr_id,
+      employee_id: employeeData?.organization?.or_emp_id || "",
       hr_name: responderData?.employeeName || "HR Support Team",
       replied_by: responderData?.employeeName || "HR Support Team",
       sender_type: senderType,
+      created_at: formatDateDDMMYYYY(now),
+      updated_at: formatDateDDMMYYYY(now),
+      date: formatDateDDMMYYYY(now),
+      replied_at: formatDateDDMMYYYY(now),
     };
 
     const responderEmail = (responderData?.email || "").toLowerCase();
@@ -1403,8 +1424,10 @@ const updateSupportStatus = async (req, res) => {
       old_status: oldStatus,
       status: newStatus.hss_name,
       employee_name: employeeData?.employeeName,
-      employee_id: supportRequest.hsr_pr_id,
+      employee_id: employeeData?.organization?.or_emp_id || "",
       updated_by: "HR Support Team",
+      updated_at: formatDateDDMMYYYY(now),
+      date: formatDateDDMMYYYY(now),
     };
 
     const emailResult = await sendSupportEmails({
@@ -1535,9 +1558,10 @@ const closeSupportRequest = async (req, res) => {
       description: supportRequest.hsr_description,
       status: closedStatus.hss_name,
       employee_name: employeeData?.employeeName,
-      employee_id: supportRequest.hsr_pr_id,
+      employee_id: employeeData?.organization?.or_emp_id || "",
       closed_by: closedByData?.employeeName || "HR Support Team",
-      closed_at: now,
+      closed_at: formatDateDDMMYYYY(now),
+      date: formatDateDDMMYYYY(now),
     };
 
     const emailResult = await sendSupportEmails({
