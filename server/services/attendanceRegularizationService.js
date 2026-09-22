@@ -157,22 +157,46 @@ async function managerAction(arId, managerPrId, action, remarks) {
 
 async function hrAction(arId, hrPrId, action, remarks) {
   const t = await db.sequelize.transaction();
+
   try {
-    // Lock only the parent row — no include, so FOR UPDATE works fine.
     const req = await db.AttendanceRegularization.findByPk(arId, {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
-    if (!req) throw new Error("Request not found");
-    if (req.ar_status !== "PENDING_HR") throw new Error("Not pending with HR");
-    if (!["APPROVED", "REJECTED"].includes(action))
-      throw new Error("Invalid action");
 
-    // Fetch items separately (no lock needed on children).
+    if (!req) {
+      throw new Error("Request not found");
+    }
+
+    if (req.ar_status !== "PENDING_HR") {
+      throw new Error("Not pending with HR");
+    }
+
+    if (!["APPROVED", "REJECTED"].includes(action)) {
+      throw new Error("Invalid action");
+    }
+
     const items = await db.AttendanceRegularizationItem.findAll({
-      where: { ar_id: arId },
+      attributes: [
+        "ari_id",
+        "ar_id",
+        "ari_type_code",
+        [
+          db.sequelize.cast(
+            db.sequelize.col("ari_punch_time"),
+            "TEXT"
+          ),
+          "ari_punch_time",
+        ],
+        "ari_remarks",
+      ],
+      where: {
+        ar_id: arId,
+      },
       transaction: t,
+      raw: true,
     });
+
     req.items = items;
 
     if (action === "REJECTED") {
@@ -182,6 +206,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
       req.ar_hr_remarks = remarks;
       req.ar_updated_by = hrPrId;
       req.ar_updated_at = new Date();
+
       await req.save({ transaction: t });
 
       await db.AttendanceRegularizationLog.create(
@@ -196,161 +221,307 @@ async function hrAction(arId, hrPrId, action, remarks) {
       );
 
       await t.commit();
+
       return getRequestWithItems(arId);
     }
 
     const empOrg = await db.Organizations.findOne({
-      where: { pr_id: req.ar_pr_id },
+      where: {
+        pr_id: req.ar_pr_id,
+      },
       transaction: t,
     });
-    if (!empOrg) throw new Error("Employee org record not found");
+
+    if (!empOrg) {
+      throw new Error("Employee org record not found");
+    }
 
     const empCode = empOrg.or_emp_id;
     const attDate = req.ar_attendance_date;
-    const startOfDay = new Date(`${attDate}T00:00:00.000Z`);
-    const endOfDay = new Date(`${attDate}T23:59:59.999Z`);
 
-    await db.AttendanceRegularizationBackup.destroy({
-      where: { ar_id: arId, restored_at: { [Op.ne]: null } },
-      transaction: t,
-    });
+    const startOfDay = `${attDate} 00:00:00`;
+    const endOfDay = `${attDate} 23:59:59.999`;
 
     const existingPunches = await db.ActivityLog.findAll({
       where: {
         emp_id: empCode,
-        punch_time: { [Op.between]: [startOfDay, endOfDay] },
+        punch_time: {
+          [Op.between]: [startOfDay, endOfDay],
+        },
       },
+      attributes: [
+        "id",
+        "emp_id",
+        [
+          db.sequelize.cast(
+            db.sequelize.col("punch_time"),
+            "TEXT"
+          ),
+          "punch_time",
+        ],
+        "punch_type",
+        "source",
+        "device_ip",
+        "device_sn",
+      ],
       transaction: t,
       raw: true,
     });
-    console.log("------------------------------");
-    console.log(arId, hrPrId, action, remarks);
 
-    await db.AttendanceRegularizationBackup.create(
-      {
-        ar_id: arId,
-        emp_id: empCode,
-        attendance_date: attDate,
-        snapshot_json: existingPunches,
-        created_by: hrPrId,
-      },
-      { transaction: t }
+    const sortedPunches = existingPunches
+      .slice()
+      .sort((a, b) => {
+        return (
+          new Date(a.punch_time).getTime() -
+          new Date(b.punch_time).getTime()
+        );
+      });
+
+    const firstPunch =
+      sortedPunches.length > 0
+        ? sortedPunches[0]
+        : null;
+
+    const lastPunch =
+      sortedPunches.length > 0
+        ? sortedPunches[sortedPunches.length - 1]
+        : null;
+
+    const recordsToBackup = [];
+
+    for (const item of items) {
+      switch (item.ari_type_code) {
+        case "PUNCH_IN":
+          if (firstPunch) {
+            recordsToBackup.push(firstPunch);
+          }
+          break;
+
+        case "PUNCH_OUT":
+          if (lastPunch) {
+            recordsToBackup.push(lastPunch);
+          }
+          break;
+
+        case "ON_DUTY":
+          if (firstPunch) {
+            recordsToBackup.push(firstPunch);
+          }
+
+          if (
+            lastPunch &&
+            (!firstPunch ||
+              lastPunch.id !== firstPunch.id)
+          ) {
+            recordsToBackup.push(lastPunch);
+          }
+
+          break;
+
+        default:
+          throw new Error(
+            `Unknown item type: ${item.ari_type_code}`
+          );
+      }
+    }
+
+    const uniqueBackupRecords = Array.from(
+      new Map(
+        recordsToBackup.map((row) => [
+          row.id,
+          row,
+        ])
+      ).values()
     );
 
-    await db.ActivityLog.destroy({
+    await db.AttendanceRegularizationBackup.destroy({
       where: {
-        emp_id: empCode,
-        punch_time: { [Op.between]: [startOfDay, endOfDay] },
+        ar_id: arId,
+        restored_at: {
+          [Op.ne]: null,
+        },
       },
       transaction: t,
     });
 
+    if (uniqueBackupRecords.length > 0) {
+      await db.AttendanceRegularizationBackup.create(
+        {
+          ar_id: arId,
+          emp_id: empCode,
+          attendance_date: attDate,
+          snapshot_json: uniqueBackupRecords,
+          created_by: hrPrId,
+        },
+        { transaction: t }
+      );
+
+      const idsToDelete =
+        uniqueBackupRecords.map(
+          (row) => row.id
+        );
+
+      await db.ActivityLog.destroy({
+        where: {
+          id: {
+            [Op.in]: idsToDelete,
+          },
+          emp_id: empCode,
+        },
+        transaction: t,
+      });
+    }
+
     const punches = [];
 
-    for (const item of req.items) {
+    for (const item of items) {
       switch (item.ari_type_code) {
-        case "PUNCH_IN":
-          if (!item.ari_punch_time)
-            throw new Error("PUNCH_IN requires punch_time");
-          punches.push({
-            emp_id: empCode,
-            punch_time: item.ari_punch_time,
-            punch_type: "IN",
-            source: "REGULARIZATION",
-            device_ip: "REGULARIZATION",
-            device_sn: "REGULARIZATION",
-          });
-          break;
-
-        case "PUNCH_OUT": {
-          let outTime = item.ari_punch_time;
-
-          if (!outTime) {
-            if (existingPunches.length === 0)
-              throw new Error(
-                "PUNCH_OUT requires punch_time (no existing punches to fall back to)"
-              );
-            const last = existingPunches
-              .slice()
-              .sort((a, b) => new Date(b.punch_time) - new Date(a.punch_time))[0];
-            outTime = last.punch_time;
+        case "PUNCH_IN": {
+          if (!item.ari_punch_time) {
+            throw new Error(
+              "PUNCH_IN requires punch_time"
+            );
           }
 
           punches.push({
-            emp_id: empCode,
-            punch_time: outTime,
-            punch_type: "OUT",
-            source: "REGULARIZATION",
-            device_ip: "REGULARIZATION",
-            device_sn: "REGULARIZATION",
+            punchTime: item.ari_punch_time,
+            punchType: "IN",
           });
+
+          break;
+        }
+
+        case "PUNCH_OUT": {
+          let outTime =
+            item.ari_punch_time;
+
+          if (!outTime) {
+            if (!lastPunch) {
+              throw new Error(
+                "PUNCH_OUT requires punch_time because no existing last punch was found"
+              );
+            }
+
+            outTime =
+              lastPunch.punch_time;
+          }
+
+          punches.push({
+            punchTime: outTime,
+            punchType: "OUT",
+          });
+
           break;
         }
 
         case "ON_DUTY": {
           if (item.ari_punch_time) {
             punches.push({
-              emp_id: empCode,
-              punch_time: item.ari_punch_time,
-              punch_type: "ON_DUTY",
-              source: "REGULARIZATION",
-              device_ip: "REGULARIZATION",
-              device_sn: "REGULARIZATION",
+              punchTime:
+                item.ari_punch_time,
+              punchType: "ON_DUTY",
             });
+
             break;
           }
 
-          let firstTime, lastTime;
+          let firstTime;
+          let lastTime;
 
-          if (existingPunches.length > 0) {
-            const sorted = existingPunches
-              .slice()
-              .sort((a, b) => new Date(a.punch_time) - new Date(b.punch_time));
-            firstTime = sorted[0].punch_time;
-            lastTime = sorted[sorted.length - 1].punch_time;
+          if (firstPunch) {
+            firstTime =
+              firstPunch.punch_time;
           } else {
-            firstTime = new Date(`${attDate}T00:00:00.000Z`);
-            lastTime = new Date(`${attDate}T23:59:59.000Z`);
+            firstTime =
+              `${attDate} 00:00:00`;
+          }
+
+          if (lastPunch) {
+            lastTime =
+              lastPunch.punch_time;
+          } else {
+            lastTime =
+              `${attDate} 23:59:59`;
           }
 
           punches.push(
             {
-              emp_id: empCode,
-              punch_time: firstTime,
-              punch_type: "ON_DUTY",
-              source: "REGULARIZATION",
-              device_ip: "REGULARIZATION",
-              device_sn: "REGULARIZATION",
+              punchTime: firstTime,
+              punchType: "ON_DUTY",
             },
             {
-              emp_id: empCode,
-              punch_time: lastTime,
-              punch_type: "ON_DUTY",
-              source: "REGULARIZATION",
-              device_ip: "REGULARIZATION",
-              device_sn: "REGULARIZATION",
+              punchTime: lastTime,
+              punchType: "ON_DUTY",
             }
           );
+
           break;
         }
 
         default:
-          throw new Error(`Unknown item type: ${item.ari_type_code}`);
+          throw new Error(
+            `Unknown item type: ${item.ari_type_code}`
+          );
       }
     }
 
-    if (punches.length) {
-      const insertedLogs = await db.ActivityLog.bulkCreate(punches, {
-        transaction: t,
-        returning: true,
-      });
+    const insertedLogIds = [];
 
+    for (const punch of punches) {
+      const punchTime =
+        String(punch.punchTime)
+          .replace("T", " ")
+          .replace("Z", "")
+          .substring(0, 19);
+
+      const [result] =
+        await db.sequelize.query(
+          `
+          INSERT INTO activity_log
+          (
+            emp_id,
+            punch_time,
+            punch_type,
+            source,
+            device_ip,
+            device_sn
+          )
+          VALUES
+          (
+            :emp_id,
+            CAST(:punch_time AS TIMESTAMP WITHOUT TIME ZONE),
+            :punch_type,
+            :source,
+            :device_ip,
+            :device_sn
+          )
+          RETURNING id
+          `,
+          {
+            replacements: {
+              emp_id: empCode,
+              punch_time: punchTime,
+              punch_type: punch.punchType,
+              source: "REGULARIZATION",
+              device_ip: "REGULARIZATION",
+              device_sn: "REGULARIZATION",
+            },
+            transaction: t,
+          }
+        );
+
+      insertedLogIds.push(result[0].id);
+    }
+
+    if (insertedLogIds.length > 0) {
       await db.AttendanceRegularizationInserted.bulkCreate(
-        insertedLogs.map((row) => ({
+        insertedLogIds.map((activityLogId) => ({
           ar_id: arId,
-          activity_log_id: row.id,
+          activity_log_id: activityLogId,
         })),
-        { transaction: t }
+        {
+          transaction: t,
+        }
       );
     }
 
@@ -360,7 +531,10 @@ async function hrAction(arId, hrPrId, action, remarks) {
     req.ar_hr_remarks = remarks;
     req.ar_updated_by = hrPrId;
     req.ar_updated_at = new Date();
-    await req.save({ transaction: t });
+
+    await req.save({
+      transaction: t,
+    });
 
     await db.AttendanceRegularizationLog.create(
       {
@@ -370,21 +544,49 @@ async function hrAction(arId, hrPrId, action, remarks) {
         action: "APPROVED",
         remarks,
         metadata: {
-          deleted_count: existingPunches.length,
-          inserted_count: punches.length,
+          backed_up_count:
+            uniqueBackupRecords.length,
+          deleted_count:
+            uniqueBackupRecords.length,
+          inserted_count:
+            punches.length,
           attendance_date: attDate,
         },
       },
-      { transaction: t }
+      {
+        transaction: t,
+      }
     );
 
     await t.commit();
+
     return getRequestWithItems(arId);
   } catch (err) {
     await t.rollback();
     throw err;
   }
 }
+
+const toLocalDateTimeString = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value
+      .replace("T", " ")
+      .substring(0, 19);
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  const seconds = String(value.getSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
 
 /* ============================================================
    Cancel own request

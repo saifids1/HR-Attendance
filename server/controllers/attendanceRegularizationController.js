@@ -220,16 +220,39 @@ exports.hrAction = async (req, res) => {
   try {
     const { action, remarks } = req.body;
     const loggedInPrId = getLoggedInPrId(req);
+
     const data = await service.hrAction(
       Number(req.params.id),
       loggedInPrId,
       action,
       remarks
     );
+
     return ok(res, data, `HR ${action.toLowerCase()}`);
   } catch (err) {
     return bad(res, err.message);
   }
+};
+
+const toLocalDateTimeString = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value
+      .replace("T", " ")
+      .substring(0, 19);
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  const seconds = String(value.getSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
 exports.cancelHrAction = async (req, res) => {
