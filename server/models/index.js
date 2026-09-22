@@ -41,6 +41,17 @@ db.EmployeeEmail     = require("./employeeEmail")(sequelize, DataTypes);
 db.SalarySlips = require("./salarySlips")(sequelize, DataTypes);
 db.SalarySlipFiles = require("./salarySlipFiles")(sequelize, DataTypes);
 
+/* ---------- Attendance Regularization Models ---------- */
+db.RegularizationType               = require("./RegularizationType")(sequelize, DataTypes);
+db.ApprovalStatus                   = require("./ApprovalStatus")(sequelize, DataTypes);
+db.ActivityLogPunchType             = require("./ActivityLogPunchType")(sequelize, DataTypes);
+db.AttendanceRegularization         = require("./AttendanceRegularization")(sequelize, DataTypes);
+db.AttendanceRegularizationItem     = require("./AttendanceRegularizationItem")(sequelize, DataTypes);
+db.AttendanceRegularizationLog      = require("./AttendanceRegularizationLog")(sequelize, DataTypes);
+
+db.AttendanceRegularizationBackup   = require("./AttendanceRegularizationBackup")(sequelize, DataTypes);
+db.AttendanceRegularizationInserted = require("./AttendanceRegularizationInserted")(sequelize, DataTypes);
+
 /* ---------- Associations ---------- */
 
 // Personal <-> Organizations
@@ -345,6 +356,134 @@ db.HrSupportMessage.hasMany(db.HrSupportMessageRead, {
 db.HrSupportMessage.hasMany(db.HrSupportAttachment, {
   foreignKey: "hsa_message_id",
   as: "attachments",
+});
+
+/* ============================================================
+   ATTENDANCE REGULARIZATION ASSOCIATIONS
+   ============================================================ */
+
+// --- AttendanceRegularization <-> Personal (3 aliases) ---
+db.AttendanceRegularization.belongsTo(db.Personal, {
+  foreignKey: "ar_pr_id",
+  as: "employee",
+});
+db.AttendanceRegularization.belongsTo(db.Personal, {
+  foreignKey: "ar_manager_id",
+  as: "manager",
+});
+db.AttendanceRegularization.belongsTo(db.Personal, {
+  foreignKey: "ar_hr_id",
+  as: "hr",
+});
+
+db.Personal.hasMany(db.AttendanceRegularization, {
+  foreignKey: "ar_pr_id",
+  as: "regularizationRequests",
+});
+
+// --- AttendanceRegularization <-> Items ---
+db.AttendanceRegularization.hasMany(db.AttendanceRegularizationItem, {
+  foreignKey: "ar_id",
+  as: "items",
+  onDelete: "CASCADE",
+});
+db.AttendanceRegularizationItem.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "ar_id",
+  as: "request",
+});
+
+// --- AttendanceRegularization <-> Log ---
+db.AttendanceRegularization.hasMany(db.AttendanceRegularizationLog, {
+  foreignKey: "ar_id",
+  as: "logs",
+  onDelete: "CASCADE",
+});
+db.AttendanceRegularizationLog.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "ar_id",
+  as: "request",
+});
+
+// --- Master joins (by code, not FK) ---
+db.AttendanceRegularization.belongsTo(db.ApprovalStatus, {
+  foreignKey: "ar_status",
+  targetKey: "as_code",
+  as: "statusMaster",
+  constraints: false,
+});
+
+db.AttendanceRegularizationItem.belongsTo(db.RegularizationType, {
+  foreignKey: "ari_type_code",
+  targetKey: "rt_code",
+  as: "typeMaster",
+  constraints: false,
+});
+
+db.ActivityLog.belongsTo(db.ActivityLogPunchType, {
+  foreignKey: "punch_type",
+  targetKey: "alpt_code",
+  as: "punchTypeMaster",
+  constraints: false,
+});
+
+
+/* ============================================================
+   ATTENDANCE REGULARIZATION BACKUP & INSERTED ASSOCIATIONS
+   ============================================================ */
+
+// --- AttendanceRegularization <-> Backup (1:1) ---
+db.AttendanceRegularization.hasOne(db.AttendanceRegularizationBackup, {
+  foreignKey: "ar_id",
+  sourceKey: "ar_id",
+  as: "backup",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+db.AttendanceRegularizationBackup.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "ar_id",
+  targetKey: "ar_id",
+  as: "regularization",
+});
+
+// --- AttendanceRegularization <-> Inserted (1:many) ---
+db.AttendanceRegularization.hasMany(db.AttendanceRegularizationInserted, {
+  foreignKey: "ar_id",
+  sourceKey: "ar_id",
+  as: "insertedLogs",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+db.AttendanceRegularizationInserted.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "ar_id",
+  targetKey: "ar_id",
+  as: "regularization",
+});
+
+// --- ActivityLog <-> Inserted ---
+db.ActivityLog.hasMany(db.AttendanceRegularizationInserted, {
+  foreignKey: "activity_log_id",
+  sourceKey: "id",                    // ✅ PK of activity_log
+  as: "regularizationInserts",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+db.AttendanceRegularizationInserted.belongsTo(db.ActivityLog, {
+  foreignKey: "activity_log_id",
+  targetKey: "id",                    // ✅ PK of activity_log
+  as: "activityLog",
+});
+
+// --- Backup -> created_by / restored_by (Personal) ---
+db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
+  foreignKey: "created_by",
+  targetKey: "pr_id",
+  as: "createdBy",
+  constraints: false,
+});
+db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
+  foreignKey: "restored_by",
+  targetKey: "pr_id",
+  as: "restoredBy",
+  constraints: false,
 });
 
 module.exports = db;
