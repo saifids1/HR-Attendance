@@ -172,7 +172,10 @@ app.use("/api/employees", bulkEmployeeUploadRoutes);
 app.use("/api/hr-support", hrSupportRoutes);
 app.use("/api/hr-support-request-types", hrSupportRequestTypeRoutes);
 app.use("/api/attendance-status", attendanceStatus);
+<<<<<<< HEAD
 app.use("/api/attendance-regularization", attendanceRegularizationRoutes);
+=======
+>>>>>>> a84cda8 (created controller and status api)
 
 app.get("/health", async (req, res) => {
   try {

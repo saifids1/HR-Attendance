@@ -5,20 +5,30 @@ const {
   paginatedResponse,
   handleDbError,
 } = require("../utils/response");
+<<<<<<< HEAD
 
 const {
   getPaginationParams,
+=======
+const {
+  getPaginationParams,
+  buildIsActiveClause,
+>>>>>>> a84cda8 (created controller and status api)
 } = require("../utils/pagination");
 
 // Create Attendance Status
 const createAttendenceStatus = async (req, res) => {
   try {
+<<<<<<< HEAD
     const {
       status_name,
       created_by,
       background_color,
       font_color,
     } = req.body;
+=======
+    const { status_name, created_by } = req.body;
+>>>>>>> a84cda8 (created controller and status api)
 
     if (!status_name || status_name.trim() === "") {
       return errorResponse(res, 400, "status_name is required", null);
@@ -26,6 +36,7 @@ const createAttendenceStatus = async (req, res) => {
 
     const query = `
       INSERT INTO attendence_status
+<<<<<<< HEAD
         (
           status_name,
           created_by,
@@ -36,14 +47,22 @@ const createAttendenceStatus = async (req, res) => {
         )
       VALUES
         ($1, $2, $3, $4, CURRENT_TIMESTAMP, TRUE)
+=======
+        (status_name, created_by, created_at, is_active)
+      VALUES
+        ($1, $2, CURRENT_TIMESTAMP, TRUE)
+>>>>>>> a84cda8 (created controller and status api)
       RETURNING *
     `;
 
     const result = await db.query(query, [
       status_name.trim(),
       created_by || null,
+<<<<<<< HEAD
       background_color || null,
       font_color || null,
+=======
+>>>>>>> a84cda8 (created controller and status api)
     ]);
 
     return successResponse(
@@ -66,6 +85,10 @@ const createAttendenceStatus = async (req, res) => {
 const getAllAttendenceStatuses = async (req, res) => {
   try {
     const { page, limit, offset } = getPaginationParams(req);
+<<<<<<< HEAD
+=======
+
+>>>>>>> a84cda8 (created controller and status api)
     const { search = "", is_active } = req.query;
 
     const values = [];
@@ -102,8 +125,11 @@ const getAllAttendenceStatuses = async (req, res) => {
       SELECT
         id,
         status_name,
+<<<<<<< HEAD
         background_color,
         font_color,
+=======
+>>>>>>> a84cda8 (created controller and status api)
         created_by,
         created_at,
         updated_by,
@@ -149,20 +175,27 @@ const getAttendenceStatusById = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
+<<<<<<< HEAD
       return errorResponse(
         res,
         400,
         "Attendance status id is required",
         null
       );
+=======
+      return errorResponse(res, 400, "Attendance status id is required", null);
+>>>>>>> a84cda8 (created controller and status api)
     }
 
     const query = `
       SELECT
         id,
         status_name,
+<<<<<<< HEAD
         background_color,
         font_color,
+=======
+>>>>>>> a84cda8 (created controller and status api)
         created_by,
         created_at,
         updated_by,
@@ -203,11 +236,15 @@ const getAttendenceStatusById = async (req, res) => {
 const updateAttendenceStatus = async (req, res) => {
   try {
     const { id } = req.params;
+<<<<<<< HEAD
 
+=======
+>>>>>>> a84cda8 (created controller and status api)
     const {
       status_name,
       updated_by,
       is_active,
+<<<<<<< HEAD
       background_color,
       font_color,
     } = req.body;
@@ -222,16 +259,28 @@ const updateAttendenceStatus = async (req, res) => {
     }
 
     // Validate status name
+=======
+    } = req.body;
+
+    if (!id) {
+      return errorResponse(res, 400, "Attendance status id is required", null);
+    }
+
+>>>>>>> a84cda8 (created controller and status api)
     if (
       status_name !== undefined &&
       (!status_name || status_name.trim() === "")
     ) {
+<<<<<<< HEAD
       return errorResponse(
         res,
         400,
         "status_name cannot be empty",
         null
       );
+=======
+      return errorResponse(res, 400, "status_name cannot be empty", null);
+>>>>>>> a84cda8 (created controller and status api)
     }
 
     // Check existing record
@@ -256,13 +305,17 @@ const updateAttendenceStatus = async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
+<<<<<<< HEAD
     // Status name
+=======
+>>>>>>> a84cda8 (created controller and status api)
     if (status_name !== undefined) {
       fields.push(`status_name = $${paramIndex}`);
       values.push(status_name.trim());
       paramIndex++;
     }
 
+<<<<<<< HEAD
     // Background color
     if (background_color !== undefined) {
       fields.push(`background_color = $${paramIndex}`);
@@ -278,13 +331,18 @@ const updateAttendenceStatus = async (req, res) => {
     }
 
     // Updated by
+=======
+>>>>>>> a84cda8 (created controller and status api)
     if (updated_by !== undefined) {
       fields.push(`updated_by = $${paramIndex}`);
       values.push(updated_by || null);
       paramIndex++;
     }
 
+<<<<<<< HEAD
     // Active status
+=======
+>>>>>>> a84cda8 (created controller and status api)
     if (is_active !== undefined) {
       fields.push(`is_active = $${paramIndex}`);
       values.push(is_active);
