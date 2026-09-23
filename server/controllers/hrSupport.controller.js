@@ -30,7 +30,7 @@ const HR_SUPPORT_ROLE_NAMES = ["HR-SUPPORT"];
 const log = (label, data) => {
   console.log(
     `${LOG_PREFIX} [${new Date().toISOString()}] ${label}`,
-    data !== undefined ? data : ""
+    data !== undefined ? data : "",
   );
 };
 
@@ -38,7 +38,7 @@ const logError = (label, error) => {
   console.error(
     `${LOG_PREFIX} [${new Date().toISOString()}] [ERROR] ${label}`,
     error?.message || error,
-    error?.stack || ""
+    error?.stack || "",
   );
 };
 
@@ -85,11 +85,13 @@ const getEmployee = async (prId, transaction = null) => {
     employee?.pr_email ||
     null;
 
+  const emp_id = organization?.or_emp_id || null;
+
   const employeeName = employee?.pr_first_name
     ? `${employee.pr_first_name} ${employee.pr_last_name || ""}`.trim()
     : employee?.pr_first_name || "";
 
-  return { employee, organization, email, employeeName };
+  return { employee, organization, email, employeeName, emp_id };
 };
 
 const getHrEmailsFromEnv = () => {
@@ -213,7 +215,7 @@ const sendSupportEmails = async ({
         employeeEmail,
         subjectForEmployee,
         templateForEmployee,
-        emailData
+        emailData,
       );
       result.employeeSent = true;
       log(`Email sent to ${employeeEmail} with subject: ${subjectForEmployee}`);
@@ -240,6 +242,32 @@ const generateRequestNumber = async (transaction) => {
   return `HSR-${year}${month}-${String(nextNumber).padStart(6, "0")}`;
 };
 
+// helper to send email to Hr
+const getHrSupportEmails = async (transaction) => {
+  const hrSupportUsers = await UserRoleRelation.findAll({
+    where: {
+      rl_role_id: 4, // HR-SUPPORT
+    },
+    attributes: ["pr_id"],
+    transaction,
+  });
+
+  const hrEmails = [];
+
+  for (const user of hrSupportUsers) {
+    const employee = await getEmployee(user.pr_id, transaction);
+
+    const email =
+      employee?.organization?.or_official_email?.trim().toLowerCase() || "";
+
+    if (email) {
+      hrEmails.push(email);
+    }
+  }
+
+  return [...new Set(hrEmails)];
+};
+
 const createSupportRequest = async (req, res) => {
   log("createSupportRequest - START", {
     body: req.body,
@@ -250,188 +278,352 @@ const createSupportRequest = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    // --------------------------------------------------
+    // 1. Get logged-in employee
+    // --------------------------------------------------
     const prId = getLoggedInPrId(req);
 
     if (!prId) {
       await transaction.rollback();
       await safeUnlink(req.file?.path);
-      return res
-        .status(401)
-        .json({ success: false, message: "Employee ID not found" });
+
+      return res.status(401).json({
+        success: false,
+        message: "Employee ID not found",
+      });
     }
 
+    // --------------------------------------------------
+    // 2. Get request data
+    // --------------------------------------------------
     const { request_type_id, subject, description } = req.body;
 
     if (!request_type_id) {
       await transaction.rollback();
       await safeUnlink(req.file?.path);
-      return res
-        .status(400)
-        .json({ success: false, message: "Request type is required" });
+
+      return res.status(400).json({
+        success: false,
+        message: "Request type is required",
+      });
     }
 
+    // --------------------------------------------------
+    // 3. Validate request type
+    // --------------------------------------------------
     const requestType = await HrSupportRequestType.findOne({
-      where: { rst_id: request_type_id, rst_is_active: true },
+      where: {
+        rst_id: request_type_id,
+        rst_is_active: true,
+      },
       transaction,
     });
 
     if (!requestType) {
       await transaction.rollback();
       await safeUnlink(req.file?.path);
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid or inactive request type" });
+
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or inactive request type",
+      });
     }
 
+    // --------------------------------------------------
+    // 4. Get Pending status
+    // --------------------------------------------------
     const pendingStatus = await HrSupportStatus.findOne({
-      where: { hss_name: "Pending", hss_is_active: true },
+      where: {
+        hss_name: "Pending",
+        hss_is_active: true,
+      },
       transaction,
     });
 
     if (!pendingStatus) {
       await transaction.rollback();
       await safeUnlink(req.file?.path);
-      return res
-        .status(500)
-        .json({ success: false, message: "Pending status is not configured" });
+
+      return res.status(500).json({
+        success: false,
+        message: "Pending status is not configured",
+      });
     }
 
+    // --------------------------------------------------
+    // 5. Get employee information
+    // --------------------------------------------------
     const employeeData = await getEmployee(prId, transaction);
+
     if (!employeeData) {
       await transaction.rollback();
       await safeUnlink(req.file?.path);
-      return res
-        .status(404)
-        .json({ success: false, message: "Employee not found" });
+
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
     }
 
+    // --------------------------------------------------
+    // 6. Get employee official email
+    // --------------------------------------------------
+    const employeeEmail =
+      employeeData?.organization?.or_official_email?.trim().toLowerCase() || "";
+
+    // --------------------------------------------------
+    // 7. Get HR Support emails
+    // --------------------------------------------------
+    const hrEmails = await getHrSupportEmails(transaction);
+
+    log("Support email recipients", {
+      employeeEmail,
+      hrEmails,
+    });
+
+    // --------------------------------------------------
+    // 8. Generate request number
+    // --------------------------------------------------
     const now = new Date();
+
     const requestNo = await generateRequestNumber(transaction);
 
+    // --------------------------------------------------
+    // 9. Create support request
+    // --------------------------------------------------
     const supportRequest = await HrSupportRequest.create(
       {
         hsr_request_no: requestNo,
+
         hsr_pr_id: prId,
+
         hsr_request_type_id: request_type_id,
+
         hsr_subject: subject?.trim() || null,
+
         hsr_description: description?.trim() || null,
+
         hsr_status_id: pendingStatus.hss_id,
+
         hsr_assigned_to: null,
+
         hsr_created_by: prId,
+
         hsr_created_at: now,
+
         hsr_updated_by: prId,
+
         hsr_updated_at: now,
+
         hsr_last_activity_at: now,
+
         hsr_closed_by: null,
+
         hsr_closed_at: null,
+
         hsr_is_deleted: false,
       },
-      { transaction }
+      {
+        transaction,
+      },
     );
 
+    // --------------------------------------------------
+    // 10. Create initial message
+    // --------------------------------------------------
     let message = null;
+
     if (description?.trim()) {
       message = await HrSupportMessage.create(
         {
           hsm_request_id: supportRequest.hsr_id,
+
           hsm_sender_pr_id: prId,
+
           hsm_sender_type: "EMPLOYEE",
+
           hsm_message: description.trim(),
+
           hsm_created_at: now,
+
           hsm_updated_at: now,
         },
-        { transaction }
+        {
+          transaction,
+        },
       );
     }
 
+    // --------------------------------------------------
+    // 11. Save attachment
+    // --------------------------------------------------
     let attachment = null;
+
     if (req.file) {
       attachment = await HrSupportAttachment.create(
         {
           hsa_request_id: supportRequest.hsr_id,
+
           hsa_message_id: message?.hsm_id || null,
+
           hsa_file_name: req.file.originalname,
+
           hsa_file_path: toRelativePath(req.file.path),
+
           hsa_file_extension: path.extname(req.file.originalname),
+
           hsa_file_size: req.file.size,
+
           hsa_uploaded_by: prId,
+
           hsa_created_at: now,
+
           hsa_is_deleted: false,
         },
-        { transaction }
+        {
+          transaction,
+        },
       );
     }
 
+    // --------------------------------------------------
+    // 12. Create activity
+    // --------------------------------------------------
     await HrSupportActivity.create(
       {
         hsa_request_id: supportRequest.hsr_id,
+
         hsa_activity_type: "REQUEST_CREATED",
+
         hsa_description: `Employee created support request ${requestNo}`,
+
         hsa_performed_by: prId,
+
         hsa_created_at: now,
       },
-      { transaction }
+      {
+        transaction,
+      },
     );
 
-    await transaction.commit();
-
-    const hrEmails = getHrEmailsFromEnv();
-
+    // --------------------------------------------------
+    // 13. Prepare email data
+    // --------------------------------------------------
     const emailData = {
       request_no: requestNo,
+
       request_id: supportRequest.hsr_id,
+
       request_type: requestType.rst_name,
+
       subject: subject?.trim() || "(No subject)",
+
       description: description?.trim() || "(No description)",
+
       status: pendingStatus.hss_name,
+
       employee_name: employeeData.employeeName,
-      employee_id: employeeData.organization?.or_emp_id || "",
+
+      employee_id: employeeData.emp_id || "",
+
+      employee_email : employeeEmail || "",
+
       hr_name: "HR Support Team",
+
       updated_by: employeeData.employeeName,
+
       message: description?.trim() || "(No description)",
+
       created_at: formatDateDDMMYYYY(now),
+
       updated_at: formatDateDDMMYYYY(now),
+
       date: formatDateDDMMYYYY(now),
     };
 
+    // --------------------------------------------------
+    // 14. Commit transaction ONCE
+    // --------------------------------------------------
+    await transaction.commit();
+
+    log("createSupportRequest - TRANSACTION COMMITTED", {
+      requestId: supportRequest.hsr_id,
+      requestNo,
+    });
+
+    // --------------------------------------------------
+    // 15. Send email to Employee + HR Support
+    // --------------------------------------------------
     const emailResult = await sendSupportEmails({
       request: supportRequest,
-      employeeEmail: employeeData.email,
+
+      employeeEmail,
+
       hrEmails,
+
       templateForEmployee: "hr_support_request_employee",
+
       templateForHr: "hr_support_request",
+
       subjectForEmployee: `HR Support Request Submitted - ${requestNo}`,
+
       subjectForHr: `New HR Support Request - ${requestNo}`,
+
       emailData,
     });
 
+    // --------------------------------------------------
+    // 16. Success response
+    // --------------------------------------------------
     return res.status(201).json({
       success: true,
+
       message: "HR support request created successfully",
+
       data: {
         request_id: supportRequest.hsr_id,
+
         request_no: requestNo,
+
         request_type: requestType.rst_name,
+
         status: pendingStatus.hss_name,
+
         attachment: attachment
-          ? { id: attachment.hsa_id, file_name: attachment.hsa_file_name }
+          ? {
+              id: attachment.hsa_id,
+
+              file_name: attachment.hsa_file_name,
+            }
           : null,
       },
+
       email_status: emailResult,
     });
   } catch (error) {
+    // --------------------------------------------------
+    // Rollback only if transaction is still active
+    // --------------------------------------------------
     try {
-      await transaction.rollback();
+      if (!transaction.finished) {
+        await transaction.rollback();
+      }
     } catch (rollbackError) {
       logError("Rollback error", rollbackError);
     }
 
+    // --------------------------------------------------
+    // Delete uploaded file if DB operation failed
+    // --------------------------------------------------
     await safeUnlink(req.file?.path);
 
     logError("createSupportRequest failed", error);
+
     return res.status(500).json({
       success: false,
+
       message: "Failed to create HR support request",
+
       error: error.message,
     });
   }
@@ -698,12 +890,7 @@ const getSupportMessages = async (req, res) => {
         {
           model: Personal,
           as: "employee",
-          attributes: [
-            "pr_id",
-            "pr_first_name",
-            "pr_last_name",
-            "pr_email",
-          ],
+          attributes: ["pr_id", "pr_first_name", "pr_last_name", "pr_email"],
           required: false,
         },
       ],
@@ -731,12 +918,7 @@ const getSupportMessages = async (req, res) => {
         {
           model: Personal,
           as: "sender",
-          attributes: [
-            "pr_id",
-            "pr_first_name",
-            "pr_last_name",
-            "pr_email",
-          ],
+          attributes: ["pr_id", "pr_first_name", "pr_last_name", "pr_email"],
           required: false,
         },
         {
@@ -767,7 +949,7 @@ const getSupportMessages = async (req, res) => {
 
       const readRecords = plain.readRecords || [];
       const isReadByMe = readRecords.some(
-        (r) => Number(r.hsmr_user_id) === Number(prId)
+        (r) => Number(r.hsmr_user_id) === Number(prId),
       );
 
       const attachments = (plain.attachments || []).map((a) => ({
@@ -973,7 +1155,7 @@ const replyToSupportRequest = async (req, res) => {
 
     const employeeData = await getEmployee(
       supportRequest.hsr_pr_id,
-      transaction
+      transaction,
     );
     const now = new Date();
 
@@ -986,7 +1168,7 @@ const replyToSupportRequest = async (req, res) => {
         hsm_created_at: now,
         hsm_updated_at: now,
       },
-      { transaction }
+      { transaction },
     );
 
     let attachment = null;
@@ -1003,7 +1185,7 @@ const replyToSupportRequest = async (req, res) => {
           hsa_created_at: now,
           hsa_is_deleted: false,
         },
-        { transaction }
+        { transaction },
       );
     }
 
@@ -1014,34 +1196,48 @@ const replyToSupportRequest = async (req, res) => {
     };
 
     let newStatus = null;
-    if (isHr && status_id) {
+
+    if (status_id) {
       newStatus = await HrSupportStatus.findOne({
-        where: { hss_id: status_id, hss_is_active: true },
+        where: {
+          hss_id: status_id,
+          hss_is_active: true,
+        },
         transaction,
       });
 
-      if (newStatus) {
-        updateData.hsr_status_id = newStatus.hss_id;
+      if (!newStatus) {
+        await transaction.rollback();
+        await safeUnlink(req.file?.path);
 
-        if (newStatus.hss_is_closed) {
-          updateData.hsr_closed_by = prId;
-          updateData.hsr_closed_at = now;
-        } else {
-          updateData.hsr_closed_by = null;
-          updateData.hsr_closed_at = null;
-        }
-
-        await HrSupportActivity.create(
-          {
-            hsa_request_id: supportRequest.hsr_id,
-            hsa_activity_type: "STATUS_CHANGED",
-            hsa_description: `Status changed from ${supportRequest.status?.hss_name} to ${newStatus.hss_name}`,
-            hsa_performed_by: prId,
-            hsa_created_at: now,
-          },
-          { transaction }
-        );
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or inactive status",
+        });
       }
+
+      updateData.hsr_status_id = newStatus.hss_id;
+
+      if (newStatus.hss_is_closed) {
+        updateData.hsr_closed_by = prId;
+        updateData.hsr_closed_at = now;
+      } else {
+        updateData.hsr_closed_by = null;
+        updateData.hsr_closed_at = null;
+      }
+
+      await HrSupportActivity.create(
+        {
+          hsa_request_id: supportRequest.hsr_id,
+          hsa_activity_type: "STATUS_CHANGED",
+          hsa_description: `Status changed from ${
+            supportRequest.status?.hss_name || "Unknown"
+          } to ${newStatus.hss_name}`,
+          hsa_performed_by: prId,
+          hsa_created_at: now,
+        },
+        { transaction },
+      );
     }
 
     await HrSupportRequest.update(updateData, {
@@ -1059,7 +1255,7 @@ const replyToSupportRequest = async (req, res) => {
         hsa_performed_by: prId,
         hsa_created_at: now,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -1090,7 +1286,7 @@ const replyToSupportRequest = async (req, res) => {
     const responderEmail = (responderData?.email || "").toLowerCase();
     const employeeEmailNorm = (employeeData?.email || "").toLowerCase();
     const filteredHrEmails = hrEmails.filter(
-      (e) => e.toLowerCase() !== responderEmail
+      (e) => e.toLowerCase() !== responderEmail,
     );
 
     let emailResult = null;
@@ -1410,7 +1606,7 @@ const updateSupportStatus = async (req, res) => {
         hsa_performed_by: prId,
         hsa_created_at: now,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -1528,7 +1724,7 @@ const closeSupportRequest = async (req, res) => {
         hsr_updated_at: now,
         hsr_last_activity_at: now,
       },
-      { where: { hsr_id: supportRequest.hsr_id }, transaction }
+      { where: { hsr_id: supportRequest.hsr_id }, transaction },
     );
 
     await HrSupportActivity.create(
@@ -1541,7 +1737,7 @@ const closeSupportRequest = async (req, res) => {
         hsa_performed_by: prId,
         hsa_created_at: now,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -1784,7 +1980,7 @@ const auditEmailTemplates = () => {
   }
   if (missing.length) {
     console.warn(
-      `[HR-SUPPORT] Missing email templates in ${dir}: ${missing.join(", ")}`
+      `[HR-SUPPORT] Missing email templates in ${dir}: ${missing.join(", ")}`,
     );
   } else {
     console.log("[HR-SUPPORT] Email template audit passed.");
