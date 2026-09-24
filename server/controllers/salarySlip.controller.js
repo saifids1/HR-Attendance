@@ -953,223 +953,37 @@ const getSalarySlipById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    let { page, limit } = req.query;
+    const result = await pool.query(
+      `
+      SELECT
+        ss.salary_slip_id,
+        og.or_emp_id AS emp_id,
+        ss.month, ss.year, ss.salary_slip_no,
+        ss.payroll_date, ss.salary_generated_date,
+        ss.is_published, ss.created_by, ss.created_at,
+        ss.updated_by, ss.updated_at,
+        CONCAT_WS(' ', p.pr_first_name, p.pr_last_name) AS employee_name,
+        ssf.salary_slip_file_id, ssf.file_path, ssf.file_size
+      FROM salary_slips ss
+      LEFT JOIN personal p ON p.pr_id = ss.employee_id
+      LEFT JOIN organizations og ON og.pr_id = p.pr_id
+      LEFT JOIN LATERAL (
+        SELECT salary_slip_file_id, file_path, file_size
+        FROM salary_slip_files
+        WHERE salary_slip_id = ss.salary_slip_id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) ssf ON TRUE
+      WHERE ss.salary_slip_id = $1
+      `,
+      [id]
+    );
 
-    page = page ? parseInt(page, 10) : 1;
-
-    limit =
-      limit !== undefined &&
-      limit !== null &&
-      limit !== ""
-        ? parseInt(limit, 10)
-        : null;
-
-    if (isNaN(page) || page < 1) {
-      page = 1;
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Salary slip not found" });
     }
 
-    if (limit !== null && (isNaN(limit) || limit < 1)) {
-      limit = null;
-    }
-
-    const where = {
-      employee_id: id,
-      is_published: true,
-    };
-
-    const queryOptions = {
-      where,
-      include: [
-        {
-          model: Personal,
-          as: "employee",
-          attributes: [
-            "pr_id",
-            "pr_first_name",
-            "pr_last_name",
-          ],
-          include: [
-            {
-              model: Organizations,
-              as: "organizations",
-              attributes: [
-                "or_emp_id",
-                "or_department_id",
-              ],
-              required: false,
-            },
-          ],
-          required: false,
-        },
-        {
-          model: SalarySlipFiles,
-          as: "files",
-          attributes: [
-            "salary_slip_file_id",
-            "file_path",
-            "file_size",
-            "created_at",
-          ],
-          required: false,
-          separate: true,
-          order: [["created_at", "DESC"]],
-          limit: 1,
-        },
-      ],
-      order: [
-        ["year", "DESC"],
-        ["month", "DESC"],
-        ["salary_slip_id", "DESC"],
-      ],
-    };
-
-    if (limit !== null) {
-      const offset = (page - 1) * limit;
-
-      queryOptions.limit = limit;
-      queryOptions.offset = offset;
-
-      const result = await SalarySlips.findAndCountAll({
-        ...queryOptions,
-        distinct: true,
-      });
-
-      const total = result.count;
-      const totalPages = Math.ceil(total / limit) || 0;
-
-      if (total === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "No published salary slips found for this employee",
-          data: [],
-          pagination: {
-            total: 0,
-            page,
-            limit,
-            total_pages: 0,
-            has_next_page: false,
-            has_prev_page: page > 1,
-            next_page: null,
-            prev_page: page > 1 ? page - 1 : null,
-          },
-        });
-      }
-
-      const data = result.rows.map((slip) => {
-        const employee = slip.employee;
-        const organization =
-          employee?.organizations?.[0] || null;
-        const file = slip.files?.[0] || null;
-
-        return {
-          salary_slip_id: slip.salary_slip_id,
-          employee_id: slip.employee_id,
-
-          emp_id: organization?.or_emp_id || null,
-          department_id:
-            organization?.or_department_id || null,
-
-          employee_name: employee
-            ? `${employee.pr_first_name || ""} ${
-                employee.pr_last_name || ""
-              }`.trim()
-            : null,
-
-          month: slip.month,
-          year: slip.year,
-          salary_slip_no: slip.salary_slip_no,
-          payroll_date: slip.payroll_date,
-          salary_generated_date:
-            slip.salary_generated_date,
-          is_published: slip.is_published,
-          created_by: slip.created_by,
-          created_at: slip.created_at,
-          updated_by: slip.updated_by,
-          updated_at: slip.updated_at,
-
-          salary_slip_file_id:
-            file?.salary_slip_file_id || null,
-          file_path: file?.file_path || null,
-          file_size: file?.file_size || null,
-        };
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: "Published salary slips fetched successfully",
-        data,
-        pagination: {
-          total,
-          page,
-          limit,
-          total_pages: totalPages,
-          has_next_page: page < totalPages,
-          has_prev_page: page > 1,
-          next_page:
-            page < totalPages ? page + 1 : null,
-          prev_page:
-            page > 1 ? page - 1 : null,
-        },
-      });
-    }
-
-    const salarySlips =
-      await SalarySlips.findAll(queryOptions);
-
-    if (!salarySlips || salarySlips.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No published salary slips found for this employee",
-        data: [],
-        pagination: null,
-      });
-    }
-
-    const data = salarySlips.map((slip) => {
-      const employee = slip.employee;
-      const organization =
-        employee?.organizations?.[0] || null;
-      const file = slip.files?.[0] || null;
-
-      return {
-        salary_slip_id: slip.salary_slip_id,
-        employee_id: slip.employee_id,
-
-        emp_id: organization?.or_emp_id || null,
-        department_id:
-          organization?.or_department_id || null,
-
-        employee_name: employee
-          ? `${employee.pr_first_name || ""} ${
-              employee.pr_last_name || ""
-            }`.trim()
-          : null,
-
-        month: slip.month,
-        year: slip.year,
-        salary_slip_no: slip.salary_slip_no,
-        payroll_date: slip.payroll_date,
-        salary_generated_date:
-          slip.salary_generated_date,
-        is_published: slip.is_published,
-        created_by: slip.created_by,
-        created_at: slip.created_at,
-        updated_by: slip.updated_by,
-        updated_at: slip.updated_at,
-
-        salary_slip_file_id:
-          file?.salary_slip_file_id || null,
-        file_path: file?.file_path || null,
-        file_size: file?.file_size || null,
-      };
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Published salary slips fetched successfully",
-      data,
-      pagination: null,
-    });
+    return res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error(
       "Error fetching salary slips:",
@@ -1967,150 +1781,10 @@ const getSalarySlipsPaginated = async (
   }
 };
 
-const bulkPublishSalarySlips = async (req, res) => {
-  const client = await pool.connect();
+/* ------------------------------------------------------------------ */
+/*   Exports                                                           */
+/* ------------------------------------------------------------------ */
 
-  try {
-    let { salary_slip_ids, updated_by } = req.body;
-
-    if (salary_slip_ids === undefined || salary_slip_ids === null) {
-      return res.status(400).json({
-        success: false,
-        message: "salary_slip_ids is required",
-      });
-    }
-
-    if (typeof salary_slip_ids === "string") {
-      try {
-        salary_slip_ids = JSON.parse(salary_slip_ids);
-      } catch {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid salary_slip_ids JSON format",
-        });
-      }
-    }
-
-    if (!Array.isArray(salary_slip_ids) || salary_slip_ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "salary_slip_ids must be a non-empty array",
-      });
-    }
-
-    const ids = [
-      ...new Set(
-        salary_slip_ids
-          .map((v) => Number(v))
-          .filter((v) => Number.isInteger(v) && v > 0)
-      ),
-    ];
-
-    if (ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "salary_slip_ids must contain valid numeric IDs",
-      });
-    }
-
-    await client.query("BEGIN");
-
-    const existingResult = await client.query(
-      `
-      SELECT salary_slip_id, is_published
-      FROM salary_slips
-      WHERE salary_slip_id = ANY($1::int[])
-      `,
-      [ids]
-    );
-
-    if (existingResult.rows.length === 0) {
-      await client.query("ROLLBACK");
-
-      return res.status(404).json({
-        success: false,
-        message: "No salary slips found for the provided IDs",
-      });
-    }
-
-    const foundIds = existingResult.rows.map((row) => row.salary_slip_id);
-
-    const missingIds = ids.filter((id) => !foundIds.includes(id));
-
-    const alreadyPublishedIds = existingResult.rows
-      .filter((row) => row.is_published === true)
-      .map((row) => row.salary_slip_id);
-
-    const idsToUpdate = existingResult.rows
-      .filter((row) => row.is_published !== true)
-      .map((row) => row.salary_slip_id);
-
-    let updatedRows = [];
-
-    if (idsToUpdate.length > 0) {
-      const updateResult = await client.query(
-        `
-        UPDATE salary_slips
-        SET
-          is_published = TRUE,
-          published_at = CURRENT_TIMESTAMP,
-          published_by = $1,
-          updated_by = $1,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE salary_slip_id = ANY($2::int[])
-        RETURNING
-          salary_slip_id,
-          employee_id,
-          month,
-          year,
-          salary_slip_no,
-          is_published,
-          published_at,
-          published_by,
-          updated_by,
-          updated_at
-        `,
-        [updated_by || null, idsToUpdate]
-      );
-
-      updatedRows = updateResult.rows;
-    }
-
-    await client.query("COMMIT");
-
-    return res.status(200).json({
-      success: true,
-      message: `${updatedRows.length} salary slip(s) published successfully`,
-      summary: {
-        requested: ids.length,
-        updated: updatedRows.length,
-        already_published: alreadyPublishedIds.length,
-        not_found: missingIds.length,
-      },
-      data: {
-        published: updatedRows,
-        already_published_ids: alreadyPublishedIds,
-        not_found_ids: missingIds,
-      },
-    });
-  } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch (rollbackError) {
-      console.error("Rollback error:", rollbackError);
-    }
-
-    console.error("Bulk publish salary slips error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to publish salary slips",
-      error: error.message,
-    });
-  } finally {
-    client.release();
-  }
-};
 
 module.exports = {
   getDepartmentEmployees,
@@ -2122,6 +1796,4 @@ module.exports = {
   deleteSalarySlip,
   getSalarySlipsPaginated,
   getSalarySlipPdf,
-  getDepartmentEmployeesSalarySlipsV2,
-  bulkPublishSalarySlips,
 };
