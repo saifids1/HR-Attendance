@@ -25,7 +25,7 @@ const uploadHrSupport = require("../middlewares/uploadHrSupport");
 const { toRelativePath, toAbsolutePath } = uploadHrSupport;
 
 const LOG_PREFIX = "[HR-SUPPORT]";
-const HR_SUPPORT_ROLE_NAMES = ["HR-SUPPORT"];
+const HR_SUPPORT_ROLE_NAMES = ["HR-ADMIN"];
 
 const log = (label, data) => {
   console.log(
@@ -246,7 +246,7 @@ const generateRequestNumber = async (transaction) => {
 const getHrSupportEmails = async (transaction) => {
   const hrSupportUsers = await UserRoleRelation.findAll({
     where: {
-      rl_role_id: 4, // HR-SUPPORT
+      rl_role_id: 2, // HR-SUPPORT
     },
     attributes: ["pr_id"],
     transaction,
