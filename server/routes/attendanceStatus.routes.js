@@ -10,6 +10,6 @@ const {
 router.post("/", createAttendenceStatus);
 router.get("/paginated", getAllAttendenceStatuses);
 router.get("/:id", getAttendenceStatusById);
-router.put("/", updateAttendenceStatus);
+router.put("/:id", updateAttendenceStatus);
 
 module.exports = router;
