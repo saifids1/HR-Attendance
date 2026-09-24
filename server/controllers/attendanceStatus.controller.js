@@ -263,7 +263,12 @@ const updateAttendenceStatus = async (req, res) => {
     } = req.body;
 
     if (!id) {
-      return errorResponse(res, 400, "Attendance status id is required", null);
+      return errorResponse(
+        res,
+        400,
+        "Attendance status id is required",
+        null
+      );
     }
 
 >>>>>>> a84cda8 (created controller and status api)
