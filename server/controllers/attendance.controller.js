@@ -875,48 +875,89 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     /* ---------------- TODAY ---------------- */
     const [todayRow] = await sequelize.query(
       `SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS today`,
-      { type: sequelize.QueryTypes.SELECT }
+      {
+        type: sequelize.QueryTypes.SELECT,
+      }
     );
+
     const today = todayRow.today;
 
     /* ---------------- COUNT ---------------- */
     let countQuery = `
       SELECT COUNT(DISTINCT o.or_id) AS total
       FROM public.organizations o
-      INNER JOIN public.personal p ON p.pr_id = o.pr_id
-      WHERE o.or_emp_id IS NOT NULL AND TRIM(o.or_emp_id) <> ''
+      INNER JOIN public.personal p 
+        ON p.pr_id = o.pr_id
+      WHERE o.or_emp_id IS NOT NULL
+        AND TRIM(o.or_emp_id) <> ''
     `;
+
     if (!showInactive) {
-      countQuery += ` AND COALESCE(o.or_is_active, TRUE) = TRUE`;
+      countQuery += `
+        AND COALESCE(o.or_is_active, TRUE) = TRUE
+      `;
     }
 
     const [countRow] = await sequelize.query(countQuery, {
       type: sequelize.QueryTypes.SELECT,
     });
-    const totalItems = parseInt(countRow.total, 10);
+
+    const totalItems = parseInt(countRow.total, 10) || 0;
 
     /* ---------------- SUMMARY ---------------- */
     let summaryQuery = `
       SELECT
         COUNT(DISTINCT o.or_id) AS total_employees,
-        COUNT(DISTINCT CASE WHEN da.punch_in IS NOT NULL THEN o.or_id END) AS punch_in,
-        COUNT(DISTINCT CASE WHEN da.punch_out IS NOT NULL THEN o.or_id END) AS punch_out,
-        COUNT(DISTINCT CASE WHEN ast.status_name = 'Leave' THEN o.or_id END) AS leave,
-        COUNT(DISTINCT CASE WHEN da.punch_in IS NULL
-                            AND COALESCE(ast.status_name, 'Absent') <> 'Leave'
-                       THEN o.or_id END) AS absent
+
+        COUNT(
+          DISTINCT CASE
+            WHEN da.punch_in IS NOT NULL
+            THEN o.or_id
+          END
+        ) AS punch_in,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN da.punch_out IS NOT NULL
+            THEN o.or_id
+          END
+        ) AS punch_out,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN ast.status_name = 'Leave'
+            THEN o.or_id
+          END
+        ) AS leave,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN COALESCE(ast.status_name, 'Absent') = 'Absent'
+            THEN o.or_id
+          END
+        ) AS absent
+
       FROM public.organizations o
-      INNER JOIN public.personal p ON p.pr_id = o.pr_id
+
+      INNER JOIN public.personal p
+        ON p.pr_id = o.pr_id
+
       LEFT JOIN public.daily_attendance da
         ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
-       AND da.attendance_date = :today
+        AND da.attendance_date = :today
+
       LEFT JOIN public.attendence_status ast
         ON ast.id = da.status_id
-       AND COALESCE(ast.is_active, TRUE) = TRUE
-      WHERE o.or_emp_id IS NOT NULL AND TRIM(o.or_emp_id) <> ''
+        AND COALESCE(ast.is_active, TRUE) = TRUE
+
+      WHERE o.or_emp_id IS NOT NULL
+        AND TRIM(o.or_emp_id) <> ''
     `;
+
     if (!showInactive) {
-      summaryQuery += ` AND COALESCE(o.or_is_active, TRUE) = TRUE`;
+      summaryQuery += `
+        AND COALESCE(o.or_is_active, TRUE) = TRUE
+      `;
     }
 
     const [summaryRow] = await sequelize.query(summaryQuery, {
@@ -925,135 +966,292 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     });
 
     const attendanceSummary = {
-      total_employees: parseInt(summaryRow.total_employees, 10) || 0,
-      punch_in: parseInt(summaryRow.punch_in, 10) || 0,
-      punch_out: parseInt(summaryRow.punch_out, 10) || 0,
-      leave: parseInt(summaryRow.leave, 10) || 0,
-      absent: parseInt(summaryRow.absent, 10) || 0,
+      total_employees:
+        parseInt(summaryRow.total_employees, 10) || 0,
+
+      punch_in:
+        parseInt(summaryRow.punch_in, 10) || 0,
+
+      punch_out:
+        parseInt(summaryRow.punch_out, 10) || 0,
+
+      leave:
+        parseInt(summaryRow.leave, 10) || 0,
+
+      absent:
+        parseInt(summaryRow.absent, 10) || 0,
     };
 
     /* ---------------- ATTENDANCE LIST ---------------- */
+
     let query = `
       SELECT
-        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS attendance_date,
+        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
+          AS attendance_date,
+
         TRIM(o.or_emp_id) AS emp_id,
+
         ui.ui_imagepath AS profile_image,
+
         COALESCE(o.or_is_active, FALSE) AS is_active,
+
         COALESCE(
           NULLIF(TRIM(p.pr_first_name), ''),
           TRIM(CONCAT_WS(' ', p.pr_first_name, p.pr_last_name)),
           '-'
         ) AS name,
+
         o."or_official_email" AS email,
+
         'employee' AS role,
+
         da.punch_in,
+
         da.punch_out,
+
         da.status_id,
+
         CASE
-          WHEN da.expected_hours IS NULL THEN '00:00'
+          WHEN da.expected_hours IS NULL
+            THEN '00:00'
           ELSE
-            LPAD(FLOOR(EXTRACT(EPOCH FROM da.expected_hours) / 3600)::TEXT, 2, '0')
+            LPAD(
+              FLOOR(
+                EXTRACT(EPOCH FROM da.expected_hours) / 3600
+              )::TEXT,
+              2,
+              '0'
+            )
             || ':' ||
-            LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM da.expected_hours), 3600) / 60)::TEXT, 2, '0')
+            LPAD(
+              FLOOR(
+                MOD(
+                  EXTRACT(EPOCH FROM da.expected_hours),
+                  3600
+                ) / 60
+              )::TEXT,
+              2,
+              '0'
+            )
         END AS expected_hours,
-        COALESCE(ast.status_name, 'Absent') AS status,
+
+        /*
+         * STATUS
+         */
+        COALESCE(
+          NULLIF(TRIM(ast.status_name), ''),
+          'Absent'
+        ) AS status,
+
+        /*
+         * STATUS COLORS
+         */
+        COALESCE(
+          NULLIF(TRIM(ast.background_color), ''),
+          '#FEE2E2'
+        ) AS background_color,
+
+        COALESCE(
+          NULLIF(TRIM(ast.font_color), ''),
+          '#991B1B'
+        ) AS font_color,
+
+        /*
+         * TOTAL WORKING HOURS
+         */
         CASE
-          WHEN da.punch_in IS NOT NULL AND da.punch_out IS NOT NULL
-          THEN EXTRACT(EPOCH FROM (da.punch_out - da.punch_in))
+          WHEN da.punch_in IS NOT NULL
+            AND da.punch_out IS NOT NULL
+          THEN EXTRACT(
+            EPOCH FROM (
+              da.punch_out - da.punch_in
+            )
+          )
           ELSE 0
         END AS total_seconds
+
       FROM public.organizations o
-      INNER JOIN public.personal p ON p.pr_id = o.pr_id
-      LEFT JOIN public.User_Image ui ON ui.pr_id = p.pr_id
+
+      INNER JOIN public.personal p
+        ON p.pr_id = o.pr_id
+
+      LEFT JOIN public.User_Image ui
+        ON ui.pr_id = p.pr_id
+
       LEFT JOIN public.daily_attendance da
         ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
-       AND da.attendance_date = :today
+        AND da.attendance_date = :today
+
       LEFT JOIN public.attendence_status ast
         ON ast.id = da.status_id
-       AND COALESCE(ast.is_active, TRUE) = TRUE
-      WHERE o.or_emp_id IS NOT NULL AND TRIM(o.or_emp_id) <> ''
+        AND COALESCE(ast.is_active, TRUE) = TRUE
+
+      WHERE o.or_emp_id IS NOT NULL
+        AND TRIM(o.or_emp_id) <> ''
     `;
+
     if (!showInactive) {
-      query += ` AND COALESCE(o.or_is_active, TRUE) = TRUE`;
+      query += `
+        AND COALESCE(o.or_is_active, TRUE) = TRUE
+      `;
     }
-    query += ` ORDER BY TRIM(o.or_emp_id) ASC LIMIT :limit OFFSET :offset`;
+
+    query += `
+      ORDER BY TRIM(o.or_emp_id) ASC
+      LIMIT :limit
+      OFFSET :offset
+    `;
 
     const rows = await sequelize.query(query, {
-      replacements: { today, limit, offset },
+      replacements: {
+        today,
+        limit,
+        offset,
+      },
       type: sequelize.QueryTypes.SELECT,
     });
 
-    console.log("Attendance Rows Fetched: organization", rows);
+    console.log(
+      "Attendance Rows Fetched: organization",
+      rows
+    );
 
     /* ---------------- FORMAT ---------------- */
+
     const formattedRows = rows.map((row) => {
       const totalSeconds = Number(row.total_seconds) || 0;
+
       let totalHours = "00:00";
+
       if (totalSeconds > 0) {
         const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        totalHours = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+        const minutes = Math.floor(
+          (totalSeconds % 3600) / 60
+        );
+
+        totalHours =
+          `${String(hours).padStart(2, "0")}:` +
+          `${String(minutes).padStart(2, "0")}`;
       }
 
       const punchIn = row.punch_in
-        ? new Date(row.punch_in).toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-            timeZone: "Asia/Kolkata",
-          })
+        ? new Date(row.punch_in).toLocaleTimeString(
+            "en-IN",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata",
+            }
+          )
         : "--";
 
       const punchOut = row.punch_out
-        ? new Date(row.punch_out).toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-            timeZone: "Asia/Kolkata",
-          })
+        ? new Date(row.punch_out).toLocaleTimeString(
+            "en-IN",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+              timeZone: "Asia/Kolkata",
+            }
+          )
         : "--";
 
       let expectedHours = "00:00";
-      if (row.expected_hours !== null && row.expected_hours !== undefined) {
+
+      if (
+        row.expected_hours !== null &&
+        row.expected_hours !== undefined
+      ) {
         expectedHours = String(row.expected_hours);
       }
 
       return {
-        attendance_date: `${row.attendance_date}T18:30:00.000Z`,
+        attendance_date:
+          `${row.attendance_date}T18:30:00.000Z`,
+
         emp_id: row.emp_id,
+
         is_active: row.is_active,
+
         name: row.name,
+
         email: row.email || "-",
+
         punch_in: punchIn,
+
         punch_out: punchOut,
+
         role: row.role,
-        status_id: row.status_id,
-        status: row.status,
+
+        status_id: row.status_id || null,
+
+        /*
+         * STATUS
+         */
+        status: row.status || "Absent",
+
+        /*
+         * COLORS
+         */
+        background_color:
+          row.background_color || "#FEE2E2",
+
+        font_color:
+          row.font_color || "#991B1B",
+
         total_hours: totalHours,
+
         expected_hours: expectedHours,
-        profile_image: row.profile_image || "-",
+
+        profile_image:
+          row.profile_image || "-",
       };
     });
 
+    /* ---------------- RESPONSE ---------------- */
+
     return res.status(200).json({
       success: true,
+
       summary: {
-        total_employees: attendanceSummary.total_employees,
-        punch_in: attendanceSummary.punch_in,
-        punch_out: attendanceSummary.punch_out,
-        absent: attendanceSummary.absent,
-        leave: attendanceSummary.leave,
+        total_employees:
+          attendanceSummary.total_employees,
+
+        punch_in:
+          attendanceSummary.punch_in,
+
+        punch_out:
+          attendanceSummary.punch_out,
+
+        absent:
+          attendanceSummary.absent,
+
+        leave:
+          attendanceSummary.leave,
       },
+
       employees: formattedRows,
+
       pagination: {
         currentPage: page,
+
         totalItems: totalItems,
-        totalPages: Math.ceil(totalItems / limit),
+
+        totalPages:
+          Math.ceil(totalItems / limit),
+
         limit: limit,
       },
     });
   } catch (error) {
-    console.error("Organization attendance error:", error);
+    console.error(
+      "Organization attendance error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: "Failed to process attendance",
