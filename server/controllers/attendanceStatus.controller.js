@@ -5,15 +5,20 @@ const {
   paginatedResponse,
   handleDbError,
 } = require("../utils/response");
+
 const {
   getPaginationParams,
-  buildIsActiveClause,
 } = require("../utils/pagination");
 
 // Create Attendance Status
 const createAttendenceStatus = async (req, res) => {
   try {
-    const { status_name, created_by } = req.body;
+    const {
+      status_name,
+      created_by,
+      background_color,
+      font_color,
+    } = req.body;
 
     if (!status_name || status_name.trim() === "") {
       return errorResponse(res, 400, "status_name is required", null);
@@ -21,15 +26,24 @@ const createAttendenceStatus = async (req, res) => {
 
     const query = `
       INSERT INTO attendence_status
-        (status_name, created_by, created_at, is_active)
+        (
+          status_name,
+          created_by,
+          background_color,
+          font_color,
+          created_at,
+          is_active
+        )
       VALUES
-        ($1, $2, CURRENT_TIMESTAMP, TRUE)
+        ($1, $2, $3, $4, CURRENT_TIMESTAMP, TRUE)
       RETURNING *
     `;
 
     const result = await db.query(query, [
       status_name.trim(),
       created_by || null,
+      background_color || null,
+      font_color || null,
     ]);
 
     return successResponse(
@@ -52,7 +66,6 @@ const createAttendenceStatus = async (req, res) => {
 const getAllAttendenceStatuses = async (req, res) => {
   try {
     const { page, limit, offset } = getPaginationParams(req);
-
     const { search = "", is_active } = req.query;
 
     const values = [];
@@ -89,6 +102,8 @@ const getAllAttendenceStatuses = async (req, res) => {
       SELECT
         id,
         status_name,
+        background_color,
+        font_color,
         created_by,
         created_at,
         updated_by,
@@ -134,13 +149,20 @@ const getAttendenceStatusById = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
-      return errorResponse(res, 400, "Attendance status id is required", null);
+      return errorResponse(
+        res,
+        400,
+        "Attendance status id is required",
+        null
+      );
     }
 
     const query = `
       SELECT
         id,
         status_name,
+        background_color,
+        font_color,
         created_by,
         created_at,
         updated_by,
@@ -181,21 +203,35 @@ const getAttendenceStatusById = async (req, res) => {
 const updateAttendenceStatus = async (req, res) => {
   try {
     const { id } = req.params;
+
     const {
       status_name,
       updated_by,
       is_active,
+      background_color,
+      font_color,
     } = req.body;
 
     if (!id) {
-      return errorResponse(res, 400, "Attendance status id is required", null);
+      return errorResponse(
+        res,
+        400,
+        "Attendance status id is required",
+        null
+      );
     }
 
+    // Validate status name
     if (
       status_name !== undefined &&
       (!status_name || status_name.trim() === "")
     ) {
-      return errorResponse(res, 400, "status_name cannot be empty", null);
+      return errorResponse(
+        res,
+        400,
+        "status_name cannot be empty",
+        null
+      );
     }
 
     // Check existing record
@@ -220,18 +256,35 @@ const updateAttendenceStatus = async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
+    // Status name
     if (status_name !== undefined) {
       fields.push(`status_name = $${paramIndex}`);
       values.push(status_name.trim());
       paramIndex++;
     }
 
+    // Background color
+    if (background_color !== undefined) {
+      fields.push(`background_color = $${paramIndex}`);
+      values.push(background_color || null);
+      paramIndex++;
+    }
+
+    // Font color
+    if (font_color !== undefined) {
+      fields.push(`font_color = $${paramIndex}`);
+      values.push(font_color || null);
+      paramIndex++;
+    }
+
+    // Updated by
     if (updated_by !== undefined) {
       fields.push(`updated_by = $${paramIndex}`);
       values.push(updated_by || null);
       paramIndex++;
     }
 
+    // Active status
     if (is_active !== undefined) {
       fields.push(`is_active = $${paramIndex}`);
       values.push(is_active);
