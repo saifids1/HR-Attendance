@@ -1,16 +1,25 @@
 const express = require("express");
+
 const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
-const { authorizeRole, isAdmin } = require("../middlewares/roleMiddleware");
+
+const {
+  authorizeRole,
+  isAdmin,
+} = require("../middlewares/roleMiddleware");
+
 const controller = require("../controllers/attendanceRegularizationController");
 
-router.get("/masters", authMiddleware, controller.getMasters);
+router.get(
+  "/masters",
+  authMiddleware,
+  controller.getMasters
+);
 
 router.get(
   "/me",
   authMiddleware,
-  authorizeRole("EMPLOYEE"),
   controller.myRequests
 );
 
@@ -52,14 +61,24 @@ router.post(
   controller.hrAction
 );
 
+/* ============================================================
+   HR REVERT APPROVED REGULARIZATION
+   ============================================================ */
+
 router.post(
-  "/:arId/cancel",
+  "/hr/:arId/revert",
   authMiddleware,
+  isAdmin,
   controller.cancelHrAction
 );
 
+/* ============================================================
+   EMPLOYEE CANCEL REQUEST
+   ============================================================ */
+
 router.post(
   "/:id/cancel",
+  authMiddleware,
   controller.cancelRequest
 );
 
@@ -70,3 +89,4 @@ router.get(
 );
 
 module.exports = router;
+

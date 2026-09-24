@@ -1,9 +1,9 @@
 module.exports = (sequelize, DataTypes) => {
-  const DailyAttendance = sequelize.define(
-    "DailyAttendance",
+  const WeeklyAttendance = sequelize.define(
+    "WeeklyAttendance",
     {
       id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
         allowNull: false,
@@ -53,6 +53,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
 
+      late_arrival: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+
       is_late_arrived: {
         type: DataTypes.BOOLEAN,
         allowNull: true,
@@ -69,11 +74,6 @@ module.exports = (sequelize, DataTypes) => {
       },
 
       status_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-
-      late_arrival: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
@@ -101,10 +101,10 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: "daily_attendance",
+      tableName: "weekly_attendance",
       timestamps: false,
     }
   );
 
-  return DailyAttendance;
+  return WeeklyAttendance;
 };
