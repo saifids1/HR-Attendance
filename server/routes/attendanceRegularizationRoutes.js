@@ -1,36 +1,19 @@
 const express = require("express");
+
 const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
-const { authorizeRole, isAdmin } = require("../middlewares/roleMiddleware");
+const {
+  authorizeRole,
+  isAdmin,
+} = require("../middlewares/roleMiddleware");
+
 const controller = require("../controllers/attendanceRegularizationController");
 
-router.get("/masters", authMiddleware, controller.getMasters);
-
 router.get(
-  "/me",
+  "/masters",
   authMiddleware,
-  authorizeRole("EMPLOYEE"),
-  controller.myRequests
-);
-
-router.get(
-  "/manager/pending",
-  authMiddleware,
-  controller.managerPending
-);
-
-router.get(
-  "/hr/pending",
-  authMiddleware,
-  controller.hrPending
-);
-
-router.get(
-  "/activity-log/by-emp-date",
-  authMiddleware,
-  isAdmin,
-  controller.getActivityLogByEmpDate
+  controller.getMasters
 );
 
 router.post(
@@ -39,10 +22,40 @@ router.post(
   controller.raiseRequest
 );
 
+router.get(
+  "/me",
+  authMiddleware,
+  controller.myRequests
+);
+
+router.get(
+  "/:id",
+  authMiddleware,
+  controller.getById
+);
+
+router.post(
+  "/:id/cancel",
+  authMiddleware,
+  controller.cancelRequest
+);
+
+router.get(
+  "/manager/pending",
+  authMiddleware,
+  controller.managerPending
+);
+
 router.post(
   "/manager/:id/action",
   authMiddleware,
   controller.managerAction
+);
+
+router.get(
+  "/hr/pending",
+  authMiddleware,
+  controller.hrPending
 );
 
 router.post(
@@ -53,20 +66,17 @@ router.post(
 );
 
 router.post(
-  "/:arId/cancel",
+  "/hr/:id/cancel",
   authMiddleware,
+  isAdmin,
   controller.cancelHrAction
 );
 
-router.post(
-  "/:id/cancel",
-  controller.cancelRequest
-);
-
 router.get(
-  "/:id",
+  "/activity-log/by-emp-date",
   authMiddleware,
-  controller.getById
+  isAdmin,
+  controller.getActivityLogByEmpDate
 );
 
 module.exports = router;
