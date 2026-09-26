@@ -870,11 +870,21 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 15, 1);
     const offset = (page - 1) * limit;
+
     const showInactive = req.query.showInactive === "true";
+
+    // ---------------- FILTERS ----------------
+    const search = req.query.search?.trim() || "";
+    const statusId = req.query.status_id
+      ? parseInt(req.query.status_id)
+      : null;
 
     /* ---------------- TODAY ---------------- */
     const [todayRow] = await sequelize.query(
-      `SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS today`,
+      `
+        SELECT
+          (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS today
+      `,
       {
         type: sequelize.QueryTypes.SELECT,
       }
@@ -882,31 +892,107 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
     const today = todayRow.today;
 
-    /* ---------------- COUNT ---------------- */
-    let countQuery = `
-      SELECT COUNT(DISTINCT o.or_id) AS total
-      FROM public.organizations o
-      INNER JOIN public.personal p 
-        ON p.pr_id = o.pr_id
-      WHERE o.or_emp_id IS NOT NULL
-        AND TRIM(o.or_emp_id) <> ''
+    /*
+     * ============================================================
+     * COMMON WHERE CONDITIONS
+     * ============================================================
+     */
+
+    let commonWhere = `
+      o.or_emp_id IS NOT NULL
+      AND TRIM(o.or_emp_id) <> ''
     `;
 
     if (!showInactive) {
-      countQuery += `
+      commonWhere += `
         AND COALESCE(o.or_is_active, TRUE) = TRUE
       `;
     }
 
+    /*
+     * SEARCH
+     *
+     * Searches:
+     * - Employee ID
+     * - First name
+     * - Last name
+     * - Full name
+     * - Official email
+     */
+    if (search) {
+      commonWhere += `
+        AND (
+          TRIM(o.or_emp_id) ILIKE :search
+          OR TRIM(p.pr_first_name) ILIKE :search
+          OR TRIM(p.pr_last_name) ILIKE :search
+          OR CONCAT_WS(
+              ' ',
+              TRIM(p.pr_first_name),
+              TRIM(p.pr_last_name)
+            ) ILIKE :search
+          OR o."or_official_email" ILIKE :search
+        )
+      `;
+    }
+
+    /*
+     * STATUS FILTER
+     *
+     * status_id is coming from daily_attendance.
+     */
+    if (statusId) {
+      commonWhere += `
+        AND da.status_id = :statusId
+      `;
+    }
+
+    /*
+     * ============================================================
+     * COUNT
+     * ============================================================
+     */
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT o.or_id) AS total
+
+      FROM public.organizations o
+
+      INNER JOIN public.personal p
+        ON p.pr_id = o.pr_id
+
+      LEFT JOIN public.daily_attendance da
+        ON TRIM(da.emp_id) = TRIM(o.or_emp_id)
+        AND da.attendance_date = :today
+
+      LEFT JOIN public.attendence_status ast
+        ON ast.id = da.status_id
+        AND COALESCE(ast.is_active, TRUE) = TRUE
+
+      WHERE ${commonWhere}
+    `;
+
     const [countRow] = await sequelize.query(countQuery, {
+      replacements: {
+        today,
+        search: `%${search}%`,
+        statusId,
+      },
       type: sequelize.QueryTypes.SELECT,
     });
 
     const totalItems = parseInt(countRow.total, 10) || 0;
 
-    /* ---------------- SUMMARY ---------------- */
-    let summaryQuery = `
+    /*
+     * ============================================================
+     * SUMMARY
+     * ============================================================
+     *
+     * Summary also follows the search/filter.
+     */
+
+    const summaryQuery = `
       SELECT
+
         COUNT(DISTINCT o.or_id) AS total_employees,
 
         COUNT(
@@ -950,18 +1036,15 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         ON ast.id = da.status_id
         AND COALESCE(ast.is_active, TRUE) = TRUE
 
-      WHERE o.or_emp_id IS NOT NULL
-        AND TRIM(o.or_emp_id) <> ''
+      WHERE ${commonWhere}
     `;
 
-    if (!showInactive) {
-      summaryQuery += `
-        AND COALESCE(o.or_is_active, TRUE) = TRUE
-      `;
-    }
-
     const [summaryRow] = await sequelize.query(summaryQuery, {
-      replacements: { today },
+      replacements: {
+        today,
+        search: `%${search}%`,
+        statusId,
+      },
       type: sequelize.QueryTypes.SELECT,
     });
 
@@ -982,22 +1065,37 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         parseInt(summaryRow.absent, 10) || 0,
     };
 
-    /* ---------------- ATTENDANCE LIST ---------------- */
+    /*
+     * ============================================================
+     * ATTENDANCE LIST
+     * ============================================================
+     */
 
-    let query = `
+    const query = `
       SELECT
-        (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
-          AS attendance_date,
+
+        (
+          CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+        )::DATE AS attendance_date,
 
         TRIM(o.or_emp_id) AS emp_id,
 
         ui.ui_imagepath AS profile_image,
 
-        COALESCE(o.or_is_active, FALSE) AS is_active,
+        COALESCE(
+          o.or_is_active,
+          FALSE
+        ) AS is_active,
 
         COALESCE(
           NULLIF(TRIM(p.pr_first_name), ''),
-          TRIM(CONCAT_WS(' ', p.pr_first_name, p.pr_last_name)),
+          TRIM(
+            CONCAT_WS(
+              ' ',
+              p.pr_first_name,
+              p.pr_last_name
+            )
+          ),
           '-'
         ) AS name,
 
@@ -1014,10 +1112,13 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         CASE
           WHEN da.expected_hours IS NULL
             THEN '00:00'
+
           ELSE
             LPAD(
               FLOOR(
-                EXTRACT(EPOCH FROM da.expected_hours) / 3600
+                EXTRACT(
+                  EPOCH FROM da.expected_hours
+                ) / 3600
               )::TEXT,
               2,
               '0'
@@ -1026,7 +1127,9 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
             LPAD(
               FLOOR(
                 MOD(
-                  EXTRACT(EPOCH FROM da.expected_hours),
+                  EXTRACT(
+                    EPOCH FROM da.expected_hours
+                  ),
                   3600
                 ) / 60
               )::TEXT,
@@ -1044,13 +1147,16 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         ) AS status,
 
         /*
-         * STATUS COLORS
+         * STATUS BACKGROUND COLOR
          */
         COALESCE(
           NULLIF(TRIM(ast.background_color), ''),
           '#FEE2E2'
         ) AS background_color,
 
+        /*
+         * STATUS FONT COLOR
+         */
         COALESCE(
           NULLIF(TRIM(ast.font_color), ''),
           '#991B1B'
@@ -1062,11 +1168,13 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         CASE
           WHEN da.punch_in IS NOT NULL
             AND da.punch_out IS NOT NULL
+
           THEN EXTRACT(
             EPOCH FROM (
               da.punch_out - da.punch_in
             )
           )
+
           ELSE 0
         END AS total_seconds
 
@@ -1086,18 +1194,10 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         ON ast.id = da.status_id
         AND COALESCE(ast.is_active, TRUE) = TRUE
 
-      WHERE o.or_emp_id IS NOT NULL
-        AND TRIM(o.or_emp_id) <> ''
-    `;
+      WHERE ${commonWhere}
 
-    if (!showInactive) {
-      query += `
-        AND COALESCE(o.or_is_active, TRUE) = TRUE
-      `;
-    }
-
-    query += `
       ORDER BY TRIM(o.or_emp_id) ASC
+
       LIMIT :limit
       OFFSET :offset
     `;
@@ -1105,6 +1205,8 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     const rows = await sequelize.query(query, {
       replacements: {
         today,
+        search: `%${search}%`,
+        statusId,
         limit,
         offset,
       },
@@ -1116,15 +1218,22 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
       rows
     );
 
-    /* ---------------- FORMAT ---------------- */
+    /*
+     * ============================================================
+     * FORMAT
+     * ============================================================
+     */
 
     const formattedRows = rows.map((row) => {
-      const totalSeconds = Number(row.total_seconds) || 0;
+      const totalSeconds =
+        Number(row.total_seconds) || 0;
 
       let totalHours = "00:00";
 
       if (totalSeconds > 0) {
-        const hours = Math.floor(totalSeconds / 3600);
+        const hours = Math.floor(
+          totalSeconds / 3600
+        );
 
         const minutes = Math.floor(
           (totalSeconds % 3600) / 60
@@ -1165,7 +1274,9 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         row.expected_hours !== null &&
         row.expected_hours !== undefined
       ) {
-        expectedHours = String(row.expected_hours);
+        expectedHours = String(
+          row.expected_hours
+        );
       }
 
       return {
@@ -1188,13 +1299,10 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
         status_id: row.status_id || null,
 
-        /*
-         * STATUS
-         */
         status: row.status || "Absent",
 
         /*
-         * COLORS
+         * API STATUS COLORS
          */
         background_color:
           row.background_color || "#FEE2E2",
@@ -1211,7 +1319,11 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
       };
     });
 
-    /* ---------------- RESPONSE ---------------- */
+    /*
+     * ============================================================
+     * RESPONSE
+     * ============================================================
+     */
 
     return res.status(200).json({
       success: true,
@@ -1246,6 +1358,7 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         limit: limit,
       },
     });
+
   } catch (error) {
     console.error(
       "Organization attendance error:",
