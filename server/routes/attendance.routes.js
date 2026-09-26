@@ -461,6 +461,7 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
      * RESOLVE DATE RANGE
      * =========================================================
      */
+
     const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
     let fromDate;
@@ -499,6 +500,7 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
       }
 
       const MAX_RANGE_DAYS = 31;
+
       const rangeDays =
         Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
 
@@ -536,6 +538,7 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
      * COUNT ACTIVE EMPLOYEES
      * =========================================================
      */
+
     const countQuery = `
       SELECT COUNT(DISTINCT o.or_id) AS total
 
@@ -556,6 +559,7 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
     const countResult = await db.query(countQuery);
 
     const totalItems = parseInt(countResult.rows[0].total, 10);
+
     /*
      * =========================================================
      * TODAY ATTENDANCE SUMMARY
@@ -563,58 +567,67 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
      */
 
     const todayAttendanceQuery = `
-  WITH active_employees AS (
-    SELECT DISTINCT
-      TRIM(o.or_emp_id) AS emp_id
-    FROM public.organizations o
-    INNER JOIN public.personal p
-      ON p.pr_id = o.pr_id
-    WHERE o.or_emp_id IS NOT NULL
-      AND TRIM(o.or_emp_id) <> ''
-      AND COALESCE(o.or_is_active, FALSE) = TRUE
-  ),
+      WITH active_employees AS (
+        SELECT DISTINCT
+          TRIM(o.or_emp_id) AS emp_id
 
-  today_attendance AS (
-    SELECT DISTINCT
-      TRIM(wa.emp_id) AS emp_id,
-      wa.punch_in,
-      wa.punch_out
-    FROM public.weekly_attendance wa
-    WHERE wa.attendance_date = (
-      CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
-    )::DATE
-  )
+        FROM public.organizations o
 
-  SELECT
-    COUNT(a.emp_id) AS total_employees,
+        INNER JOIN public.personal p
+          ON p.pr_id = o.pr_id
 
-    COUNT(
-      CASE
-        WHEN ta.punch_in IS NOT NULL
-        THEN 1
-      END
-    ) AS present,
+        WHERE o.or_emp_id IS NOT NULL
+          AND TRIM(o.or_emp_id) <> ''
 
-    COUNT(
-      CASE
-        WHEN ta.punch_in IS NOT NULL
-         AND ta.punch_out IS NULL
-        THEN 1
-      END
-    ) AS working,
+          AND COALESCE(
+            o.or_is_active,
+            FALSE
+          ) = TRUE
+      ),
 
-    COUNT(
-      CASE
-        WHEN ta.punch_in IS NULL
-        THEN 1
-      END
-    ) AS absent
+      today_attendance AS (
+        SELECT DISTINCT
+          TRIM(wa.emp_id) AS emp_id,
+          wa.punch_in,
+          wa.punch_out
 
-  FROM active_employees a
+        FROM public.weekly_attendance wa
 
-  LEFT JOIN today_attendance ta
-    ON ta.emp_id = a.emp_id;
-`;
+        WHERE wa.attendance_date = (
+          CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+        )::DATE
+      )
+
+      SELECT
+        COUNT(a.emp_id) AS total_employees,
+
+        COUNT(
+          CASE
+            WHEN ta.punch_in IS NOT NULL
+            THEN 1
+          END
+        ) AS present,
+
+        COUNT(
+          CASE
+            WHEN ta.punch_in IS NOT NULL
+             AND ta.punch_out IS NULL
+            THEN 1
+          END
+        ) AS working,
+
+        COUNT(
+          CASE
+            WHEN ta.punch_in IS NULL
+            THEN 1
+          END
+        ) AS absent
+
+      FROM active_employees a
+
+      LEFT JOIN today_attendance ta
+        ON ta.emp_id = a.emp_id;
+    `;
 
     const todayAttendanceResult = await db.query(todayAttendanceQuery);
 
@@ -636,9 +649,9 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
      * WEEKLY ATTENDANCE
      * =========================================================
      */
+
     const query = `
-      WITH calendar AS
-      (
+      WITH calendar AS (
         SELECT
           generate_series(
             $1::DATE,
@@ -647,48 +660,47 @@ router.get("/weekly-attendance", auth, isAdmin, async (req, res) => {
           )::DATE AS date_only
       ),
 
-employees AS
-(
-  SELECT DISTINCT
+      employees AS (
+        SELECT DISTINCT
 
-    TRIM(o.or_emp_id) AS emp_id,
+          TRIM(o.or_emp_id) AS emp_id,
 
-    COALESCE(
-      NULLIF(
-        TRIM(p.pr_first_name),
-        ''
-      ),
+          COALESCE(
+            NULLIF(
+              TRIM(p.pr_first_name),
+              ''
+            ),
 
-      NULLIF(
-        TRIM(
-          CONCAT_WS(
-            ' ',
-            p.pr_first_name,
-            p.pr_last_name
-          )
-        ),
-        ''
-      ),
+            NULLIF(
+              TRIM(
+                CONCAT_WS(
+                  ' ',
+                  p.pr_first_name,
+                  p.pr_last_name
+                )
+              ),
+              ''
+            ),
 
-      '-'
-    ) AS name,
+            '-'
+          ) AS name,
 
-    'employee' AS role,
+          'employee' AS role,
 
-    COALESCE(
-      o.or_is_active,
-      FALSE
-    ) AS is_active,
+          COALESCE(
+            o.or_is_active,
+            FALSE
+          ) AS is_active,
 
-    ui.Ui_ImagePath AS profile_image 
+          ui.Ui_ImagePath AS profile_image
 
         FROM public.organizations o
 
-INNER JOIN public.personal p
-  ON p.pr_id = o.pr_id
+        INNER JOIN public.personal p
+          ON p.pr_id = o.pr_id
 
-LEFT JOIN public.User_Image ui
-  ON ui.pr_id = p.pr_id
+        LEFT JOIN public.User_Image ui
+          ON ui.pr_id = p.pr_id
 
         WHERE o.or_emp_id IS NOT NULL
           AND TRIM(o.or_emp_id) <> ''
@@ -726,15 +738,18 @@ LEFT JOIN public.User_Image ui
         wa.punch_out,
 
         /*
-         * Raw seconds — used for accurate summation across
-         * the date range. Formatted total_hours below is for
-         * per-day display only; don't sum the formatted string.
+         * Raw seconds
          */
         COALESCE(
-          EXTRACT(EPOCH FROM wa.total_hours),
+          EXTRACT(
+            EPOCH FROM wa.total_hours
+          ),
           0
         )::BIGINT AS total_seconds,
 
+        /*
+         * Total working hours
+         */
         CASE
           WHEN wa.total_hours IS NULL THEN
             '00:00'
@@ -742,7 +757,9 @@ LEFT JOIN public.User_Image ui
           ELSE
             LPAD(
               FLOOR(
-                EXTRACT(EPOCH FROM wa.total_hours) / 3600
+                EXTRACT(
+                  EPOCH FROM wa.total_hours
+                ) / 3600
               )::TEXT,
               2,
               '0'
@@ -751,7 +768,9 @@ LEFT JOIN public.User_Image ui
             LPAD(
               FLOOR(
                 MOD(
-                  EXTRACT(EPOCH FROM wa.total_hours),
+                  EXTRACT(
+                    EPOCH FROM wa.total_hours
+                  ),
                   3600
                 ) / 60
               )::TEXT,
@@ -760,6 +779,9 @@ LEFT JOIN public.User_Image ui
             )
         END AS total_hours,
 
+        /*
+         * Expected hours
+         */
         CASE
           WHEN wa.expected_hours IS NULL THEN
             '09:00'
@@ -767,7 +789,9 @@ LEFT JOIN public.User_Image ui
           ELSE
             LPAD(
               FLOOR(
-                EXTRACT(EPOCH FROM wa.expected_hours) / 3600
+                EXTRACT(
+                  EPOCH FROM wa.expected_hours
+                ) / 3600
               )::TEXT,
               2,
               '0'
@@ -776,7 +800,9 @@ LEFT JOIN public.User_Image ui
             LPAD(
               FLOOR(
                 MOD(
-                  EXTRACT(EPOCH FROM wa.expected_hours),
+                  EXTRACT(
+                    EPOCH FROM wa.expected_hours
+                  ),
                   3600
                 ) / 60
               )::TEXT,
@@ -789,9 +815,32 @@ LEFT JOIN public.User_Image ui
         wa.is_late_arrived,
         wa.early_go,
         wa.is_early_gone,
+
+        /*
+         * Attendance status
+         */
         wa.status_id,
 
-        ast.status_name AS status
+        ast.status_name AS status,
+
+        /*
+         * Status colors from attendence_status table
+         */
+        COALESCE(
+          NULLIF(
+            TRIM(ast.background_color),
+            ''
+          ),
+          '#94A3B8'
+        ) AS background_color,
+
+        COALESCE(
+          NULLIF(
+            TRIM(ast.font_color),
+            ''
+          ),
+          '#FFFFFF'
+        ) AS font_color
 
       FROM employees e
 
@@ -802,6 +851,10 @@ LEFT JOIN public.User_Image ui
 
         AND wa.attendance_date = c.date_only
 
+      /*
+       * Map weekly_attendance.status_id
+       * to attendence_status.id
+       */
       LEFT JOIN public.attendence_status ast
         ON ast.id = wa.status_id
 
@@ -881,18 +934,28 @@ LEFT JOIN public.User_Image ui
 
     /*
      * =========================================================
-     * FORMAT HELPER: seconds -> "HH:MM"
-     *
-     * Deliberately does NOT wrap at 24 — a week's total can
-     * legitimately exceed 24 hours (e.g. "48:30").
+     * FORMAT HELPER
      * =========================================================
      */
+
     function formatSecondsToHHMM(totalSeconds) {
       const safeSeconds = Number(totalSeconds) || 0;
+
       const hours = Math.floor(safeSeconds / 3600);
+
       const minutes = Math.floor((safeSeconds % 3600) / 60);
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+      return `${String(hours).padStart(
+        2,
+        "0",
+      )}:${String(minutes).padStart(2, "0")}`;
     }
+
+    /*
+     * =========================================================
+     * FORMAT ROWS
+     * =========================================================
+     */
 
     const formattedRows = rows.map((row) => {
       const punchIn = row.punch_in
@@ -913,29 +976,52 @@ LEFT JOIN public.User_Image ui
 
       return {
         date: row.date,
+
         emp_id: row.emp_id,
+
         name: row.name,
+
         role: row.role,
+
         first_in: punchIn,
+
         last_out: punchOut,
+
         total_hours: row.total_hours || "00:00",
+
         total_seconds: Number(row.total_seconds) || 0,
+
         expected_hours: row.expected_hours || "09:00",
+
         late_arrival: row.late_arrival,
+
         is_late_arrived: row.is_late_arrived,
+
         early_go: row.early_go,
+
         is_early_gone: row.is_early_gone,
+
         status_id: row.status_id,
+
         status: row.status,
+
+        /*
+         * Colors returned from attendance status master
+         */
+        background_color: row.background_color || "#94A3B8",
+
+        font_color: row.font_color || "#FFFFFF",
+
         profile_image: row.profile_image || "-",
       };
     });
 
     /*
      * =========================================================
-     * GROUP BY DATE (unchanged)
+     * GROUP BY DATE
      * =========================================================
      */
+
     const grouped = {};
 
     formattedRows.forEach((row) => {
@@ -948,21 +1034,47 @@ LEFT JOIN public.User_Image ui
 
       grouped[row.date].employees.push({
         emp_id: row.emp_id,
+
         name: row.name,
+
         role: row.role,
+
         first_in: row.first_in,
+
         last_out: row.last_out,
+
         total_hours: row.total_hours,
+
         expected_hours: row.expected_hours,
+
         late_arrival: row.late_arrival,
+
         is_late_arrived: row.is_late_arrived,
+
         early_go: row.early_go,
+
         is_early_gone: row.is_early_gone,
+
         status_id: row.status_id,
+
         status: row.status,
+
+        /*
+         * Return status colors
+         */
+        background_color: row.background_color,
+
+        font_color: row.font_color,
+
         profile_image: row.profile_image || "-",
       });
     });
+
+    /*
+     * =========================================================
+     * SORT GROUPED DATA BY DATE
+     * =========================================================
+     */
 
     const result = Object.values(grouped).sort(
       (a, b) => new Date(b.date) - new Date(a.date),
@@ -970,15 +1082,10 @@ LEFT JOIN public.User_Image ui
 
     /*
      * =========================================================
-     * TOTAL HOURS WITHIN THE DATE RANGE
+     * TOTAL HOURS WITHIN DATE RANGE
      * =========================================================
-     *
-     * - employeeTotals: sum per employee across every date
-     *   returned (respects current pagination — only the
-     *   employees on this page are summed).
-     * - grandTotalHours: sum across all employees + all dates
-     *   in this response.
      */
+
     const employeeTotalsMap = {};
 
     formattedRows.forEach((row) => {
@@ -989,44 +1096,71 @@ LEFT JOIN public.User_Image ui
           total_seconds: 0,
         };
       }
+
       employeeTotalsMap[row.emp_id].total_seconds += row.total_seconds;
     });
 
     const employeeTotals = Object.values(employeeTotalsMap).map((e) => ({
       emp_id: e.emp_id,
+
       name: e.name,
+
       total_hours: formatSecondsToHHMM(e.total_seconds),
     }));
+
+    /*
+     * =========================================================
+     * GRAND TOTAL HOURS
+     * =========================================================
+     */
 
     const grandTotalSeconds = formattedRows.reduce(
       (sum, row) => sum + row.total_seconds,
       0,
     );
 
-    res.status(200).json({
+    /*
+     * =========================================================
+     * RESPONSE
+     * =========================================================
+     */
+
+    return res.status(200).json({
       success: true,
+
       message: "Weekly attendance fetched successfully",
 
       data: result,
 
-      // Pagination
+      /*
+       * Pagination
+       */
       totalItems,
+
       page: pageInt,
+
       limit: limitInt,
+
       weekStart: fromDate,
+
       weekEnd: today,
 
-      // Existing totals
+      /*
+       * Existing totals
+       */
       employeeTotals,
+
       grandTotalHours: formatSecondsToHHMM(grandTotalSeconds),
 
-      // Today's attendance summary
+      /*
+       * Today's attendance summary
+       */
       todaySummary,
     });
   } catch (error) {
     console.error("Weekly Attendance API Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error.message,
     });
