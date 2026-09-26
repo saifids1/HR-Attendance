@@ -447,36 +447,18 @@ async function recalculateAttendanceForRegularization({
 
   if (onDuty) {
     if (!finalPunchIn) {
-<<<<<<< HEAD
-      const startMinutes = timeStringToMinutes(dayRule.start_time);
-
-      finalPunchIn = createTimestampString(
-        attendanceDate,
-        Math.floor(startMinutes / 60),
-        startMinutes % 60
-=======
       finalPunchIn = createTimestampString(
         attendanceDate,
         Math.floor(timeStringToMinutes(dayRule.start_time) / 60),
         timeStringToMinutes(dayRule.start_time) % 60
->>>>>>> 6aef60d (Change for Attendance Regulaization)
       );
     }
 
     if (!finalPunchOut) {
-<<<<<<< HEAD
-      const endMinutes = timeStringToMinutes(dayRule.end_time);
-
-      finalPunchOut = createTimestampString(
-        attendanceDate,
-        Math.floor(endMinutes / 60),
-        endMinutes % 60
-=======
       finalPunchOut = createTimestampString(
         attendanceDate,
         Math.floor(timeStringToMinutes(dayRule.end_time) / 60),
         timeStringToMinutes(dayRule.end_time) % 60
->>>>>>> 6aef60d (Change for Attendance Regulaization)
       );
     }
   }
@@ -527,6 +509,13 @@ async function recalculateAttendanceForRegularization({
     },
     { transaction }
   );
+
+  await insertAttendanceLogs({
+    transaction,
+    empId,
+    attendanceDate,
+    items,
+  });
 
 <<<<<<< HEAD
   await insertAttendanceLogs({
@@ -626,67 +615,6 @@ async function applyPunchOnRaise({ transaction, prId, empId, attendanceDate, ite
     monthly: monthly.toJSON ? monthly.toJSON() : monthly,
   };
 }
-<<<<<<< HEAD
-async function insertAttendanceLogs({
-  transaction,
-  empId,
-  attendanceDate,
-  items,
-}) {
-  if (!empId || !attendanceDate || !items || !items.length) {
-    return;
-  }
-
-  const logs = [];
-
-  for (const item of items) {
-    const typeCode = String(
-      item.ari_type_code || item.typeCode || ""
-    )
-      .trim()
-      .toUpperCase();
-
-    if (!["PUNCH_IN", "PUNCH_OUT"].includes(typeCode)) {
-      continue;
-    }
-
-    const punchTime = item.ari_punch_time || item.punchTime || null;
-
-    if (!punchTime) {
-      continue;
-    }
-
-    const normalizedPunchTime = normalizeTimestampString(punchTime);
-
-    logs.push({
-      emp_id: empId,
-      punch_time: new Date(
-        `${normalizedPunchTime.replace(" ", "T")}+05:30`
-      ),
-      device_ip: "ATTENDANCE_REGULARIZATION",
-      device_sn: "ATTENDANCE_REGULARIZATION",
-      created_at: new Date(),
-      raw_log: {
-        source: "ATTENDANCE_REGULARIZATION",
-        type: typeCode,
-        attendance_date: attendanceDate,
-        regularized: true,
-        punch_time: normalizedPunchTime,
-      },
-    });
-  }
-
-  if (!logs.length) {
-    return;
-  }
-
-  await db.AttendanceLog.bulkCreate(logs, {
-    transaction,
-  });
-}
-
-=======
->>>>>>> 6aef60d (Change for Attendance Regulaization)
 
 module.exports = {
   recalculateAttendanceForRegularization,
