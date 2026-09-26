@@ -1,5 +1,8 @@
 module.exports = (sequelize, DataTypes) => {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
   const AttendanceRegularizationItem =
     sequelize.define(
       "AttendanceRegularizationItem",
@@ -36,6 +39,7 @@ module.exports = (sequelize, DataTypes) => {
           allowNull: false,
           defaultValue: DataTypes.NOW,
         },
+<<<<<<< HEAD
       },
       {
         tableName: "attendance_regularization_items",
@@ -80,6 +84,15 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+      },
+      {
+        tableName: "attendance_regularization_items",
+        timestamps: false,
+        underscored: true,
+      }
+    );
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 
   return AttendanceRegularizationItem;
 };

@@ -52,6 +52,7 @@ db.SalarySlipFiles = require("./salarySlipFiles")(sequelize, DataTypes);
 
 /* ---------- Attendance Regularization Models ---------- */
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 db.RegularizationType = require("./RegularizationType")(
   sequelize,
@@ -99,6 +100,44 @@ db.AttendanceRegularizationLog      = require("./AttendanceRegularizationLog")(s
 db.AttendanceRegularizationBackup   = require("./AttendanceRegularizationBackup")(sequelize, DataTypes);
 db.AttendanceRegularizationInserted = require("./AttendanceRegularizationInserted")(sequelize, DataTypes);
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+db.RegularizationType = require("./RegularizationType")(
+  sequelize,
+  DataTypes
+);
+
+db.ApprovalStatus = require("./ApprovalStatus")(
+  sequelize,
+  DataTypes
+);
+
+db.ActivityLogPunchType = require("./ActivityLogPunchType")(
+  sequelize,
+  DataTypes
+);
+
+db.AttendanceRegularization = require("./AttendanceRegularization")(
+  sequelize,
+  DataTypes
+);
+
+db.AttendanceRegularizationItem = require("./AttendanceRegularizationItem")(
+  sequelize,
+  DataTypes
+);
+
+db.AttendanceRegularizationLog = require("./AttendanceRegularizationLog")(
+  sequelize,
+  DataTypes
+);
+
+db.AttendanceRegularizationBackup =
+  require("./AttendanceRegularizationBackup")(
+    sequelize,
+    DataTypes
+  );
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 
 /* ---------- Associations ---------- */
 
@@ -715,27 +754,40 @@ db.HrSupportMessage.hasMany(db.HrSupportAttachment, {
    ============================================================ */
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // AttendanceRegularization <-> Personal
 
 =======
 // --- AttendanceRegularization <-> Personal (3 aliases) ---
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+// AttendanceRegularization <-> Personal
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularization.belongsTo(db.Personal, {
   foreignKey: "ar_pr_id",
   as: "employee",
 });
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularization.belongsTo(db.Personal, {
   foreignKey: "ar_manager_id",
   as: "manager",
 });
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularization.belongsTo(db.Personal, {
   foreignKey: "ar_hr_id",
   as: "hr",
@@ -747,16 +799,22 @@ db.Personal.hasMany(db.AttendanceRegularization, {
 });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // AttendanceRegularization <-> Items
 
 =======
 // --- AttendanceRegularization <-> Items ---
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+// AttendanceRegularization <-> Items
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularization.hasMany(db.AttendanceRegularizationItem, {
   foreignKey: "ar_id",
   as: "items",
   onDelete: "CASCADE",
 });
+<<<<<<< HEAD
 <<<<<<< HEAD
 
 db.AttendanceRegularizationItem.belongsTo(
@@ -777,11 +835,25 @@ db.AttendanceRegularizationItem.belongsTo(db.AttendanceRegularization, {
 
 // --- AttendanceRegularization <-> Log ---
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+db.AttendanceRegularizationItem.belongsTo(
+  db.AttendanceRegularization,
+  {
+    foreignKey: "ar_id",
+    as: "request",
+  }
+);
+
+// AttendanceRegularization <-> Logs
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularization.hasMany(db.AttendanceRegularizationLog, {
   foreignKey: "ar_id",
   as: "logs",
   onDelete: "CASCADE",
 });
+<<<<<<< HEAD
 <<<<<<< HEAD
 
 db.AttendanceRegularizationLog.belongsTo(
@@ -802,6 +874,19 @@ db.AttendanceRegularizationLog.belongsTo(db.AttendanceRegularization, {
 
 // --- Master joins (by code, not FK) ---
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+db.AttendanceRegularizationLog.belongsTo(
+  db.AttendanceRegularization,
+  {
+    foreignKey: "ar_id",
+    as: "request",
+  }
+);
+
+// Approval Status
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularization.belongsTo(db.ApprovalStatus, {
   foreignKey: "ar_status",
   targetKey: "as_code",
@@ -810,10 +895,15 @@ db.AttendanceRegularization.belongsTo(db.ApprovalStatus, {
 });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // Regularization Type
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+// Regularization Type
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularizationItem.belongsTo(db.RegularizationType, {
   foreignKey: "ari_type_code",
   targetKey: "rt_code",
@@ -822,10 +912,15 @@ db.AttendanceRegularizationItem.belongsTo(db.RegularizationType, {
 });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // ActivityLog Punch Type
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+// ActivityLog Punch Type
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.ActivityLog.belongsTo(db.ActivityLogPunchType, {
   foreignKey: "punch_type",
   targetKey: "alpt_code",
@@ -833,6 +928,7 @@ db.ActivityLog.belongsTo(db.ActivityLogPunchType, {
   constraints: false,
 });
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 /* ============================================================
    ATTENDANCE REGULARIZATION BACKUP
@@ -862,54 +958,39 @@ db.AttendanceRegularizationBackup.belongsTo(
 
 =======
 
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 /* ============================================================
-   ATTENDANCE REGULARIZATION BACKUP & INSERTED ASSOCIATIONS
+   ATTENDANCE REGULARIZATION BACKUP
    ============================================================ */
 
-// --- AttendanceRegularization <-> Backup (1:1) ---
-db.AttendanceRegularization.hasOne(db.AttendanceRegularizationBackup, {
-  foreignKey: "ar_id",
-  sourceKey: "ar_id",
-  as: "backup",
-  onDelete: "CASCADE",
-  onUpdate: "CASCADE",
-});
-db.AttendanceRegularizationBackup.belongsTo(db.AttendanceRegularization, {
-  foreignKey: "ar_id",
-  targetKey: "ar_id",
-  as: "regularization",
-});
+db.AttendanceRegularization.hasOne(
+  db.AttendanceRegularizationBackup,
+  {
+    foreignKey: "ar_id",
+    sourceKey: "ar_id",
+    as: "backup",
+    onDelete: "CASCADE",
+    onUpdate: "CASCADE",
+  }
+);
 
-// --- AttendanceRegularization <-> Inserted (1:many) ---
-db.AttendanceRegularization.hasMany(db.AttendanceRegularizationInserted, {
-  foreignKey: "ar_id",
-  sourceKey: "ar_id",
-  as: "insertedLogs",
-  onDelete: "CASCADE",
-  onUpdate: "CASCADE",
-});
-db.AttendanceRegularizationInserted.belongsTo(db.AttendanceRegularization, {
-  foreignKey: "ar_id",
-  targetKey: "ar_id",
-  as: "regularization",
-});
+db.AttendanceRegularizationBackup.belongsTo(
+  db.AttendanceRegularization,
+  {
+    foreignKey: "ar_id",
+    targetKey: "ar_id",
+    as: "regularization",
+  }
+);
 
-// --- ActivityLog <-> Inserted ---
-db.ActivityLog.hasMany(db.AttendanceRegularizationInserted, {
-  foreignKey: "activity_log_id",
-  sourceKey: "id",                    // ✅ PK of activity_log
-  as: "regularizationInserts",
-  onDelete: "CASCADE",
-  onUpdate: "CASCADE",
-});
-db.AttendanceRegularizationInserted.belongsTo(db.ActivityLog, {
-  foreignKey: "activity_log_id",
-  targetKey: "id",                    // ✅ PK of activity_log
-  as: "activityLog",
-});
+// Backup -> Created By
 
+<<<<<<< HEAD
 // --- Backup -> created_by / restored_by (Personal) ---
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   foreignKey: "created_by",
   targetKey: "pr_id",
@@ -917,11 +998,17 @@ db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   constraints: false,
 });
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 // Backup -> Restored By
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+// Backup -> Restored By
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   foreignKey: "restored_by",
   targetKey: "pr_id",

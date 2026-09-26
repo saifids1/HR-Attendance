@@ -1,5 +1,6 @@
 const express = require("express");
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 const router = express.Router();
 
@@ -23,18 +24,29 @@ router.post(
   controller.raiseRequest
 );
 =======
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
-const { authorizeRole, isAdmin } = require("../middlewares/roleMiddleware");
+const {
+  authorizeRole,
+  isAdmin,
+} = require("../middlewares/roleMiddleware");
+
 const controller = require("../controllers/attendanceRegularizationController");
 
+<<<<<<< HEAD
 router.get("/masters", authMiddleware, controller.getMasters);
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
 
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 router.get(
-  "/me",
+  "/masters",
   authMiddleware,
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
   authorizeRole("EMPLOYEE"),
@@ -85,6 +97,9 @@ router.get(
   authMiddleware,
   isAdmin,
   controller.getActivityLogByEmpDate
+=======
+  controller.getMasters
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 );
 
 router.post(
@@ -93,13 +108,46 @@ router.post(
   controller.raiseRequest
 );
 
+router.get(
+  "/me",
+  authMiddleware,
+  controller.myRequests
+);
+
+router.get(
+  "/:id",
+  authMiddleware,
+  controller.getById
+);
+
+router.post(
+  "/:id/cancel",
+  authMiddleware,
+  controller.cancelRequest
+);
+
+router.get(
+  "/manager/pending",
+  authMiddleware,
+  controller.managerPending
+);
+
 router.post(
   "/manager/:id/action",
   authMiddleware,
   controller.managerAction
 );
 
+<<<<<<< HEAD
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+router.get(
+  "/hr/pending",
+  authMiddleware,
+  controller.hrPending
+);
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 router.post(
   "/hr/:id/action",
   authMiddleware,
@@ -108,6 +156,7 @@ router.post(
 );
 
 router.post(
+<<<<<<< HEAD
 <<<<<<< HEAD
   "/hr/:id/cancel",
   authMiddleware,
@@ -120,20 +169,24 @@ router.get(
   controller.getActivityLogByEmpDate
 =======
   "/:arId/cancel",
+=======
+  "/hr/:id/cancel",
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
   authMiddleware,
+  isAdmin,
   controller.cancelHrAction
 );
 
-router.post(
-  "/:id/cancel",
-  controller.cancelRequest
-);
-
 router.get(
-  "/:id",
+  "/activity-log/by-emp-date",
   authMiddleware,
+<<<<<<< HEAD
   controller.getById
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+  isAdmin,
+  controller.getActivityLogByEmpDate
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 );
 
 module.exports = router;

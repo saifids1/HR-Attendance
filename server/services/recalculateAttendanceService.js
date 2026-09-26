@@ -447,22 +447,36 @@ async function recalculateAttendanceForRegularization({
 
   if (onDuty) {
     if (!finalPunchIn) {
+<<<<<<< HEAD
       const startMinutes = timeStringToMinutes(dayRule.start_time);
 
       finalPunchIn = createTimestampString(
         attendanceDate,
         Math.floor(startMinutes / 60),
         startMinutes % 60
+=======
+      finalPunchIn = createTimestampString(
+        attendanceDate,
+        Math.floor(timeStringToMinutes(dayRule.start_time) / 60),
+        timeStringToMinutes(dayRule.start_time) % 60
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       );
     }
 
     if (!finalPunchOut) {
+<<<<<<< HEAD
       const endMinutes = timeStringToMinutes(dayRule.end_time);
 
       finalPunchOut = createTimestampString(
         attendanceDate,
         Math.floor(endMinutes / 60),
         endMinutes % 60
+=======
+      finalPunchOut = createTimestampString(
+        attendanceDate,
+        Math.floor(timeStringToMinutes(dayRule.end_time) / 60),
+        timeStringToMinutes(dayRule.end_time) % 60
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       );
     }
   }
@@ -514,6 +528,7 @@ async function recalculateAttendanceForRegularization({
     { transaction }
   );
 
+<<<<<<< HEAD
   await insertAttendanceLogs({
     transaction,
     empId,
@@ -521,6 +536,8 @@ async function recalculateAttendanceForRegularization({
     items,
   });
 
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
   return {
     daily: daily.toJSON ? daily.toJSON() : daily,
     weekly: weekly.toJSON ? weekly.toJSON() : weekly,
@@ -609,6 +626,7 @@ async function applyPunchOnRaise({ transaction, prId, empId, attendanceDate, ite
     monthly: monthly.toJSON ? monthly.toJSON() : monthly,
   };
 }
+<<<<<<< HEAD
 async function insertAttendanceLogs({
   transaction,
   empId,
@@ -667,6 +685,8 @@ async function insertAttendanceLogs({
   });
 }
 
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
 
 module.exports = {
   recalculateAttendanceForRegularization,

@@ -9,9 +9,13 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       ar_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -21,21 +25,30 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       emp_id: {
         type: DataTypes.STRING(50),
         allowNull: false,
       },
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       attendance_date: {
         type: DataTypes.DATEONLY,
         allowNull: false,
       },
+<<<<<<< HEAD
 <<<<<<< HEAD
 
       snapshot_json: {
@@ -44,36 +57,55 @@ module.exports = (sequelize, DataTypes) => {
       },
 
 =======
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       snapshot_json: {
-        type: DataTypes.JSONB,          // ✅ PostgreSQL — use JSONB, not JSON
+        type: DataTypes.JSONB,
         allowNull: false,
       },
+<<<<<<< HEAD
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       created_by: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       created_at: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       restored_at: {
         type: DataTypes.DATE,
         allowNull: true,
       },
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       restored_by: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -85,6 +117,9 @@ module.exports = (sequelize, DataTypes) => {
       underscored: true,
       indexes: [
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
         {
           name: "idx_arb_ar_id",
           fields: ["ar_id"],
@@ -97,15 +132,19 @@ module.exports = (sequelize, DataTypes) => {
           name: "idx_arb_created",
           fields: [{ name: "created_at", order: "DESC" }],
         },
+<<<<<<< HEAD
 =======
         { name: "idx_arb_ar_id",    fields: ["ar_id"] },
         { name: "idx_arb_emp_date", fields: ["emp_id", "attendance_date"] },
         { name: "idx_arb_created",  fields: [{ name: "created_at", order: "DESC" }] },
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
       ],
     }
   );
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
   // ---------- Associations ----------
@@ -120,5 +159,7 @@ module.exports = (sequelize, DataTypes) => {
   };
 
 >>>>>>> 8676c1d (Changes For Attendence Regulaization)
+=======
+>>>>>>> 6aef60d (Change for Attendance Regulaization)
   return AttendanceRegularizationBackup;
 };
