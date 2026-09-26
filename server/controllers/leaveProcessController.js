@@ -395,7 +395,7 @@ exports.applyLeave = async (req, res) => {
     const result = await withTransaction(async (client) => {
       const employee = await getEmployee(client, prId);
 
-      const employeeResult = await client.query(
+       const employeeResult = await client.query(
         `SELECT o.or_id, o.pr_id, o.or_emp_id, o.or_organization_name, o.or_official_email, o.or_reporting_to_id, o.or_department_id, o.or_designation_id, p.pr_first_name, p.pr_last_name, p.pr_email FROM public.organizations o LEFT JOIN public.personal p ON p.pr_id = o.pr_id WHERE o.pr_id = $1 AND o.or_is_active = TRUE LIMIT 1`,
         [prId]
       );
@@ -446,7 +446,7 @@ exports.applyLeave = async (req, res) => {
         throw error;
       }
 
-      const leaveTypeCode = String(leaveType.lt_leave_type_code || "").trim().toUpperCase();
+   const leaveTypeCode = String(leaveType.lt_leave_type_code || "").trim().toUpperCase();
       const totalDays = calculateTotalDays(from_date, to_date, leaveTypeCode);
 
       if (totalDays <= 0) {
@@ -471,13 +471,13 @@ exports.applyLeave = async (req, res) => {
       if (overlapResult.rows.length > 0) {
         const existing = overlapResult.rows[0];
         const error = new Error(
-          `Leave already exists from ${formatDDMMYYYY(existing.lr_from_date)} to ${formatDDMMYYYY(existing.lr_to_date)}.`
+      `Leave already exists from ${formatDDMMYYYY(existing.lr_from_date)} to ${formatDDMMYYYY(existing.lr_to_date)}.`
         );
         error.statusCode = 409;
         throw error;
       }
 
-      const quotaResult = await client.query(
+const quotaResult = await client.query(
         `SELECT lq_id, COALESCE(lq_allocated_days, 0) AS lq_allocated_days, COALESCE(lq_carry_forward_days, 0) AS lq_carry_forward_days, COALESCE(lq_used_days, 0) AS lq_used_days, COALESCE(lq_pending_days, 0) AS lq_pending_days, (COALESCE(lq_allocated_days, 0) + COALESCE(lq_carry_forward_days, 0) - COALESCE(lq_used_days, 0) - COALESCE(lq_pending_days, 0)) AS available_days FROM public.leave_quota WHERE lq_pr_id = $1 AND lq_leave_type_id = $2 AND lq_leave_year = $3 FOR UPDATE`,
         [prId, leaveTypeId, year]
       );
@@ -497,7 +497,7 @@ exports.applyLeave = async (req, res) => {
         const currentMonth = currentDate.getMonth() + 1;
         let earnedPLDays = 12;
 
-        if (year === currentYear) earnedPLDays = Math.min(currentMonth, 12);
+       if (year === currentYear) earnedPLDays = Math.min(currentMonth, 12);
         if (year < currentYear) earnedPLDays = 12;
         if (year > currentYear) earnedPLDays = 0;
 
@@ -549,7 +549,7 @@ exports.applyLeave = async (req, res) => {
         employee: {
           pr_id: employeeDetails.pr_id,
           emp_id: employeeDetails.or_emp_id,
-          name: employeeName || employeeDetails.or_emp_id || "Employee",
+     name: employeeName || employeeDetails.or_emp_id || "Employee",
           email: employeeEmail,
         },
         reporting_manager: {
@@ -564,7 +564,7 @@ exports.applyLeave = async (req, res) => {
         total_days: totalDays,
         is_paid: isPaid,
         available_before: isPaid ? availableDays : null,
-        available_after: isPaid ? availableDays - totalDays : null,
+       available_after: isPaid ? availableDays - totalDays : null,
       };
     });
 
@@ -614,9 +614,69 @@ exports.applyLeave = async (req, res) => {
         await sendEmail(employee.email, `Leave Request Submitted - ${request.request_id || employee.emp_id}`, "leave_request_employee", emailData);
       }
 
-      await db.query(`UPDATE public.leave_requests SET lr_ismailfromrequester = TRUE WHERE lr_leave_request_id = $1`, [request.lr_leave_request_id]);
+      const hrAdminResult = await db.query(
+        `SELECT DISTINCT
+          o.pr_id,
+          o.or_emp_id,
+          o.or_official_email,
+          p.pr_first_name,
+          p.pr_last_name,
+          p.pr_email
+        FROM public.user_role_relation urr
+        INNER JOIN public.usr_role_master urm
+          ON urm.rm_role_id = urr.rl_role_id
+        INNER JOIN public.organizations o
+          ON o.pr_id = urr.pr_id
+          AND o.or_is_active = TRUE
+        LEFT JOIN public.personal p
+          ON p.pr_id = o.pr_id
+        WHERE UPPER(TRIM(urm.rm_role_name)) = 'HR-ADMIN'
+          AND o.or_official_email IS NOT NULL
+          AND TRIM(o.or_official_email) <> ''`
+      );
 
-      console.log(`[LEAVE EMAIL SENT] Request=${request.request_id} Manager=${manager.email} Employee=${employee.email || "N/A"}`);
+      const hrAdminEmails = [
+        ...new Set(
+          hrAdminResult.rows
+            .map((hr) => String(hr.or_official_email || "").trim())
+            .filter(Boolean)
+        ),
+      ];
+
+      for (const hrAdminEmail of hrAdminEmails) {
+        try {
+          await sendEmail(
+            hrAdminEmail,
+            `Leave Request - ${
+              request.request_id || employee.emp_id
+            }`,
+            "leave_request",
+            emailData
+          );
+
+          console.log(
+            `[LEAVE HR EMAIL SENT] Request=${
+              request.request_id
+            } HR=${hrAdminEmail}`
+          );
+        } catch (hrEmailError) {
+          console.error(
+            `[LEAVE HR EMAIL ERROR] Request=${
+              request.request_id
+            } HR=${hrAdminEmail}`,
+            hrEmailError
+          );
+        }
+      }
+
+      await db.query(
+        `UPDATE public.leave_requests
+         SET lr_ismailfromrequester = TRUE
+         WHERE lr_leave_request_id = $1`,
+        [request.lr_leave_request_id]
+      );
+
+console.log(`[LEAVE EMAIL SENT] Request=${request.request_id} Manager=${manager.email} Employee=${employee.email || "N/A"}`);
     } catch (emailError) {
       console.error(`[LEAVE EMAIL ERROR] Request=${result.request.request_id}`, emailError);
     }
