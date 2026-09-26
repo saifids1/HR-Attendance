@@ -74,8 +74,6 @@ router.post(
 
 router.get(
   "/activity-log/by-emp-date",
-  authMiddleware,
-  isAdmin,
   controller.getActivityLogByEmpDate
 );
 
