@@ -21,6 +21,7 @@ const UsrRoleMaster = db.UsrRoleMaster || null;
 
 const sendEmail = require("../utils/mailer");
 const uploadHrSupport = require("../middlewares/uploadHrSupport");
+const organizations = require("../models/organizations");
 
 const { toRelativePath, toAbsolutePath } = uploadHrSupport;
 
@@ -829,6 +830,12 @@ const getSupportRequestById = async (req, res) => {
           attributes: ["pr_id", "pr_first_name", "pr_last_name", "pr_email"],
           required: false,
         },
+        {
+          model: Organizations,
+          as: "Organization",
+          attributes: ["or_emp_id", "or_official_email"],
+          required: false,
+        },
       ],
     });
 
@@ -891,6 +898,13 @@ const getSupportMessages = async (req, res) => {
           model: Personal,
           as: "employee",
           attributes: ["pr_id", "pr_first_name", "pr_last_name", "pr_email"],
+          required: false,
+        },
+        
+        {
+          model: Organizations,
+          as: "Organization",
+          attributes: ["or_emp_id", "or_official_email"],
           required: false,
         },
       ],
@@ -1066,7 +1080,13 @@ const getSupportMessages = async (req, res) => {
                   : request.employee.full_name || "",
               }
             : null,
-        },
+        Organization: request.Organization
+    ? {
+        or_emp_id: request.Organization.or_emp_id,
+        or_official_email: request.Organization.or_official_email,
+      }
+    : null,
+},
         messages: enriched,
         total_messages: enriched.length,
       },

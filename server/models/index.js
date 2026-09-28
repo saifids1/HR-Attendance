@@ -825,4 +825,10 @@ db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   constraints: false,
 });
 
+db.HrSupportRequest.belongsTo(db.Organizations, {
+  foreignKey: "hsr_pr_id",
+  targetKey: "pr_id",
+  as: "Organization",
+});
+
 module.exports = db;
