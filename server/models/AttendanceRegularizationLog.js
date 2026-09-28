@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
   const AttendanceRegularizationLog = sequelize.define(
-    "AttendanceRegularizationLog",
+    "attendance_regularization_log",
     {
       arl_id: {
         type: DataTypes.INTEGER,
@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
       ar_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        references: {
+          model: "attendance_regularization",
+          key: "ar_id",
+        },
       },
 
       action_by: {
@@ -25,6 +29,7 @@ module.exports = (sequelize, DataTypes) => {
       },
 
       action: {
+        // RAISED | APPROVED | REJECTED | CANCELLED | REVERTED
         type: DataTypes.STRING(30),
         allowNull: true,
       },
