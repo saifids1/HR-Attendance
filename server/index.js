@@ -54,7 +54,7 @@ const bulkEmployeeUploadRoutes = require("./routes/bulkEmployeeUpload.routes");
 const hrSupportRoutes        = require("./routes/hrSupport.routes");
 const hrSupportRequestTypeRoutes = require("./routes/hrSupportRequestTypeRoutes");
 const attendanceStatus = require("./routes/attendanceStatus.routes")
-
+const employeeDetailsRoutes = require("./routes/employee.routes");
 const attendanceRegularizationRoutes = require("./routes/attendanceRegularizationRoutes");
 
 
@@ -173,6 +173,7 @@ app.use("/api/hr-support", hrSupportRoutes);
 app.use("/api/hr-support-request-types", hrSupportRequestTypeRoutes);
 app.use("/api/attendance-status", attendanceStatus);
 app.use("/api/attendance-regularization", attendanceRegularizationRoutes);
+app.use("/api/employee", employeeDetailsRoutes);
 
 app.get("/health", async (req, res) => {
   try {

@@ -32,6 +32,7 @@ db.Education = require("./education")(sequelize, DataTypes);
 db.Experience = require("./experience")(sequelize, DataTypes);
 db.Nominee = require("./nominee")(sequelize, DataTypes);
 db.VendorMaster = require("./vendorMaster")(sequelize, DataTypes);
+db.ActivityLogMobile = require("./activityLogMobile")(sequelize,DataTypes);
 
 /* ---------- Attendance & Holiday Models ---------- */
 db.ActivityLog       = require("./activityLog")(sequelize, DataTypes);
@@ -46,7 +47,7 @@ db.EmployeeEmail = require("./employeeEmail")(sequelize, DataTypes);
 
 db.SalarySlips = require("./salarySlips")(sequelize, DataTypes);
 db.SalarySlipFiles = require("./salarySlipFiles")(sequelize, DataTypes);
-
+db.BranchMaster = require("./BranchMaster")(sequelize, DataTypes);
 /* ---------- Attendance Regularization Models ---------- */
 
 db.RegularizationType = require("./RegularizationType")(
@@ -800,6 +801,18 @@ db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
 });
 
 // Backup -> Restored By
+
+db.Organizations.belongsTo(db.BranchMaster, {
+  foreignKey: "or_reporting_location_id",
+  targetKey: "branch_id",
+  as: "reportingLocation",
+});
+
+db.BranchMaster.hasMany(db.Organizations, {
+  foreignKey: "or_reporting_location_id",
+  sourceKey: "branch_id",
+  as: "employees",
+});
 
 db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   foreignKey: "restored_by",
