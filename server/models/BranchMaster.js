@@ -24,6 +24,19 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
 
+      parent_branch_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+
+      is_current: {
+        type: DataTypes.CHAR(1),
+        allowNull: true,
+        validate: {
+          isIn: [["Y", "N"]],
+        },
+      },
+
       address_line_1: {
         type: DataTypes.STRING(250),
         allowNull: true,

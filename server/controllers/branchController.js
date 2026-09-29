@@ -9,10 +9,6 @@ const {
 
 const { getPaginationParams } = require("../utils/pagination");
 
-// ============================================================
-// CREATE BRANCH
-// ============================================================
-
 const createBranch = async (req, res) => {
   try {
     const {
@@ -28,12 +24,10 @@ const createBranch = async (req, res) => {
       longitude,
       latitude,
       center_of_radius,
+      parent_branch_id,
+      is_current,
       created_by,
     } = req.body;
-
-    // --------------------------------------------------------
-    // Required field validation
-    // --------------------------------------------------------
 
     if (
       branch_company_id === undefined ||
@@ -57,10 +51,6 @@ const createBranch = async (req, res) => {
       return errorResponse(res, 400, "branch_code is required", null);
     }
 
-    // --------------------------------------------------------
-    // Check company exists and is active
-    // --------------------------------------------------------
-
     const companyResult = await db.query(
       `
       SELECT cpt_id
@@ -75,9 +65,33 @@ const createBranch = async (req, res) => {
       return errorResponse(res, 400, "Company not found or inactive", null);
     }
 
-    // --------------------------------------------------------
-    // Insert branch
-    // --------------------------------------------------------
+    if (
+      parent_branch_id !== undefined &&
+      parent_branch_id !== null &&
+      parent_branch_id !== ""
+    ) {
+      if (isNaN(parent_branch_id)) {
+        return errorResponse(
+          res,
+          400,
+          "Valid parent_branch_id is required",
+          null,
+        );
+      }
+
+      const parentBranchResult = await db.query(
+        `
+        SELECT branch_id
+        FROM branch_master
+        WHERE branch_id = $1
+        `,
+        [parent_branch_id],
+      );
+
+      if (parentBranchResult.rows.length === 0) {
+        return errorResponse(res, 400, "Parent branch not found", null);
+      }
+    }
 
     const query = `
   INSERT INTO branch_master
@@ -94,6 +108,8 @@ const createBranch = async (req, res) => {
     longitude,
     latitude,
     center_of_radius,
+    parent_branch_id,
+    is_current,
     created_by,
     created_at,
     is_active
@@ -113,6 +129,8 @@ const createBranch = async (req, res) => {
     $11,
     $12,
     $13,
+    $14,
+    $15,
     CURRENT_TIMESTAMP,
     TRUE
   )
@@ -134,6 +152,14 @@ const createBranch = async (req, res) => {
       center_of_radius !== undefined && center_of_radius !== ""
         ? Number(center_of_radius)
         : null,
+      parent_branch_id !== undefined &&
+      parent_branch_id !== null &&
+      parent_branch_id !== ""
+        ? Number(parent_branch_id)
+        : null,
+      is_current !== undefined && is_current !== null && is_current !== ""
+        ? is_current
+        : null,
       created_by || null,
     ];
 
@@ -150,10 +176,6 @@ const createBranch = async (req, res) => {
   }
 };
 
-// ============================================================
-// GET BRANCH BY ID
-// ============================================================
-
 const getBranchById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -165,48 +187,34 @@ const getBranchById = async (req, res) => {
     const query = `
       SELECT
         bm.*,
-
-        -- Company
         cm.cpt_name AS company_name,
-
-        -- Country
         com.country_name AS country_name,
-
-        -- State
         sm.state_name AS state_name,
-
-        -- City
         cim.city_name AS city_name,
-
-        -- Created By
+        pbm.branch_name AS parent_branch_name,
         cp.pr_first_name AS "CreatedByName",
-
-        -- Updated By
         up.pr_first_name AS "UpdatedByName"
 
       FROM branch_master bm
 
-      -- Company
       LEFT JOIN companies_master cm
         ON cm.cpt_id = bm.branch_company_id
 
-      -- Country
       LEFT JOIN country_master com
         ON com.country_id = bm.country_id
 
-      -- State
       LEFT JOIN state_master sm
         ON sm.state_id = bm.state_id
 
-      -- City
       LEFT JOIN city_master cim
         ON cim.city_id = bm.city_id
 
-      -- Created By
+      LEFT JOIN branch_master pbm
+        ON pbm.branch_id = bm.parent_branch_id
+
       LEFT JOIN personal cp
         ON cp.pr_id = bm.created_by
 
-      -- Updated By
       LEFT JOIN personal up
         ON up.pr_id = bm.updated_by
 
@@ -230,20 +238,12 @@ const getBranchById = async (req, res) => {
   }
 };
 
-// ============================================================
-// GET ALL BRANCHES
-// ============================================================
-
 const getAllBranches = async (req, res) => {
   try {
     const { is_active, company_id } = req.query;
 
     const conditions = [];
     const values = [];
-
-    // --------------------------------------------------------
-    // Active filter
-    // --------------------------------------------------------
 
     if (is_active !== undefined) {
       if (is_active !== "true" && is_active !== "false") {
@@ -254,10 +254,6 @@ const getAllBranches = async (req, res) => {
 
       conditions.push(`bm.is_active = $${values.length}`);
     }
-
-    // --------------------------------------------------------
-    // Company filter
-    // --------------------------------------------------------
 
     if (company_id !== undefined) {
       if (!company_id || isNaN(company_id)) {
@@ -272,24 +268,21 @@ const getAllBranches = async (req, res) => {
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // --------------------------------------------------------
-    // Query
-    // --------------------------------------------------------
-
     const query = `
       SELECT
         bm.*,
-
         cm.cpt_name AS company_name,
-
+        pbm.branch_name AS parent_branch_name,
         cp.pr_first_name AS "CreatedByName",
-
         up.pr_first_name AS "UpdatedByName"
 
       FROM branch_master bm
 
       LEFT JOIN companies_master cm
         ON cm.cpt_id = bm.branch_company_id
+
+      LEFT JOIN branch_master pbm
+        ON pbm.branch_id = bm.parent_branch_id
 
       LEFT JOIN personal cp
         ON cp.pr_id = bm.created_by
@@ -315,10 +308,6 @@ const getAllBranches = async (req, res) => {
   }
 };
 
-// ============================================================
-// GET PAGINATED BRANCHES
-// ============================================================
-
 const getPaginatedBranches = async (req, res) => {
   try {
     const { is_active, company_id } = req.query;
@@ -327,10 +316,6 @@ const getPaginatedBranches = async (req, res) => {
 
     const conditions = [];
     const values = [];
-
-    // --------------------------------------------------------
-    // Active filter
-    // --------------------------------------------------------
 
     if (is_active !== undefined) {
       if (is_active !== "true" && is_active !== "false") {
@@ -341,10 +326,6 @@ const getPaginatedBranches = async (req, res) => {
 
       conditions.push(`bm.is_active = $${values.length}`);
     }
-
-    // --------------------------------------------------------
-    // Company filter
-    // --------------------------------------------------------
 
     if (company_id !== undefined) {
       if (!company_id || isNaN(company_id)) {
@@ -359,10 +340,6 @@ const getPaginatedBranches = async (req, res) => {
     const whereClause =
       conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    // --------------------------------------------------------
-    // Count query
-    // --------------------------------------------------------
-
     const countQuery = `
       SELECT COUNT(*)::int AS total
       FROM branch_master bm
@@ -375,10 +352,6 @@ const getPaginatedBranches = async (req, res) => {
 
     const total_pages = Math.ceil(total_records / limit) || 0;
 
-    // --------------------------------------------------------
-    // Data query
-    // --------------------------------------------------------
-
     const dataValues = [...values, limit, offset];
 
     const limitPosition = values.length + 1;
@@ -387,17 +360,18 @@ const getPaginatedBranches = async (req, res) => {
     const dataQuery = `
       SELECT
         bm.*,
-
         cm.cpt_name AS company_name,
-
+        pbm.branch_name AS parent_branch_name,
         cp.pr_first_name AS "CreatedByName",
-
         up.pr_first_name AS "UpdatedByName"
 
       FROM branch_master bm
 
       LEFT JOIN companies_master cm
         ON cm.cpt_id = bm.branch_company_id
+
+      LEFT JOIN branch_master pbm
+        ON pbm.branch_id = bm.parent_branch_id
 
       LEFT JOIN personal cp
         ON cp.pr_id = bm.created_by
@@ -432,10 +406,6 @@ const getPaginatedBranches = async (req, res) => {
   }
 };
 
-// ============================================================
-// UPDATE BRANCH
-// ============================================================
-
 const updateBranch = async (req, res) => {
   try {
     const { id } = req.params;
@@ -443,10 +413,6 @@ const updateBranch = async (req, res) => {
     if (!id || isNaN(id)) {
       return errorResponse(res, 400, "Valid branch_id is required", null);
     }
-
-    // --------------------------------------------------------
-    // Check branch exists
-    // --------------------------------------------------------
 
     const existing = await db.query(
       `
@@ -460,6 +426,7 @@ const updateBranch = async (req, res) => {
     if (existing.rows.length === 0) {
       return errorResponse(res, 404, "Branch not found", null);
     }
+
     const {
       branch_company_id,
       branch_name,
@@ -473,13 +440,11 @@ const updateBranch = async (req, res) => {
       longitude,
       latitude,
       center_of_radius,
+      parent_branch_id,
+      is_current,
       updated_by,
       is_active,
     } = req.body;
-
-    // --------------------------------------------------------
-    // Validate branch name
-    // --------------------------------------------------------
 
     if (
       branch_name !== undefined &&
@@ -488,20 +453,12 @@ const updateBranch = async (req, res) => {
       return errorResponse(res, 400, "branch_name cannot be empty", null);
     }
 
-    // --------------------------------------------------------
-    // Validate branch code
-    // --------------------------------------------------------
-
     if (
       branch_code !== undefined &&
       (branch_code === null || branch_code.trim() === "")
     ) {
       return errorResponse(res, 400, "branch_code cannot be empty", null);
     }
-
-    // --------------------------------------------------------
-    // Validate company
-    // --------------------------------------------------------
 
     if (branch_company_id !== undefined && branch_company_id !== null) {
       if (branch_company_id === "" || isNaN(branch_company_id)) {
@@ -528,9 +485,42 @@ const updateBranch = async (req, res) => {
       }
     }
 
-    // --------------------------------------------------------
-    // Update branch
-    // --------------------------------------------------------
+    if (
+      parent_branch_id !== undefined &&
+      parent_branch_id !== null &&
+      parent_branch_id !== ""
+    ) {
+      if (isNaN(parent_branch_id)) {
+        return errorResponse(
+          res,
+          400,
+          "Valid parent_branch_id is required",
+          null,
+        );
+      }
+
+      if (Number(parent_branch_id) === Number(id)) {
+        return errorResponse(
+          res,
+          400,
+          "Branch cannot be its own parent",
+          null,
+        );
+      }
+
+      const parentBranchResult = await db.query(
+        `
+        SELECT branch_id
+        FROM branch_master
+        WHERE branch_id = $1
+        `,
+        [parent_branch_id],
+      );
+
+      if (parentBranchResult.rows.length === 0) {
+        return errorResponse(res, 400, "Parent branch not found", null);
+      }
+    }
 
     const query = `
   UPDATE branch_master
@@ -547,10 +537,12 @@ const updateBranch = async (req, res) => {
     longitude = COALESCE($10, longitude),
     latitude = COALESCE($11, latitude),
     center_of_radius = COALESCE($12, center_of_radius),
-    updated_by = COALESCE($13, updated_by),
-    is_active = COALESCE($14, is_active),
+    parent_branch_id = COALESCE($13, parent_branch_id),
+    is_current = COALESCE($14, is_current),
+    updated_by = COALESCE($15, updated_by),
+    is_active = COALESCE($16, is_active),
     updated_at = CURRENT_TIMESTAMP
-  WHERE branch_id = $15
+  WHERE branch_id = $17
   RETURNING *
 `;
 
@@ -581,6 +573,16 @@ const updateBranch = async (req, res) => {
         ? Number(center_of_radius)
         : null,
 
+      parent_branch_id !== undefined &&
+      parent_branch_id !== null &&
+      parent_branch_id !== ""
+        ? Number(parent_branch_id)
+        : null,
+
+      is_current !== undefined && is_current !== null && is_current !== ""
+        ? is_current
+        : null,
+
       updated_by !== undefined ? updated_by : null,
 
       is_active !== undefined ? is_active : null,
@@ -601,10 +603,6 @@ const updateBranch = async (req, res) => {
   }
 };
 
-// ============================================================
-// DELETE BRANCH - SOFT DELETE
-// ============================================================
-
 const deleteBranch = async (req, res) => {
   try {
     const { id } = req.params;
@@ -612,10 +610,6 @@ const deleteBranch = async (req, res) => {
     if (!id || isNaN(id)) {
       return errorResponse(res, 400, "Valid branch_id is required", null);
     }
-
-    // --------------------------------------------------------
-    // Check branch exists
-    // --------------------------------------------------------
 
     const existing = await db.query(
       `
@@ -631,10 +625,6 @@ const deleteBranch = async (req, res) => {
     }
 
     const { updated_by } = req.body;
-
-    // --------------------------------------------------------
-    // Soft delete
-    // --------------------------------------------------------
 
     const query = `
       UPDATE branch_master
@@ -665,10 +655,6 @@ const deleteBranch = async (req, res) => {
     return handleDbError(res, error, "Failed to delete branch");
   }
 };
-
-// ============================================================
-// EXPORTS
-// ============================================================
 
 module.exports = {
   createBranch,
