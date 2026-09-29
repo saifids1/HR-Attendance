@@ -1,33 +1,21 @@
-/*
-  BACKFILL_START_DATE is now only a safety floor (guards against
-  dirty/garbage old timestamps in attendance_logs). The real
-  backfill start per employee is GREATEST(joining_date, their
-  first real punch, BACKFILL_START_DATE) — see first_punch_per_emp.
-
-  Holiday/weekly-off dates are handled separately (see
-  non_working_backfill_pairs below) and only require joining_date,
-  since marking a date "Holiday" or "Weekly Off" carries no risk
-  of falsely accusing someone of being absent — unlike Absent,
-  it never needs punch evidence to justify itself.
-*/
-
 const sendEmail = require("../utils/mailer");
-const BACKFILL_START_DATE = process.env.ATTENDANCE_BACKFILL_START_DATE || "2025-07-01";
+
+const BACKFILL_START_DATE =
+  process.env.ATTENDANCE_BACKFILL_START_DATE || "2025-07-01";
 
 async function generateDailyAttendance(client) {
-const query = `
+  const query = `
 WITH current_day AS
 (
-SELECT
-(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS attendance_date
+  SELECT
+    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS attendance_date
 ),
 
 stale_pairs AS
 (
   SELECT DISTINCT
     TRIM(al.emp_id) AS emp_id,
-    (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
-      AS attendance_date
+    (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE AS attendance_date
 
   FROM public.attendance_logs al
 
@@ -50,8 +38,7 @@ today_pairs AS
 (
   SELECT
     TRIM(o.or_emp_id) AS emp_id,
-    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
-      AS attendance_date
+    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE AS attendance_date
 
   FROM public.organizations o
 
@@ -76,7 +63,9 @@ first_punch_per_emp AS
 (
   SELECT
     TRIM(al.emp_id) AS emp_id,
-    MIN((al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE) AS first_punch_date
+    MIN(
+      (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
+    ) AS first_punch_date
 
   FROM public.attendance_logs al
 
@@ -93,7 +82,8 @@ backfill_pairs AS
     TRIM(o.or_emp_id) AS emp_id,
     d.attendance_date
 
-  FROM (
+  FROM
+  (
     SELECT generate_series(
       '${BACKFILL_START_DATE}'::DATE,
       (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE,
@@ -129,9 +119,13 @@ backfill_pairs AS
 target_pairs AS
 (
   SELECT emp_id, attendance_date FROM stale_pairs
+
   UNION
+
   SELECT emp_id, attendance_date FROM today_pairs
+
   UNION
+
   SELECT emp_id, attendance_date FROM backfill_pairs
 ),
 
@@ -146,7 +140,7 @@ prior_state AS
   SELECT
     da.emp_id,
     da.attendance_date,
-    da.punch_in  AS old_punch_in,
+    da.punch_in AS old_punch_in,
     da.punch_out AS old_punch_out
   FROM public.daily_attendance da
   JOIN target_pairs tp
@@ -163,9 +157,13 @@ active_setting AS
     s.grace_period_minutes,
     s.half_day_after_minutes,
     s.early_go_minutes
+
   FROM public.attendance_settings s
+
   WHERE s.is_active = TRUE
+
   ORDER BY s.id DESC
+
   LIMIT 1
 ),
 
@@ -183,8 +181,16 @@ day_rule AS
     r.half_day_hours,
 
     COALESCE(r.is_working_day, TRUE) AS is_working_day,
-    COALESCE(r.start_time, s.office_start_time) AS start_time,
-    COALESCE(r.end_time, s.office_end_time) AS end_time
+
+    COALESCE(
+      r.start_time,
+      s.office_start_time
+    ) AS start_time,
+
+    COALESCE(
+      r.end_time,
+      s.office_end_time
+    ) AS end_time
 
   FROM distinct_target_dates d
 
@@ -199,7 +205,6 @@ day_rule AS
 holiday_info AS
 (
   SELECT
-
     d.attendance_date,
 
     h.holiday_id,
@@ -216,10 +221,14 @@ holiday_info AS
       h2.holiday_name,
       h2.is_paid,
       h2.remarks
+
     FROM public.holidays h2
+
     WHERE h2.holiday_date = d.attendance_date
       AND COALESCE(h2.is_active, TRUE) = TRUE
+
     ORDER BY h2.holiday_id
+
     LIMIT 1
   ) h ON TRUE
 ),
@@ -256,6 +265,7 @@ statuses AS
     ) AS leave_id
 
   FROM public.attendence_status
+
   WHERE is_active = TRUE
 ),
 
@@ -286,7 +296,6 @@ employees AS
 punch_data AS
 (
   SELECT
-
     TRIM(al.emp_id) AS emp_id,
 
     (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
@@ -301,6 +310,17 @@ punch_data AS
     AND TRIM(al.emp_id) <> ''
     AND al.punch_time IS NOT NULL
 
+    /*
+      IMPORTANT:
+
+      Only active punches participate in
+      attendance calculation.
+
+      Regularized/replaced original punches
+      have is_active = FALSE.
+    */
+    AND al.is_active = TRUE
+
     AND EXISTS
     (
       SELECT 1
@@ -314,7 +334,6 @@ punch_data AS
 punches AS
 (
   SELECT
-
     e.emp_id,
     e.attendance_date,
 
@@ -322,7 +341,10 @@ punches AS
 
     CASE
       WHEN MIN(p.punch_local) IS NULL THEN NULL
-      WHEN MIN(p.punch_local) = MAX(p.punch_local) THEN NULL
+
+      WHEN MIN(p.punch_local) = MAX(p.punch_local)
+        THEN NULL
+
       ELSE MAX(p.punch_local)
     END AS punch_out
 
@@ -342,6 +364,7 @@ leave_info AS
   SELECT
     e.emp_id,
     e.attendance_date,
+
     MAX(lr.lr_leave_request_id) AS leave_request_id
 
   FROM employees e
@@ -363,32 +386,52 @@ leave_info AS
 calculated AS
 (
   SELECT
-
     p.emp_id,
     p.attendance_date,
 
     p.punch_in,
     p.punch_out,
 
-    (ps.old_punch_in IS NULL AND p.punch_in IS NOT NULL)   AS send_punch_in,
-    (ps.old_punch_out IS NULL AND p.punch_out IS NOT NULL) AS send_punch_out,
+    (
+      ps.old_punch_in IS NULL
+      AND p.punch_in IS NOT NULL
+    ) AS send_punch_in,
+
+    (
+      ps.old_punch_out IS NULL
+      AND p.punch_out IS NOT NULL
+    ) AS send_punch_out,
 
     CASE
-      WHEN p.punch_in IS NULL THEN INTERVAL '0'
-      WHEN p.punch_out IS NULL THEN INTERVAL '0'
+      WHEN p.punch_in IS NULL
+        THEN INTERVAL '0'
+
+      WHEN p.punch_out IS NULL
+        THEN INTERVAL '0'
+
       ELSE p.punch_out - p.punch_in
     END AS total_hours,
 
     CASE
-      WHEN h.holiday_id IS NOT NULL THEN INTERVAL '0'
-      WHEN dr.is_working_day = FALSE THEN INTERVAL '0'
+      WHEN h.holiday_id IS NOT NULL
+        THEN INTERVAL '0'
+
+      WHEN dr.is_working_day = FALSE
+        THEN INTERVAL '0'
+
       ELSE dr.end_time - dr.start_time
     END AS expected_hours,
 
     CASE
-      WHEN p.punch_in IS NULL THEN 0
-      WHEN h.holiday_id IS NOT NULL THEN 0
-      WHEN dr.is_working_day = FALSE THEN 0
+      WHEN p.punch_in IS NULL
+        THEN 0
+
+      WHEN h.holiday_id IS NOT NULL
+        THEN 0
+
+      WHEN dr.is_working_day = FALSE
+        THEN 0
+
       ELSE GREATEST(
         0,
         FLOOR(
@@ -401,9 +444,15 @@ calculated AS
     END AS late_arrival,
 
     CASE
-      WHEN p.punch_in IS NULL THEN FALSE
-      WHEN h.holiday_id IS NOT NULL THEN FALSE
-      WHEN dr.is_working_day = FALSE THEN FALSE
+      WHEN p.punch_in IS NULL
+        THEN FALSE
+
+      WHEN h.holiday_id IS NOT NULL
+        THEN FALSE
+
+      WHEN dr.is_working_day = FALSE
+        THEN FALSE
+
       WHEN p.punch_in::TIME >
            (
              dr.start_time +
@@ -412,14 +461,23 @@ calculated AS
              )
            )
         THEN TRUE
+
       ELSE FALSE
     END AS is_late_arrived,
 
     CASE
-      WHEN p.punch_out IS NULL THEN 0
-      WHEN h.holiday_id IS NOT NULL THEN 0
-      WHEN dr.is_working_day = FALSE THEN 0
-      WHEN p.punch_out::TIME >= dr.end_time THEN 0
+      WHEN p.punch_out IS NULL
+        THEN 0
+
+      WHEN h.holiday_id IS NOT NULL
+        THEN 0
+
+      WHEN dr.is_working_day = FALSE
+        THEN 0
+
+      WHEN p.punch_out::TIME >= dr.end_time
+        THEN 0
+
       ELSE GREATEST(
         0,
         FLOOR(
@@ -432,9 +490,15 @@ calculated AS
     END AS early_go,
 
     CASE
-      WHEN p.punch_out IS NULL THEN FALSE
-      WHEN h.holiday_id IS NOT NULL THEN FALSE
-      WHEN dr.is_working_day = FALSE THEN FALSE
+      WHEN p.punch_out IS NULL
+        THEN FALSE
+
+      WHEN h.holiday_id IS NOT NULL
+        THEN FALSE
+
+      WHEN dr.is_working_day = FALSE
+        THEN FALSE
+
       WHEN p.punch_out::TIME <
            (
              dr.end_time -
@@ -443,6 +507,7 @@ calculated AS
              )
            )
         THEN TRUE
+
       ELSE FALSE
     END AS is_early_gone,
 
@@ -516,7 +581,12 @@ upserted AS
     is_late_arrived,
     early_go,
     is_early_gone,
-    status_id
+    status_id,
+
+    is_regularized,
+    regularization_id,
+    regularized_at,
+    regularized_by
   )
 
   SELECT
@@ -525,14 +595,21 @@ upserted AS
     punch_out,
     total_hours,
     expected_hours,
+
     CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
     CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
+
     emp_id,
     late_arrival,
     is_late_arrived,
     early_go,
     is_early_gone,
-    status_id
+    status_id,
+
+    FALSE,
+    NULL,
+    NULL,
+    NULL
 
   FROM calculated
 
@@ -550,27 +627,73 @@ upserted AS
     status_id = EXCLUDED.status_id,
     updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
 
+  /*
+    IMPORTANT:
+
+    Once HR has approved regularization,
+    is_regularized = TRUE.
+
+    Cron must not overwrite that attendance row.
+  */
+  WHERE daily_attendance.is_regularized = FALSE
+
   RETURNING *
 )
 
-
 SELECT
   u.emp_id,
-  TRIM(COALESCE(p.pr_first_name, '') || ' ' || COALESCE(p.pr_last_name, '')) AS emp_name,
+
+  TRIM(
+    COALESCE(p.pr_first_name, '') ||
+    ' ' ||
+    COALESCE(p.pr_last_name, '')
+  ) AS emp_name,
+
   o.or_official_email AS emp_email,
 
-  TO_CHAR(u.attendance_date, 'DD Mon YYYY') AS date_text,
-  TO_CHAR(u.attendance_date, 'FMDay')       AS day_text,
-  TO_CHAR(u.punch_in,  'HH12:MI AM')        AS punch_in_text,
-  TO_CHAR(u.punch_out, 'HH12:MI AM')        AS punch_out_text,
+  TO_CHAR(
+    u.attendance_date,
+    'DD Mon YYYY'
+  ) AS date_text,
 
-  CASE WHEN u.punch_out IS NOT NULL THEN
-      FLOOR(EXTRACT(EPOCH FROM u.total_hours) / 3600)::INT || 'h ' ||
-      FLOOR(MOD(EXTRACT(EPOCH FROM u.total_hours)::INT, 3600) / 60)::INT || 'm'
+  TO_CHAR(
+    u.attendance_date,
+    'FMDay'
+  ) AS day_text,
+
+  TO_CHAR(
+    u.punch_in,
+    'HH12:MI AM'
+  ) AS punch_in_text,
+
+  TO_CHAR(
+    u.punch_out,
+    'HH12:MI AM'
+  ) AS punch_out_text,
+
+  CASE
+    WHEN u.punch_out IS NOT NULL THEN
+      FLOOR(
+        EXTRACT(EPOCH FROM u.total_hours) / 3600
+      )::INT || 'h ' ||
+
+      FLOOR(
+        MOD(
+          EXTRACT(EPOCH FROM u.total_hours)::INT,
+          3600
+        ) / 60
+      )::INT || 'm'
   END AS duration_text,
 
-  (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL) AS send_punch_in,
-  (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL) AS send_punch_out
+  (
+    os.old_punch_in IS NULL
+    AND u.punch_in IS NOT NULL
+  ) AS send_punch_in,
+
+  (
+    os.old_punch_out IS NULL
+    AND u.punch_out IS NOT NULL
+  ) AS send_punch_out
 
 FROM upserted u
 
@@ -584,14 +707,26 @@ LEFT JOIN prior_state os
   ON os.emp_id = u.emp_id
  AND os.attendance_date = u.attendance_date
 
-WHERE (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)
-   OR (os.old_punch_out IS NULL AND u.punch_out IS NOT NULL);
+WHERE
+  (
+    os.old_punch_in IS NULL
+    AND u.punch_in IS NOT NULL
+  )
+
+  OR
+
+  (
+    os.old_punch_out IS NULL
+    AND u.punch_out IS NOT NULL
+  );
 `;
 
   const result = await client.query(query);
 
   for (const row of result.rows) {
-    if (!row.emp_email) continue;
+    if (!row.emp_email) {
+      continue;
+    }
 
     if (row.send_punch_in) {
       await sendEmail(
@@ -625,8 +760,12 @@ WHERE (os.old_punch_in IS NULL AND u.punch_in IS NOT NULL)
       );
     }
   }
-  return { touched: result.rowCount };
+
+  return {
+    touched: result.rowCount,
+  };
 }
 
-
-module.exports = { generateDailyAttendance };
+module.exports = {
+  generateDailyAttendance,
+};

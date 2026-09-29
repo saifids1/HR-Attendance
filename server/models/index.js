@@ -32,24 +32,22 @@ db.Education = require("./education")(sequelize, DataTypes);
 db.Experience = require("./experience")(sequelize, DataTypes);
 db.Nominee = require("./nominee")(sequelize, DataTypes);
 db.VendorMaster = require("./vendorMaster")(sequelize, DataTypes);
+db.ActivityLogMobile = require("./activityLogMobile")(sequelize,DataTypes);
 
 /* ---------- Attendance & Holiday Models ---------- */
-
-db.ActivityLog = require("./activityLog")(sequelize, DataTypes);
-db.AttendanceLog = require("./attendanceLog")(sequelize, DataTypes);
-db.AttendanceStatus = require("./attendenceStatus")(sequelize, DataTypes);
-
-db.DailyAttendance = require("./dailyAttendance")(sequelize, DataTypes);
-db.WeeklyAttendance = require("./WeeklyAttendance")(sequelize, DataTypes);
-db.MonthlyAttendance = require("./MonthlyAttendance")(sequelize, DataTypes);
-
-db.Holiday = require("./holiday")(sequelize, DataTypes);
+db.ActivityLog       = require("./activityLog")(sequelize, DataTypes);
+db.AttendanceLog     = require("./attendanceLog")(sequelize, DataTypes);
+db.AttendanceStatus  = require("./attendenceStatus")(sequelize, DataTypes);
+db.DailyAttendance   = require("./dailyAttendance")(sequelize, DataTypes);
+db.Holiday           = require("./holiday")(sequelize, DataTypes);
+db.WeeklyAttendance  = require("./weeklyAttendance")(sequelize, DataTypes);
+db.MonthlyAttendance = require("./monthlyAttendance")(sequelize, DataTypes);
 db.HolidayTypeMaster = require("./holidayTypeMaster")(sequelize, DataTypes);
 db.EmployeeEmail = require("./employeeEmail")(sequelize, DataTypes);
 
 db.SalarySlips = require("./salarySlips")(sequelize, DataTypes);
 db.SalarySlipFiles = require("./salarySlipFiles")(sequelize, DataTypes);
-
+db.BranchMaster = require("./BranchMaster")(sequelize, DataTypes);
 /* ---------- Attendance Regularization Models ---------- */
 
 db.RegularizationType = require("./RegularizationType")(
@@ -389,99 +387,70 @@ db.DepartmentMaster.hasMany(db.Organizations, {
   as: "employees",
 });
 
-/* ============================================================
-   ATTENDANCE ASSOCIATIONS
-   ============================================================ */
-
-// Daily Attendance <-> Status
-
-db.DailyAttendance.belongsTo(db.AttendanceStatus, {
-  foreignKey: "status_id",
-  as: "status",
+// Attendance
+db.DailyAttendance.belongsTo(db.AttendanceStatus, {  foreignKey: "status_id", as: "status",});
+db.DailyAttendance.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "regularization_id",
+  targetKey: "ar_id",
+  as: "regularization",
+  constraints: false,
 });
 
-db.AttendanceStatus.hasMany(db.DailyAttendance, {
-  foreignKey: "status_id",
-  as: "attendanceRecords",
+db.AttendanceRegularization.hasMany(db.DailyAttendance, {
+  foreignKey: "regularization_id",
+  sourceKey: "ar_id",
+  as: "dailyAttendance",
+  constraints: false,
 });
 
-// Weekly Attendance <-> Status
-
-db.WeeklyAttendance.belongsTo(db.AttendanceStatus, {
-  foreignKey: "status_id",
-  as: "status",
+db.WeeklyAttendance.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "regularization_id",
+  targetKey: "ar_id",
+  as: "regularization",
+  constraints: false,
 });
 
-db.AttendanceStatus.hasMany(db.WeeklyAttendance, {
-  foreignKey: "status_id",
-  as: "weeklyAttendanceRecords",
-});
-
-// Monthly Attendance <-> Status
-
-db.MonthlyAttendance.belongsTo(db.AttendanceStatus, {
-  foreignKey: "status_id",
-  as: "status",
-});
-
-db.AttendanceStatus.hasMany(db.MonthlyAttendance, {
-  foreignKey: "status_id",
-  as: "monthlyAttendanceRecords",
-});
-
-// Holiday
-
-db.Holiday.belongsTo(db.HolidayTypeMaster, {
-  foreignKey: "holiday_id",
-  targetKey: "holiday_type_id",
-  as: "holidayType",
-});
-
-// Organizations <-> Daily Attendance
-
-db.Organizations.hasMany(db.DailyAttendance, {
-  foreignKey: "emp_id",
-  sourceKey: "or_emp_id",
-  as: "attendance",
-});
-
-db.DailyAttendance.belongsTo(db.Organizations, {
-  foreignKey: "emp_id",
-  targetKey: "or_emp_id",
-  as: "employee",
-});
-
-// Organizations <-> Weekly Attendance
-
-db.Organizations.hasMany(db.WeeklyAttendance, {
-  foreignKey: "emp_id",
-  sourceKey: "or_emp_id",
+db.AttendanceRegularization.hasMany(db.WeeklyAttendance, {
+  foreignKey: "regularization_id",
+  sourceKey: "ar_id",
   as: "weeklyAttendance",
+  constraints: false,
 });
 
-db.WeeklyAttendance.belongsTo(db.Organizations, {
-  foreignKey: "emp_id",
-  targetKey: "or_emp_id",
-  as: "employee",
+db.MonthlyAttendance.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "regularization_id",
+  targetKey: "ar_id",
+  as: "regularization",
+  constraints: false,
 });
 
-// Organizations <-> Monthly Attendance
+db.AttendanceLog.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "regularization_id",
+  targetKey: "ar_id",
+  as: "regularization",
+  constraints: false,
+});
 
-db.Organizations.hasMany(db.MonthlyAttendance, {
-  foreignKey: "emp_id",
-  sourceKey: "or_emp_id",
+db.AttendanceRegularization.hasMany(db.AttendanceLog, {
+  foreignKey: "regularization_id",
+  sourceKey: "ar_id",
+  as: "attendanceLogs",
+  constraints: false,
+});
+
+db.AttendanceRegularization.hasMany(db.MonthlyAttendance, {
+  foreignKey: "regularization_id",
+  sourceKey: "ar_id",
   as: "monthlyAttendance",
+  constraints: false,
 });
 
-db.MonthlyAttendance.belongsTo(db.Organizations, {
-  foreignKey: "emp_id",
-  targetKey: "or_emp_id",
-  as: "employee",
-});
 
-/* ============================================================
-   SALARY SLIP ASSOCIATIONS
-   ============================================================ */
+db.AttendanceStatus.hasMany(db.DailyAttendance, {foreignKey: "status_id", as: "attendanceRecords",});
+// Holidays
+db.Holiday.belongsTo(db.HolidayTypeMaster, { foreignKey: "holiday_id", targetKey: "holiday_type_id", as: "holidayType",});
+// Employee ↔ Attendance
+db.Organizations.hasMany(db.DailyAttendance, { foreignKey: "emp_id", sourceKey: "or_emp_id", as: "attendance",});
 
 db.SalarySlips.belongsTo(db.Personal, {
   foreignKey: "employee_id",
@@ -783,6 +752,21 @@ db.ActivityLog.belongsTo(db.ActivityLogPunchType, {
   constraints: false,
 });
 
+
+db.ActivityLog.belongsTo(db.AttendanceRegularization, {
+  foreignKey: "regularization_id",
+  targetKey: "ar_id",
+  as: "regularization",
+  constraints: false,
+});
+
+db.AttendanceRegularization.hasMany(db.ActivityLog, {
+  foreignKey: "regularization_id",
+  sourceKey: "ar_id",
+  as: "activityLogs",
+  constraints: false,
+});
+
 /* ============================================================
    ATTENDANCE REGULARIZATION BACKUP
    ============================================================ */
@@ -817,6 +801,18 @@ db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
 });
 
 // Backup -> Restored By
+
+db.Organizations.belongsTo(db.BranchMaster, {
+  foreignKey: "or_reporting_location_id",
+  targetKey: "branch_id",
+  as: "reportingLocation",
+});
+
+db.BranchMaster.hasMany(db.Organizations, {
+  foreignKey: "or_reporting_location_id",
+  sourceKey: "branch_id",
+  as: "employees",
+});
 
 db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   foreignKey: "restored_by",
