@@ -8,29 +8,46 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false,
       },
+
       emp_id: {
         type: DataTypes.STRING(10),
         allowNull: true,
       },
+
       punch_time: {
         type: DataTypes.DATE,
         allowNull: true,
       },
+
       device_ip: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+
       device_sn: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+
       created_at: {
         type: DataTypes.DATE,
         allowNull: true,
         defaultValue: DataTypes.NOW,
       },
+
       raw_log: {
         type: DataTypes.JSONB,
+        allowNull: true,
+      },
+
+      is_active: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+
+      regularization_id: {
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
     },

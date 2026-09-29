@@ -32,7 +32,7 @@ const bloodGroupRoutes       = require("./routes/bloodGroupRoutes");
 const stateRoutes            = require("./routes/stateRoutes");
 const cityRoutes             = require("./routes/cityRoutes");
 const branchRoutes           = require("./routes/branchRoutes");
-const branchLocationRoutes   = require("./routes/branchLocationRoutes");
+//const branchLocationRoutes   = require("./routes/branchLocationRoutes");
 const vendorTypeRoutes       = require("./routes/vendorMasterRoutes");
 const cronRoutes             = require("./routes/cron.routes");
 const vendorDetailsRoutes    = require("./routes/vendorDetailsRoutes");
@@ -54,7 +54,7 @@ const bulkEmployeeUploadRoutes = require("./routes/bulkEmployeeUpload.routes");
 const hrSupportRoutes        = require("./routes/hrSupport.routes");
 const hrSupportRequestTypeRoutes = require("./routes/hrSupportRequestTypeRoutes");
 const attendanceStatus = require("./routes/attendanceStatus.routes")
-
+const employeeDetailsRoutes = require("./routes/employee.routes");
 const attendanceRegularizationRoutes = require("./routes/attendanceRegularizationRoutes");
 
 
@@ -136,7 +136,7 @@ app.use("/api/states", stateRoutes);
 app.use("/api/cities", cityRoutes);
 app.use("/api/blood-groups", bloodGroupRoutes);
 app.use("/api/branches", branchRoutes);
-app.use("/api/branch-locations", branchLocationRoutes);
+//app.use("/api/branch-locations", branchLocationRoutes);
 
 app.use("/vendor-details", vendorDetailsRoutes);
 app.use("/api/vendor-master", vendorTypeRoutes);
@@ -173,6 +173,7 @@ app.use("/api/hr-support", hrSupportRoutes);
 app.use("/api/hr-support-request-types", hrSupportRequestTypeRoutes);
 app.use("/api/attendance-status", attendanceStatus);
 app.use("/api/attendance-regularization", attendanceRegularizationRoutes);
+app.use("/api/employee", employeeDetailsRoutes);
 
 app.get("/health", async (req, res) => {
   try {

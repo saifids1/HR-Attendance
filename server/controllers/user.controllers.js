@@ -58,7 +58,6 @@ const loginController = async (req, res) => {
           ),
         ],
       },
-
       include: [
         {
           model: Login,
@@ -72,7 +71,6 @@ const loginController = async (req, res) => {
           required: false,
         },
       ],
-
       attributes: [
         "pr_id",
         "pr_email",
@@ -81,7 +79,6 @@ const loginController = async (req, res) => {
         "pr_profile_image",
         "pr_is_active",
       ],
-
       subQuery: false,
       limit: 1,
     });
@@ -108,20 +105,26 @@ const loginController = async (req, res) => {
 
     const org = user.organizations?.[0] || {};
 
-    const roleRows = await UserRoleRelation.findAll({
+    const userImage = await UserImage.findOne({
       where: { pr_id: user.pr_id },
-      include: [
-        {
-          model: UsrRoleMaster,
-          as: "role",
-          required: true,
-          attributes: ["rm_role_id", "rm_role_name"],
-        },
-      ],
-      order: [[{ model: UsrRoleMaster, as: "role" }, "rm_role_id", "ASC"]],
+      attributes: ["ui_id", "ui_imagepath"],
+      order: [["ui_id", "DESC"]],
     });
 
-    const roles = roleRows.map((r) => ({
+    const roles = (
+      await UserRoleRelation.findAll({
+        where: { pr_id: user.pr_id },
+        include: [
+          {
+            model: UsrRoleMaster,
+            as: "role",
+            required: true,
+            attributes: ["rm_role_id", "rm_role_name"],
+          },
+        ],
+        order: [[{ model: UsrRoleMaster, as: "role" }, "rm_role_id", "ASC"]],
+      })
+    ).map((r) => ({
       role_id: r.role.rm_role_id,
       role_name: r.role.rm_role_name,
     }));
@@ -140,14 +143,11 @@ const loginController = async (req, res) => {
 
     return res.status(200).json({
       message: "Login successful",
-
       token,
-
       expiresAt: decoded.exp * 1000,
-
       user: {
         id: user.pr_id,
-        name: `${user.pr_first_name || ""}`,
+        name: `${user.pr_first_name || ""} ${user.pr_last_name || ""}`.trim(),
         first_name: user.pr_first_name,
         last_name: user.pr_last_name,
         email: user.pr_email,
@@ -157,6 +157,8 @@ const loginController = async (req, res) => {
         organization_name: org.or_organization_name,
         official_contact: org.or_official_contact,
         profile_image: user.pr_profile_image,
+        image_id: userImage?.ui_id || null,
+        image_path: userImage?.ui_imagepath || null,
         role: roles.map((r) => r.role_name),
       },
     });
