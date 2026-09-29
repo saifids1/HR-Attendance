@@ -240,7 +240,7 @@ const getBranchById = async (req, res) => {
 
 const getAllBranches = async (req, res) => {
   try {
-    const { is_active, company_id } = req.query;
+    const { is_active, company_id, branch_name, parent_branch_id } = req.query;
 
     const conditions = [];
     const values = [];
@@ -263,6 +263,31 @@ const getAllBranches = async (req, res) => {
       values.push(Number(company_id));
 
       conditions.push(`bm.branch_company_id = $${values.length}`);
+    }
+
+    if (branch_name !== undefined && branch_name !== null && branch_name !== "") {
+      values.push(`%${branch_name.trim()}%`);
+
+      conditions.push(`bm.branch_name ILIKE $${values.length}`);
+    }
+
+    if (
+      parent_branch_id !== undefined &&
+      parent_branch_id !== null &&
+      parent_branch_id !== ""
+    ) {
+      if (isNaN(parent_branch_id)) {
+        return errorResponse(
+          res,
+          400,
+          "Valid parent_branch_id is required",
+          null,
+        );
+      }
+
+      values.push(Number(parent_branch_id));
+
+      conditions.push(`bm.parent_branch_id = $${values.length}`);
     }
 
     const whereClause =
