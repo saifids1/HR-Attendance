@@ -1,5 +1,9 @@
 const db = require("../models");
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
+
+const NOW_IST = Sequelize.literal(
+  "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'"
+);
 
 async function resolveManagerPrId(employeePrId, transaction) {
   const empOrg = await db.Organizations.findOne({
@@ -464,7 +468,7 @@ async function raiseRequest(payload, currentUser) {
       },
       transaction: t,
     });
-
+    
     if (organization && organization.or_reporting_to_id) {
       managerId = organization.or_reporting_to_id;
     }
@@ -539,6 +543,7 @@ async function raiseRequest(payload, currentUser) {
         action_role: "EMPLOYEE",
         action: "RAISED",
         remarks: reason || null,
+        action_at: NOW_IST,
       },
       {
         transaction: t,
@@ -604,11 +609,11 @@ async function managerAction(
         ? "PENDING_HR"
         : "REJECTED";
 
-    req.ar_manager_action_at = new Date();
+    req.ar_manager_action_at = NOW_IST;
     req.ar_manager_remarks =
       remarks || null;
     req.ar_updated_by = managerPrId;
-    req.ar_updated_at = new Date();
+    req.ar_updated_at = NOW_IST;
 
     await req.save({
       transaction: t,
@@ -621,6 +626,7 @@ async function managerAction(
         action_role: "MANAGER",
         action,
         remarks: remarks || null,
+        action_at: NOW_IST,
       },
       {
         transaction: t,
@@ -688,11 +694,11 @@ async function hrAction(
     if (action === "REJECTED") {
       req.ar_status = "REJECTED";
       req.ar_hr_id = hrPrId;
-      req.ar_hr_action_at = new Date();
+      req.ar_hr_action_at = NOW_IST;
       req.ar_hr_remarks =
         remarks || null;
       req.ar_updated_by = hrPrId;
-      req.ar_updated_at = new Date();
+      req.ar_updated_at = NOW_IST;
 
       await req.save({
         transaction: t,
@@ -705,6 +711,7 @@ async function hrAction(
           action_role: "HR",
           action: "REJECTED",
           remarks: remarks || null,
+          action_at: NOW_IST,
         },
         {
           transaction: t,
@@ -836,6 +843,7 @@ async function hrAction(
           snapshot_json:
             uniqueBackupRecords,
           created_by: hrPrId,
+          created_at: NOW_IST,
         },
         {
           transaction: t,
@@ -949,7 +957,8 @@ async function hrAction(
             device_ip,
             device_sn,
             is_active,
-            regularization_id
+            regularization_id,
+            created_at
           )
           VALUES
           (
@@ -961,7 +970,8 @@ async function hrAction(
             :device_ip,
             :device_sn,
             TRUE,
-            :regularization_id
+            :regularization_id,
+            CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
           )
           RETURNING id
           `,
@@ -1024,14 +1034,12 @@ async function hrAction(
 
     req.ar_status = "APPROVED";
     req.ar_hr_id = hrPrId;
-    req.ar_hr_action_at =
-      new Date();
+    req.ar_hr_action_at = NOW_IST;
     req.ar_hr_remarks =
       remarks || null;
     req.ar_updated_by =
       hrPrId;
-    req.ar_updated_at =
-      new Date();
+    req.ar_updated_at = NOW_IST;
 
     await req.save({
       transaction: t,
@@ -1045,6 +1053,7 @@ async function hrAction(
         action: "APPROVED",
         remarks:
           remarks || null,
+        action_at: NOW_IST,
       },
       {
         transaction: t,
@@ -1107,8 +1116,7 @@ async function cancelRequest(
       "CANCELLED";
     req.ar_updated_by =
       empPrId;
-    req.ar_updated_at =
-      new Date();
+    req.ar_updated_at = NOW_IST;
 
     await req.save({
       transaction: t,
@@ -1120,6 +1128,7 @@ async function cancelRequest(
         action_by: empPrId,
         action_role: "EMPLOYEE",
         action: "CANCELLED",
+        action_at: NOW_IST,
       },
       {
         transaction: t,
@@ -1282,7 +1291,7 @@ async function revertRegularization(
     }
 
     backup.restored_at =
-      new Date();
+      NOW_IST;
     backup.restored_by =
       hrPrId;
 
@@ -1301,7 +1310,7 @@ async function revertRegularization(
     );
 
     await recalculateAttendance(
-      attendanceDate,t
+      attendanceDate, t
     );
 
     req.ar_status =
@@ -1310,8 +1319,7 @@ async function revertRegularization(
     req.ar_updated_by =
       hrPrId;
 
-    req.ar_updated_at =
-      new Date();
+    req.ar_updated_at = NOW_IST;
 
     await req.save({
       transaction: t,
@@ -1325,6 +1333,7 @@ async function revertRegularization(
         action: "REVERTED",
         remarks:
           remarks || null,
+        action_at: NOW_IST,
       },
       {
         transaction: t,
@@ -1640,4 +1649,3 @@ module.exports = {
   getMasters,
   resolveManagerPrId,
 };
-
