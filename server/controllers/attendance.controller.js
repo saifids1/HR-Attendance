@@ -104,7 +104,7 @@ exports.getAdminMyAttendance = async (req, res) => {
       GROUP BY emp_id, attendance_date
       ON CONFLICT (emp_id, attendance_date) DO NOTHING;
       `,
-      { replacements: { empId }, type: sequelize.QueryTypes.INSERT }
+      { replacements: { empId }, type: sequelize.QueryTypes.INSERT },
     );
 
     /* ---------------------------------------------------------
@@ -161,7 +161,7 @@ exports.getAdminMyAttendance = async (req, res) => {
       WHERE COALESCE(o.or_is_active, TRUE) = true
       ORDER BY d.attendance_date DESC;
       `,
-      { replacements: { empId }, type: sequelize.QueryTypes.SELECT }
+      { replacements: { empId }, type: sequelize.QueryTypes.SELECT },
     );
 
     console.log(rows);
@@ -243,7 +243,7 @@ exports.addEmployController = async (req, res) => {
         pr_is_active: is_active === undefined ? true : is_active,
         pr_profile_image: profile_image,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     const newPrId = newPersonal.pr_id;
@@ -254,7 +254,7 @@ exports.addEmployController = async (req, res) => {
         pr_id: newPrId,
         lg_password: hashedPassword,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     /* 3. Create role relations */
@@ -516,8 +516,8 @@ exports.getTodayAttendance = async (req, res) => {
         d?.punch_in && d?.punch_out
           ? "Present"
           : d?.punch_in
-          ? "Working"
-          : "Absent";
+            ? "Working"
+            : "Absent";
 
       return {
         id: p.pr_id,
@@ -607,8 +607,8 @@ exports.generateDailyAttendance = async (req, res) => {
         d?.punch_in && d?.punch_out
           ? "Present"
           : d?.punch_in
-          ? "Working"
-          : "Absent";
+            ? "Working"
+            : "Absent";
 
       return {
         id: p.pr_id,
@@ -634,13 +634,13 @@ exports.generateDailyAttendance = async (req, res) => {
 exports.runAttendanceTask = async () => {
   try {
     console.log(
-      `[${new Date().toISOString()}] CRON: Triggering processAndSendAttendanceReport...`
+      `[${new Date().toISOString()}] CRON: Triggering processAndSendAttendanceReport...`,
     );
 
     const data = await exports.processAndSendAttendanceReport(true);
 
     console.log(
-      `[${new Date().toISOString()}] CRON: Success. Processed ${data.length} records.`
+      `[${new Date().toISOString()}] CRON: Success. Processed ${data.length} records.`,
     );
   } catch (error) {
     console.error(`[${new Date().toISOString()}] CRON ERROR:`, error);
@@ -654,7 +654,7 @@ exports.runAttendanceTask = async () => {
 exports.processAndSendAttendanceReport = async (
   sendEmailToAdmin = false,
   req = null,
-  res = null
+  res = null,
 ) => {
   try {
     const todayIST = new Date().toLocaleDateString("en-CA", {
@@ -767,8 +767,8 @@ exports.processAndSendAttendanceReport = async (
             emp.status === "Working"
               ? "#ff9800"
               : emp.status === "Absent"
-              ? "#dc3545"
-              : "#28a745";
+                ? "#dc3545"
+                : "#28a745";
 
           const timeIn = emp.punch_in
             ? new Date(emp.punch_in).toLocaleTimeString("en-IN", {
@@ -847,7 +847,7 @@ exports.processAndSendAttendanceReport = async (
           }),
           employee_rows: tableRowsHtml,
         },
-        ccEmails
+        ccEmails,
       );
       console.log("CRON: Email sent successfully.");
     }
@@ -875,9 +875,7 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
     // ---------------- FILTERS ----------------
     const search = req.query.search?.trim() || "";
-    const statusId = req.query.status_id
-      ? parseInt(req.query.status_id)
-      : null;
+    const statusId = req.query.status_id ? parseInt(req.query.status_id) : null;
 
     /* ---------------- TODAY ---------------- */
     const [todayRow] = await sequelize.query(
@@ -887,7 +885,7 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
       `,
       {
         type: sequelize.QueryTypes.SELECT,
-      }
+      },
     );
 
     const today = todayRow.today;
@@ -1049,20 +1047,15 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
     });
 
     const attendanceSummary = {
-      total_employees:
-        parseInt(summaryRow.total_employees, 10) || 0,
+      total_employees: parseInt(summaryRow.total_employees, 10) || 0,
 
-      punch_in:
-        parseInt(summaryRow.punch_in, 10) || 0,
+      punch_in: parseInt(summaryRow.punch_in, 10) || 0,
 
-      punch_out:
-        parseInt(summaryRow.punch_out, 10) || 0,
+      punch_out: parseInt(summaryRow.punch_out, 10) || 0,
 
-      leave:
-        parseInt(summaryRow.leave, 10) || 0,
+      leave: parseInt(summaryRow.leave, 10) || 0,
 
-      absent:
-        parseInt(summaryRow.absent, 10) || 0,
+      absent: parseInt(summaryRow.absent, 10) || 0,
     };
 
     /*
@@ -1213,10 +1206,7 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
       type: sequelize.QueryTypes.SELECT,
     });
 
-    console.log(
-      "Attendance Rows Fetched: organization",
-      rows
-    );
+    console.log("Attendance Rows Fetched: organization", rows);
 
     /*
      * ============================================================
@@ -1225,19 +1215,14 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
      */
 
     const formattedRows = rows.map((row) => {
-      const totalSeconds =
-        Number(row.total_seconds) || 0;
+      const totalSeconds = Number(row.total_seconds) || 0;
 
       let totalHours = "00:00";
 
       if (totalSeconds > 0) {
-        const hours = Math.floor(
-          totalSeconds / 3600
-        );
+        const hours = Math.floor(totalSeconds / 3600);
 
-        const minutes = Math.floor(
-          (totalSeconds % 3600) / 60
-        );
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
 
         totalHours =
           `${String(hours).padStart(2, "0")}:` +
@@ -1245,43 +1230,31 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
       }
 
       const punchIn = row.punch_in
-        ? new Date(row.punch_in).toLocaleTimeString(
-            "en-IN",
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-              timeZone: "Asia/Kolkata",
-            }
-          )
+        ? new Date(row.punch_in).toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata",
+          })
         : "--";
 
       const punchOut = row.punch_out
-        ? new Date(row.punch_out).toLocaleTimeString(
-            "en-IN",
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-              timeZone: "Asia/Kolkata",
-            }
-          )
+        ? new Date(row.punch_out).toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata",
+          })
         : "--";
 
       let expectedHours = "00:00";
 
-      if (
-        row.expected_hours !== null &&
-        row.expected_hours !== undefined
-      ) {
-        expectedHours = String(
-          row.expected_hours
-        );
+      if (row.expected_hours !== null && row.expected_hours !== undefined) {
+        expectedHours = String(row.expected_hours);
       }
 
       return {
-        attendance_date:
-          `${row.attendance_date}T18:30:00.000Z`,
+        attendance_date: `${row.attendance_date}T18:30:00.000Z`,
 
         emp_id: row.emp_id,
 
@@ -1304,18 +1277,15 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
         /*
          * API STATUS COLORS
          */
-        background_color:
-          row.background_color || "#FEE2E2",
+        background_color: row.background_color || "#FEE2E2",
 
-        font_color:
-          row.font_color || "#991B1B",
+        font_color: row.font_color || "#991B1B",
 
         total_hours: totalHours,
 
         expected_hours: expectedHours,
 
-        profile_image:
-          row.profile_image || "-",
+        profile_image: row.profile_image || "-",
       };
     });
 
@@ -1329,20 +1299,15 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
       success: true,
 
       summary: {
-        total_employees:
-          attendanceSummary.total_employees,
+        total_employees: attendanceSummary.total_employees,
 
-        punch_in:
-          attendanceSummary.punch_in,
+        punch_in: attendanceSummary.punch_in,
 
-        punch_out:
-          attendanceSummary.punch_out,
+        punch_out: attendanceSummary.punch_out,
 
-        absent:
-          attendanceSummary.absent,
+        absent: attendanceSummary.absent,
 
-        leave:
-          attendanceSummary.leave,
+        leave: attendanceSummary.leave,
       },
 
       employees: formattedRows,
@@ -1352,18 +1317,13 @@ exports.getTodayOrganizationAttendance = async (req, res) => {
 
         totalItems: totalItems,
 
-        totalPages:
-          Math.ceil(totalItems / limit),
+        totalPages: Math.ceil(totalItems / limit),
 
         limit: limit,
       },
     });
-
   } catch (error) {
-    console.error(
-      "Organization attendance error:",
-      error
-    );
+    console.error("Organization attendance error:", error);
 
     return res.status(500).json({
       success: false,
@@ -1395,28 +1355,17 @@ exports.getMyTodayAttendance = async (req, res) => {
       const hrs = Math.floor(total / 3600);
       const mins = Math.floor((total % 3600) / 60);
 
-      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(
-        2,
-        "0"
-      )}`;
+      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
     };
 
     const todayResult = await DailyAttendance.findOne({
       where: {
         emp_id: empId,
         [Op.and]: [
-          seqWhere(
-            col("attendance_date"),
-            "=",
-            literal("CURRENT_DATE")
-          ),
+          seqWhere(col("attendance_date"), "=", literal("CURRENT_DATE")),
         ],
       },
-      attributes: [
-        "punch_in",
-        "punch_out",
-        "total_hours",
-      ],
+      attributes: ["punch_in", "punch_out", "total_hours"],
       raw: true,
     });
 
@@ -1431,15 +1380,12 @@ exports.getMyTodayAttendance = async (req, res) => {
         new Date(todayResult.punch_out).getTime() ===
           new Date(punchIn).getTime();
 
-      const punchOut = samePunch
-        ? null
-        : todayResult.punch_out;
+      const punchOut = samePunch ? null : todayResult.punch_out;
 
       let totalHours = "00:00";
 
       if (punchIn && punchOut) {
-        const totalSeconds =
-          (new Date(punchOut) - new Date(punchIn)) / 1000;
+        const totalSeconds = (new Date(punchOut) - new Date(punchIn)) / 1000;
 
         totalHours = secondsToHHMM(totalSeconds);
       }
@@ -1448,21 +1394,14 @@ exports.getMyTodayAttendance = async (req, res) => {
         punch_in: formatTime(punchIn),
         punch_out: formatTime(punchOut),
         total_hours: totalHours,
-        status: !punchIn
-          ? "Absent"
-          : !punchOut
-          ? "Working"
-          : "Present",
+        status: !punchIn ? "Absent" : !punchOut ? "Working" : "Present",
       };
     } else {
       const liveRow = await ActivityLog.findOne({
         where: {
           emp_id: empId,
           [Op.and]: [
-            seqWhere(
-              fn("DATE", col("punch_time")),
-              literal("CURRENT_DATE")
-            ),
+            seqWhere(fn("DATE", col("punch_time")), literal("CURRENT_DATE")),
           ],
         },
         attributes: [
@@ -1485,9 +1424,7 @@ exports.getMyTodayAttendance = async (req, res) => {
           new Date(liveRow.punch_out).getTime() ===
             new Date(liveRow.punch_in).getTime();
 
-        const punchOut = samePunch
-          ? null
-          : liveRow.punch_out;
+        const punchOut = samePunch ? null : liveRow.punch_out;
 
         const totalSeconds = punchOut
           ? (new Date(punchOut) - new Date(liveRow.punch_in)) / 1000
@@ -1509,13 +1446,9 @@ exports.getMyTodayAttendance = async (req, res) => {
           seqWhere(
             col("attendance_date"),
             ">=",
-            literal("DATE_TRUNC('week', CURRENT_DATE)::date")
+            literal("DATE_TRUNC('week', CURRENT_DATE)::date"),
           ),
-          seqWhere(
-            col("attendance_date"),
-            "<=",
-            literal("CURRENT_DATE")
-          ),
+          seqWhere(col("attendance_date"), "<=", literal("CURRENT_DATE")),
         ],
         punch_in: {
           [Op.ne]: null,
@@ -1600,7 +1533,7 @@ exports.getMyAttendance = async (req, res) => {
         {
           model: AttendanceStatus,
           as: "status",
-          attributes: ["status_name"],
+          attributes: ["status_name", "background_color", "font_color"],
           required: false,
         },
       ],
@@ -1619,15 +1552,21 @@ exports.getMyAttendance = async (req, res) => {
           .split("T")[0];
       }
 
+      // Extract status details from associated AttendanceStatus
       plain.status_name = plain.status?.status_name || null;
+      plain.background_color = plain.status?.background_color || null;
+      plain.font_color = plain.status?.font_color || null;
+
       delete plain.status;
 
       let total_hours = null;
+
       if (plain.total_hours !== null && plain.total_hours !== undefined) {
         total_hours = plain.total_hours;
       } else if (plain.punch_in && plain.punch_out) {
         const secs =
           (new Date(plain.punch_out) - new Date(plain.punch_in)) / 1000;
+
         if (secs > 0) {
           total_hours = {
             hours: Math.floor(secs / 3600),
@@ -1636,7 +1575,10 @@ exports.getMyAttendance = async (req, res) => {
         }
       }
 
-      return { ...plain, total_hours };
+      return {
+        ...plain,
+        total_hours,
+      };
     });
 
     return res.status(200).json({
@@ -1734,7 +1676,10 @@ exports.getActivityLog = async (req, res) => {
         "emp_id",
         "device_ip",
         "device_sn",
-        [fn("TO_CHAR", col("punch_time"), "YYYY-MM-DD HH24:MI:SS"), "punch_time"],
+        [
+          fn("TO_CHAR", col("punch_time"), "YYYY-MM-DD HH24:MI:SS"),
+          "punch_time",
+        ],
         [
           fn("TO_CHAR", col("created_at"), "YYYY-MM-DD HH24:MI:SS"),
           "received_time",
@@ -1897,7 +1842,8 @@ exports.getTodayOrganizationAttendanceAll = async (req, res) => {
           .trim() || "-";
 
       let status = "Absent";
-      if (!plain.pr_is_active || org.or_is_active === false) status = "Inactive";
+      if (!plain.pr_is_active || org.or_is_active === false)
+        status = "Inactive";
       else if (att.punch_in && att.punch_out) status = "Present";
       else if (att.punch_in) status = "Working";
 
@@ -1905,7 +1851,7 @@ exports.getTodayOrganizationAttendanceAll = async (req, res) => {
       if (att.total_hours) {
         const interval = String(att.total_hours);
         const match = interval.match(
-          /(?:(\d+)\s+days?\s+)?(\d{1,3}):(\d{2}):(\d{2}(?:\.\d+)?)/
+          /(?:(\d+)\s+days?\s+)?(\d{1,3}):(\d{2}):(\d{2}(?:\.\d+)?)/,
         );
         if (match) {
           const days = parseInt(match[1] || 0, 10);
@@ -1915,12 +1861,11 @@ exports.getTodayOrganizationAttendanceAll = async (req, res) => {
           const finalHours = Math.floor(totalMinutes / 60);
           const finalMinutes = totalMinutes % 60;
           totalHours = `${String(finalHours).padStart(2, "0")}:${String(
-            finalMinutes
+            finalMinutes,
           ).padStart(2, "0")}`;
         }
       } else if (att.punch_in && att.punch_out) {
-        const secs =
-          (new Date(att.punch_out) - new Date(att.punch_in)) / 1000;
+        const secs = (new Date(att.punch_out) - new Date(att.punch_in)) / 1000;
         if (secs > 0) {
           const h = Math.floor(secs / 3600);
           const m = Math.floor((secs % 3600) / 60);

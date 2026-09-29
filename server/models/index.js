@@ -40,8 +40,8 @@ db.AttendanceLog = require("./attendanceLog")(sequelize, DataTypes);
 db.AttendanceStatus = require("./attendenceStatus")(sequelize, DataTypes);
 
 db.DailyAttendance = require("./dailyAttendance")(sequelize, DataTypes);
-db.WeeklyAttendance = require("./weeklyAttendance")(sequelize, DataTypes);
-db.MonthlyAttendance = require("./monthlyAttendance")(sequelize, DataTypes);
+db.WeeklyAttendance = require("./WeeklyAttendance")(sequelize, DataTypes);
+db.MonthlyAttendance = require("./MonthlyAttendance")(sequelize, DataTypes);
 
 db.Holiday = require("./holiday")(sequelize, DataTypes);
 db.HolidayTypeMaster = require("./holidayTypeMaster")(sequelize, DataTypes);

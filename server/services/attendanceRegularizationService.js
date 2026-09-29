@@ -67,7 +67,7 @@ function normalizePunchTime(value) {
   const valueString = String(value).trim();
 
   const match = valueString.match(
-    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/,
   );
 
   if (!match) {
@@ -83,8 +83,8 @@ function normalizePunchTime(value) {
       Number(day),
       Number(hour),
       Number(minute),
-      Number(second)
-    )
+      Number(second),
+    ),
   );
 
   if (
@@ -129,7 +129,7 @@ async function createOrReplaceBackup(
   attendanceDate,
   rows,
   hrPrId,
-  transaction
+  transaction,
 ) {
   const snapshot = {
     daily: serializeAttendance(rows.daily),
@@ -154,7 +154,7 @@ async function createOrReplaceBackup(
         restored_at: null,
         restored_by: null,
       },
-      { transaction }
+      { transaction },
     );
 
     return existing;
@@ -171,7 +171,7 @@ async function createOrReplaceBackup(
       restored_at: null,
       restored_by: null,
     },
-    { transaction }
+    { transaction },
   );
 }
 
@@ -180,7 +180,7 @@ async function restoreAttendanceRow(
   snapshot,
   empId,
   attendanceDate,
-  transaction
+  transaction,
 ) {
   const current = await Model.findOne({
     where: { emp_id: String(empId), attendance_date: attendanceDate },
@@ -202,8 +202,7 @@ async function restoreAttendanceRow(
     punch_in: snapshot.punch_in || null,
     punch_out: snapshot.punch_out || null,
     total_hours: snapshot.total_hours || "00:00:00",
-    expected_hours:
-      snapshot.expected_hours || getExpectedHours(attendanceDate),
+    expected_hours: snapshot.expected_hours || getExpectedHours(attendanceDate),
     late_arrival: snapshot.late_arrival || 0,
     is_late_arrived: Boolean(snapshot.is_late_arrived),
     early_go: snapshot.early_go || 0,
@@ -223,7 +222,7 @@ async function restoreAttendanceRow(
 
   await Model.create(
     { ...values, created_at: snapshot.created_at || new Date() },
-    { transaction }
+    { transaction },
   );
 }
 
@@ -305,7 +304,7 @@ async function raiseRequest(payload) {
 
     if (existing) {
       throw createError(
-        "An active regularization request already exists for this attendance date"
+        "An active regularization request already exists for this attendance date",
       );
     }
 
@@ -330,7 +329,7 @@ async function raiseRequest(payload) {
         ar_created_by: Number(prId),
         ar_created_at: new Date(),
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     for (const item of normalizedItems) {
@@ -342,7 +341,7 @@ async function raiseRequest(payload) {
           ari_remarks: item.remarks,
           created_at: new Date(),
         },
-        { transaction: t }
+        { transaction: t },
       );
     }
 
@@ -355,7 +354,7 @@ async function raiseRequest(payload) {
         remarks: reason || null,
         action_at: new Date(),
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
@@ -429,6 +428,24 @@ async function getRequestWithItems(arId) {
         separate: true,
         order: [["action_at", "DESC"]],
       },
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
+      {
+        model: db.Personal,
+        as: "hr",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
       { model: db.AttendanceRegularizationBackup, as: "backup" },
     ],
   });
@@ -450,7 +467,7 @@ async function cancelRequest(arId, empPrId) {
 
     if (!["PENDING_MANAGER", "PENDING_HR"].includes(request.ar_status)) {
       throw createError(
-        "Only pending regularization requests can be cancelled"
+        "Only pending regularization requests can be cancelled",
       );
     }
 
@@ -460,7 +477,7 @@ async function cancelRequest(arId, empPrId) {
         ar_updated_by: empPrId,
         ar_updated_at: new Date(),
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await db.AttendanceRegularizationLog.create(
@@ -472,7 +489,7 @@ async function cancelRequest(arId, empPrId) {
         remarks: "Request cancelled by employee",
         action_at: new Date(),
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
@@ -488,12 +505,15 @@ async function getPendingForManager(managerPrId, options = {}) {
   const {
     limit = 10,
     offset = 0,
-    status = "PENDING_MANAGER",
+    // status = "PENDING_MANAGER",
     fromDate = null,
     toDate = null,
   } = options;
 
-  const where = { ar_manager_id: managerPrId, ar_status: status };
+  const where = {
+    ar_manager_id: managerPrId,
+    // ar_status: status,
+  };
 
   if (fromDate || toDate) {
     where.ar_attendance_date = {};
@@ -509,8 +529,25 @@ async function getPendingForManager(managerPrId, options = {}) {
 
   return db.AttendanceRegularization.findAndCountAll({
     where,
-    include: [{ model: db.AttendanceRegularizationItem, as: "items" }],
-    order: [["ar_created_at", "ASC"]],
+    include: [
+      {
+        model: db.AttendanceRegularizationItem,
+        as: "items",
+      },
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
+    ],
+    order: [["ar_created_at", "DESC"]],
     limit,
     offset,
     distinct: true,
@@ -521,7 +558,9 @@ async function managerAction(arId, managerPrId, action, remarks) {
   const t = await db.sequelize.transaction();
 
   try {
-    const normalizedAction = String(action || "").trim().toUpperCase();
+    const normalizedAction = String(action || "")
+      .trim()
+      .toUpperCase();
 
     if (!["APPROVED", "REJECTED"].includes(normalizedAction)) {
       throw createError("Action must be APPROVED or REJECTED");
@@ -551,7 +590,7 @@ async function managerAction(arId, managerPrId, action, remarks) {
         ar_updated_by: managerPrId,
         ar_updated_at: now,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await db.AttendanceRegularizationLog.create(
@@ -563,7 +602,7 @@ async function managerAction(arId, managerPrId, action, remarks) {
         remarks: remarks || null,
         action_at: now,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
@@ -579,29 +618,42 @@ async function getPendingForHR(options = {}) {
   const {
     limit = 10,
     offset = 0,
-    status = "PENDING_HR",
+    // status = "PENDING_HR",
     fromDate = null,
     toDate = null,
   } = options;
 
-  const where = { ar_status: status };
+  // const where = { ar_status: status };
 
-  if (fromDate || toDate) {
-    where.ar_attendance_date = {};
+  // if (fromDate || toDate) {
+  //   where.ar_attendance_date = {};
 
-    if (fromDate) {
-      where.ar_attendance_date[Op.gte] = fromDate;
-    }
+  //   if (fromDate) {
+  //     where.ar_attendance_date[Op.gte] = fromDate;
+  //   }
 
-    if (toDate) {
-      where.ar_attendance_date[Op.lte] = toDate;
-    }
-  }
+  //   if (toDate) {
+  //     where.ar_attendance_date[Op.lte] = toDate;
+  //   }
+  // }
 
   return db.AttendanceRegularization.findAndCountAll({
-    where,
-    include: [{ model: db.AttendanceRegularizationItem, as: "items" }],
-    order: [["ar_created_at", "ASC"]],
+    include: [
+      { model: db.AttendanceRegularizationItem, as: "items" },
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: ["pr_id", "pr_first_name", "pr_last_name"],
+        required: false,
+      },
+    ],
+    order: [["ar_created_at", "DESC"]],
     limit,
     offset,
     distinct: true,
@@ -612,7 +664,9 @@ async function hrAction(arId, hrPrId, action, remarks) {
   const t = await db.sequelize.transaction();
 
   try {
-    const normalizedAction = String(action || "").trim().toUpperCase();
+    const normalizedAction = String(action || "")
+      .trim()
+      .toUpperCase();
 
     if (!["APPROVED", "REJECTED"].includes(normalizedAction)) {
       throw createError("Action must be APPROVED or REJECTED");
@@ -652,7 +706,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
           ar_updated_by: hrPrId,
           ar_updated_at: now,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await db.AttendanceRegularizationLog.create(
@@ -664,7 +718,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
           remarks: remarks || null,
           action_at: now,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       await t.commit();
@@ -695,13 +749,11 @@ async function hrAction(arId, hrPrId, action, remarks) {
 
     if (!empId) {
       throw createError(
-        "Attendance employee ID is not configured for this employee"
+        "Attendance employee ID is not configured for this employee",
       );
     }
 
-    const attendanceDate = normalizeAttendanceDate(
-      request.ar_attendance_date
-    );
+    const attendanceDate = normalizeAttendanceDate(request.ar_attendance_date);
 
     const rows = await findAttendanceRows(empId, attendanceDate, t);
 
@@ -725,7 +777,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
         ar_updated_by: hrPrId,
         ar_updated_at: now,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await db.AttendanceRegularizationLog.create(
@@ -737,7 +789,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
         remarks: remarks || null,
         action_at: now,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
@@ -774,7 +826,9 @@ async function cancelHrAction(arId, hrPrId, remarks) {
     }
 
     if (request.ar_status !== "APPROVED") {
-      throw createError("Only approved regularization requests can be reverted");
+      throw createError(
+        "Only approved regularization requests can be reverted",
+      );
     }
 
     const backup = await db.AttendanceRegularizationBackup.findOne({
@@ -796,7 +850,7 @@ async function cancelHrAction(arId, hrPrId, remarks) {
       snapshot.daily,
       empId,
       attendanceDate,
-      t
+      t,
     );
 
     await restoreAttendanceRow(
@@ -804,7 +858,7 @@ async function cancelHrAction(arId, hrPrId, remarks) {
       snapshot.weekly,
       empId,
       attendanceDate,
-      t
+      t,
     );
 
     await restoreAttendanceRow(
@@ -812,14 +866,14 @@ async function cancelHrAction(arId, hrPrId, remarks) {
       snapshot.monthly,
       empId,
       attendanceDate,
-      t
+      t,
     );
 
     const now = new Date();
 
     await backup.update(
       { restored_at: now, restored_by: hrPrId },
-      { transaction: t }
+      { transaction: t },
     );
 
     await request.update(
@@ -831,7 +885,7 @@ async function cancelHrAction(arId, hrPrId, remarks) {
         ar_updated_by: hrPrId,
         ar_updated_at: now,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await db.AttendanceRegularizationLog.create(
@@ -841,11 +895,10 @@ async function cancelHrAction(arId, hrPrId, remarks) {
         action_role: "HR",
         action: "CANCELLED",
         remarks:
-          remarks ||
-          "Regularization reverted and original attendance restored",
+          remarks || "Regularization reverted and original attendance restored",
         action_at: now,
       },
-      { transaction: t }
+      { transaction: t },
     );
 
     await t.commit();
