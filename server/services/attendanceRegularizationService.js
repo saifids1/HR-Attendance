@@ -1,5 +1,5 @@
 const db = require("../models");
-const { Op } = require("sequelize");
+const { Op,Sequelize } = require("sequelize");
 const {
   recalculateAttendanceForRegularization,
 } = require("../services/recalculateAttendanceService");
@@ -559,16 +559,173 @@ async function getMyRequests(prId, options = {}) {
 
 async function getRequestWithItems(arId) {
   return db.AttendanceRegularization.findOne({
-    where: { ar_id: arId },
+    where: {
+      ar_id: arId,
+    },
+
+    attributes: [
+      "ar_id",
+      "ar_request_id",
+      "ar_pr_id",
+      "ar_attendance_date",
+      "ar_reason",
+      "ar_status",
+
+      "ar_manager_id",
+      "ar_manager_action_at",
+      "ar_manager_remarks",
+
+      "ar_hr_id",
+      "ar_hr_action_at",
+      "ar_hr_remarks",
+
+      "ar_company_id",
+      "ar_created_by",
+      "ar_updated_by",
+      "ar_created_at",
+      "ar_updated_at",
+    ],
+
     include: [
-      { model: db.AttendanceRegularizationItem, as: "items" },
+    
+      {
+        model: db.Personal,
+        as: "employee",
+
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+          "pr_profile_image",
+        ],
+
+        required: false,
+
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+
+            attributes: [
+              "or_id",
+              "pr_id",
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+              "or_department_id",
+              "or_designation_id",
+              "or_reporting_location_id",
+              "or_reporting_to_id",
+              "or_company_id",
+              "or_vendor_id",
+              "or_joining_date",
+              "or_leaving_date",
+            ],
+
+            required: false,
+          },
+        ],
+      },
+
+     
+      {
+        model: db.Personal,
+        as: "manager",
+
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+          "pr_profile_image",
+        ],
+
+        required: false,
+
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+
+            attributes: [
+              "or_id",
+              "pr_id",
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+            ],
+
+            required: false,
+          },
+        ],
+      },
+
+     
+      {
+        model: db.Personal,
+        as: "hr",
+
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+          "pr_profile_image",
+        ],
+
+        required: false,
+
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+
+            attributes: [
+              "or_id",
+              "pr_id",
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+            ],
+
+            required: false,
+          },
+        ],
+      },
+
+      
+      {
+        model: db.AttendanceRegularizationItem,
+        as: "items",
+
+        required: false,
+      },
+
+      
       {
         model: db.AttendanceRegularizationLog,
         as: "logs",
+
         separate: true,
-        order: [["action_at", "DESC"]],
+
+        order: [
+          ["action_at", "DESC"],
+        ],
+
+        required: false,
       },
-      { model: db.AttendanceRegularizationBackup, as: "backup" },
+
+    
+      {
+        model: db.AttendanceRegularizationBackup,
+        as: "backup",
+
+        required: false,
+      },
     ],
   });
 }
