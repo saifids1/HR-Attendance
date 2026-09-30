@@ -17,6 +17,12 @@ router.get(
   controller.getMasters
 );
 
+router.post(
+  "/raise",
+  authMiddleware,
+  controller.raiseRequest
+);
+
 router.get(
   "/me",
   authMiddleware,
@@ -60,20 +66,12 @@ router.post(
   controller.hrAction
 );
 
-/* ============================================================
-   HR REVERT APPROVED REGULARIZATION
-   ============================================================ */
-
 router.post(
-  "/hr/:arId/revert",
+  "/hr/:id/cancel",
   authMiddleware,
   isAdmin,
   controller.cancelHrAction
 );
-
-/* ============================================================
-   EMPLOYEE CANCEL REQUEST
-   ============================================================ */
 
 router.post(
   "/:id/cancel",
@@ -87,4 +85,3 @@ router.get(
 );
 
 module.exports = router;
-
