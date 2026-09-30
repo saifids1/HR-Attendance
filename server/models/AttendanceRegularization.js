@@ -8,6 +8,12 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false,
       },
+      
+      ar_request_id: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        unique: true,
+      },
 
       ar_pr_id: {
         type: DataTypes.INTEGER,
@@ -78,7 +84,9 @@ module.exports = (sequelize, DataTypes) => {
       ar_created_at: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW,
+        defaultValue: sequelize.literal(
+          "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'"
+        ),
       },
 
       ar_updated_at: {

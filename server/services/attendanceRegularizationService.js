@@ -4,6 +4,10 @@ const {
   recalculateAttendanceForRegularization,
 } = require("../services/recalculateAttendanceService");
 
+const NOW_IST = Sequelize.literal(
+  "CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'"
+);
+
 const STATUS_ABSENT = 2;
 
 const WEEKDAY_EXPECTED_HOURS = "09:18:00";
@@ -150,7 +154,7 @@ async function createOrReplaceBackup(
         attendance_date: attendanceDate,
         snapshot_json: snapshot,
         created_by: hrPrId,
-        created_at: new Date(),
+        created_at: NOW_IST,
         restored_at: null,
         restored_by: null,
       },
@@ -167,7 +171,7 @@ async function createOrReplaceBackup(
       attendance_date: attendanceDate,
       snapshot_json: snapshot,
       created_by: hrPrId,
-      created_at: new Date(),
+      created_at: NOW_IST,
       restored_at: null,
       restored_by: null,
     },
@@ -213,7 +217,7 @@ async function restoreAttendanceRow(
     regularization_id: null,
     regularized_at: null,
     regularized_by: null,
-    updated_at: snapshot.updated_at || new Date(),
+    updated_at: snapshot.updated_at || NOW_IST,
   };
 
   if (current) {
@@ -222,7 +226,7 @@ async function restoreAttendanceRow(
   }
 
   await Model.create(
-    { ...values, created_at: snapshot.created_at || new Date() },
+    { ...values, created_at: snapshot.created_at || NOW_IST },
     { transaction }
   );
 }
@@ -320,15 +324,60 @@ async function raiseRequest(payload) {
       managerId = organization.or_reporting_to_id;
     }
 
+    await db.sequelize.query(
+      `SELECT pg_advisory_xact_lock(987654321)`,
+      { transaction: t }
+    );
+
+
+    const istNow = new Date(
+      Date.now() + 5.5 * 60 * 60 * 1000 // UTC + 5:30
+    );
+    const day = String(istNow.getUTCDate()).padStart(2, "0");
+    const month = String(istNow.getUTCMonth() + 1).padStart(2, "0");
+    const currentYear = istNow.getUTCFullYear();
+
+    const datePrefix = `HR-${day}${month}${currentYear}-`;
+
+
+  
+    const maxReIdResult = await db.sequelize.query(
+      `
+      SELECT
+        COALESCE(
+          MAX(CAST(RIGHT(ar_request_id, 3) AS INTEGER)),
+          0
+        ) + 1 AS next_request_id
+      FROM attendance_regularization
+      WHERE ar_request_id LIKE :datePrefix || '%'
+      `,
+      {
+        replacements: { datePrefix },
+        transaction: t,
+        type: db.Sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const nextRequestId = Number(
+      maxReIdResult[0]?.next_request_id || 1
+    );
+
+  
+    const ar_request_id = `${datePrefix}${String(nextRequestId).padStart(
+      3,
+      "0"
+    )}`;
+
     const request = await db.AttendanceRegularization.create(
       {
         ar_pr_id: Number(prId),
+        ar_request_id ,
         ar_attendance_date: normalizedDate,
         ar_reason: reason || null,
         ar_status: "PENDING_MANAGER",
         ar_manager_id: managerId,
         ar_created_by: Number(prId),
-        ar_created_at: new Date(),
+        ar_created_at: NOW_IST,
       },
       { transaction: t }
     );
@@ -340,7 +389,7 @@ async function raiseRequest(payload) {
           ari_type_code: item.typeCode,
           ari_punch_time: item.punchTime || null,
           ari_remarks: item.remarks,
-          created_at: new Date(),
+          created_at: NOW_IST,
         },
         { transaction: t }
       );
@@ -353,7 +402,7 @@ async function raiseRequest(payload) {
         action_role: "EMPLOYEE",
         action: "RAISED",
         remarks: reason || null,
-        action_at: new Date(),
+        action_at: NOW_IST,
       },
       { transaction: t }
     );
@@ -390,7 +439,9 @@ async function getMyRequests(prId, options = {}) {
     toDate = null,
   } = options;
 
-  const where = { ar_pr_id: prId };
+  const where = {
+    ar_pr_id: prId,
+  };
 
   if (status) {
     where.ar_status = status;
@@ -410,11 +461,99 @@ async function getMyRequests(prId, options = {}) {
 
   return db.AttendanceRegularization.findAndCountAll({
     where,
-    include: [{ model: db.AttendanceRegularizationItem, as: "items" }],
-    order: [["ar_created_at", "DESC"]],
-    limit,
-    offset,
+
+    attributes: [
+      "ar_id",
+      "ar_request_id",
+      "ar_pr_id",
+      "ar_attendance_date",
+      "ar_reason",
+      "ar_status",
+      "ar_manager_id",
+      "ar_manager_action_at",
+      "ar_manager_remarks",
+      "ar_hr_id",
+      "ar_hr_action_at",
+      "ar_hr_remarks",
+      "ar_company_id",
+      "ar_created_by",
+      "ar_updated_by",
+      "ar_created_at",
+      "ar_updated_at",
+    ],
+
+    include: [
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+          "pr_profile_image",
+        ],
+        required: false,
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+            attributes: [
+              "or_id",
+              "pr_id",
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+              "or_department_id",
+              "or_designation_id",
+              "or_reporting_location_id",
+            ],
+            required: false,
+          },
+        ],
+      },
+
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+      },
+
+      {
+        model: db.Personal,
+        as: "hr",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+      },
+
+      {
+        model: db.AttendanceRegularizationItem,
+        as: "items",
+        required: false,
+      },
+    ],
+
+    order: [["ar_id", "DESC"]],
+
+    limit: Number(limit),
+    offset: Number(offset),
+
     distinct: true,
+    subQuery: false,
   });
 }
 
@@ -458,7 +597,7 @@ async function cancelRequest(arId, empPrId) {
       {
         ar_status: "CANCELLED",
         ar_updated_by: empPrId,
-        ar_updated_at: new Date(),
+        ar_updated_at: NOW_IST,
       },
       { transaction: t }
     );
@@ -470,7 +609,7 @@ async function cancelRequest(arId, empPrId) {
         action_role: "EMPLOYEE",
         action: "CANCELLED",
         remarks: "Request cancelled by employee",
-        action_at: new Date(),
+        action_at: NOW_IST,
       },
       { transaction: t }
     );
@@ -488,12 +627,13 @@ async function getPendingForManager(managerPrId, options = {}) {
   const {
     limit = 10,
     offset = 0,
-    status = "PENDING_MANAGER",
     fromDate = null,
     toDate = null,
   } = options;
 
-  const where = { ar_manager_id: managerPrId, ar_status: status };
+  const where = {
+    ar_manager_id: managerPrId,
+  };
 
   if (fromDate || toDate) {
     where.ar_attendance_date = {};
@@ -509,11 +649,96 @@ async function getPendingForManager(managerPrId, options = {}) {
 
   return db.AttendanceRegularization.findAndCountAll({
     where,
-    include: [{ model: db.AttendanceRegularizationItem, as: "items" }],
-    order: [["ar_created_at", "ASC"]],
-    limit,
-    offset,
+
+    attributes: [
+      "ar_id",
+      "ar_request_id",
+      "ar_pr_id",
+      "ar_attendance_date",
+      "ar_reason",
+      "ar_status",
+      "ar_manager_id",
+      "ar_manager_action_at",
+      "ar_manager_remarks",
+      "ar_hr_id",
+      "ar_hr_action_at",
+      "ar_hr_remarks",
+      "ar_company_id",
+      "ar_created_by",
+      "ar_updated_by",
+      "ar_created_at",
+      "ar_updated_at",
+    ],
+
+    include: [
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+          "pr_profile_image",
+        ],
+        required: false,
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+            attributes: [
+              "or_id",
+              "pr_id",
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+              "or_department_id",
+              "or_designation_id",
+              "or_reporting_location_id",
+            ],
+            required: false,
+          },
+        ],
+      },
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+      },
+      {
+        model: db.Personal,
+        as: "hr",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+      },
+      {
+        model: db.AttendanceRegularizationItem,
+        as: "items",
+        required: false,
+      },
+    ],
+
+    order: [["ar_id", "DESC"]],
+
+    limit: Number(limit),
+    offset: Number(offset),
+
     distinct: true,
+    subQuery: false,
   });
 }
 
@@ -541,7 +766,7 @@ async function managerAction(arId, managerPrId, action, remarks) {
       throw createError("Request is not pending with manager");
     }
 
-    const now = new Date();
+    const now = NOW_IST;
 
     await request.update(
       {
@@ -579,12 +804,11 @@ async function getPendingForHR(options = {}) {
   const {
     limit = 10,
     offset = 0,
-    status = "PENDING_HR",
     fromDate = null,
     toDate = null,
   } = options;
 
-  const where = { ar_status: status };
+  const where = {};
 
   if (fromDate || toDate) {
     where.ar_attendance_date = {};
@@ -600,11 +824,96 @@ async function getPendingForHR(options = {}) {
 
   return db.AttendanceRegularization.findAndCountAll({
     where,
-    include: [{ model: db.AttendanceRegularizationItem, as: "items" }],
-    order: [["ar_created_at", "ASC"]],
-    limit,
-    offset,
+
+    attributes: [
+      "ar_id",
+      "ar_request_id",
+      "ar_pr_id",
+      "ar_attendance_date",
+      "ar_reason",
+      "ar_status",
+      "ar_manager_id",
+      "ar_manager_action_at",
+      "ar_manager_remarks",
+      "ar_hr_id",
+      "ar_hr_action_at",
+      "ar_hr_remarks",
+      "ar_company_id",
+      "ar_created_by",
+      "ar_updated_by",
+      "ar_created_at",
+      "ar_updated_at",
+    ],
+
+    include: [
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+          "pr_profile_image",
+        ],
+        required: false,
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+            attributes: [
+              "or_id",
+              "pr_id",
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+              "or_department_id",
+              "or_designation_id",
+              "or_reporting_location_id",
+            ],
+            required: false,
+          },
+        ],
+      },
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+      },
+      {
+        model: db.Personal,
+        as: "hr",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+      },
+      {
+        model: db.AttendanceRegularizationItem,
+        as: "items",
+        required: false,
+      },
+    ],
+
+    order: [["ar_id", "DESC"]],
+
+    limit: Number(limit),
+    offset: Number(offset),
+
     distinct: true,
+    subQuery: false,
   });
 }
 
@@ -632,7 +941,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
       throw createError("Request is not pending with HR");
     }
 
-    const now = new Date();
+    const now = NOW_IST;
 
     const items = await db.AttendanceRegularizationItem.findAll({
       where: { ar_id: arId },
@@ -815,7 +1124,7 @@ async function cancelHrAction(arId, hrPrId, remarks) {
       t
     );
 
-    const now = new Date();
+    const now = NOW_IST;
 
     await backup.update(
       { restored_at: now, restored_by: hrPrId },
