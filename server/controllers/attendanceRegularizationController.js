@@ -2,14 +2,22 @@ const service = require("../services/attendanceRegularizationService");
 const db = require("../models");
 const { Op } = require("sequelize");
 
-const ok = (res, data, message = "Success") =>
+const ok = (
+  res,
+  data,
+  message = "Success"
+) =>
   res.status(200).json({
     success: true,
     message,
     data,
   });
 
-const created = (res, data, message = "Created") =>
+const created = (
+  res,
+  data,
+  message = "Created"
+) =>
   res.status(201).json({
     success: true,
     message,
@@ -27,7 +35,10 @@ const bad = (
   });
 
 const fail = (res, err) => {
-  console.error("[Regularization]", err);
+  console.error(
+    "[Regularization]",
+    err
+  );
 
   return res.status(
     err.statusCode || 500
@@ -38,14 +49,6 @@ const fail = (res, err) => {
       "Internal server error",
   });
 };
-
-/* ============================================================
-   Logged-in employee
-   ============================================================ */
-
-/* ============================================================
-   Logged-in employee
-   ============================================================ */
 
 function getLoggedInPrId(req) {
   const prId =
@@ -82,11 +85,7 @@ function getLoggedInPrId(req) {
   return parsedPrId;
 }
 
-/* ============================================================
-   Pagination
-   ============================================================ */
-
-const getPagination = (req) => {
+function getPagination(req) {
   const page = Math.max(
     1,
     parseInt(req.query.page, 10) || 1
@@ -108,11 +107,7 @@ const getPagination = (req) => {
     limit,
     offset,
   };
-};
-
-/* ============================================================
-   Masters
-   ============================================================ */
+}
 
 exports.getMasters = async (
   req,
@@ -131,10 +126,6 @@ exports.getMasters = async (
     return fail(res, err);
   }
 };
-
-/* ============================================================
-   Raise request
-   ============================================================ */
 
 exports.raiseRequest = async (
   req,
@@ -167,10 +158,6 @@ exports.raiseRequest = async (
     );
   }
 };
-
-/* ============================================================
-   My requests
-   ============================================================ */
 
 exports.myRequests = async (
   req,
@@ -216,11 +203,9 @@ exports.myRequests = async (
           page,
           limit,
           totalPages:
-            count === 0
-              ? 0
-              : Math.ceil(
-                  count / limit
-                ),
+            Math.ceil(
+              count / limit
+            ),
         },
       },
       "My requests fetched"
@@ -230,22 +215,18 @@ exports.myRequests = async (
   }
 };
 
-/* ============================================================
-   Cancel employee request
-   ============================================================ */
-
 exports.cancelRequest = async (
   req,
   res
 ) => {
   try {
-    const loggedInPrId =
+    const empPrId =
       getLoggedInPrId(req);
 
     const data =
       await service.cancelRequest(
         Number(req.params.id),
-        loggedInPrId
+        empPrId
       );
 
     return ok(
@@ -261,31 +242,14 @@ exports.cancelRequest = async (
   }
 };
 
-/* ============================================================
-   Get by ID
-   ============================================================ */
-
 exports.getById = async (
   req,
   res
 ) => {
   try {
-    const arId =
-      Number(req.params.id);
-
-    if (
-      !Number.isInteger(arId) ||
-      arId <= 0
-    ) {
-      return bad(
-        res,
-        "Invalid request ID"
-      );
-    }
-
     const data =
       await service.getRequestWithItems(
-        arId
+        Number(req.params.id)
       );
 
     if (!data) {
@@ -305,10 +269,6 @@ exports.getById = async (
     return fail(res, err);
   }
 };
-
-/* ============================================================
-   Manager pending
-   ============================================================ */
 
 exports.managerPending = async (
   req,
@@ -354,11 +314,9 @@ exports.managerPending = async (
           page,
           limit,
           totalPages:
-            count === 0
-              ? 0
-              : Math.ceil(
-                  count / limit
-                ),
+            Math.ceil(
+              count / limit
+            ),
         },
       },
       "Pending requests for manager"
@@ -367,10 +325,6 @@ exports.managerPending = async (
     return fail(res, err);
   }
 };
-
-/* ============================================================
-   Manager action
-   ============================================================ */
 
 exports.managerAction = async (
   req,
@@ -385,33 +339,9 @@ exports.managerAction = async (
     const managerPrId =
       getLoggedInPrId(req);
 
-    const arId =
-      Number(req.params.id);
-
-    if (
-      !Number.isInteger(arId) ||
-      arId <= 0
-    ) {
-      return bad(
-        res,
-        "Invalid request ID"
-      );
-    }
-
-    if (
-      !["APPROVED", "REJECTED"].includes(
-        action
-      )
-    ) {
-      return bad(
-        res,
-        "Invalid manager action"
-      );
-    }
-
     const data =
       await service.managerAction(
-        arId,
+        Number(req.params.id),
         managerPrId,
         action,
         remarks
@@ -420,7 +350,9 @@ exports.managerAction = async (
     return ok(
       res,
       data,
-      `Manager ${action.toLowerCase()}`
+      `Manager ${String(
+        action || ""
+      ).toLowerCase()}`
     );
   } catch (err) {
     return bad(
@@ -429,10 +361,6 @@ exports.managerAction = async (
     );
   }
 };
-
-/* ============================================================
-   HR pending
-   ============================================================ */
 
 exports.hrPending = async (
   req,
@@ -449,7 +377,10 @@ exports.hrPending = async (
       req.query.status ||
       "PENDING_HR";
 
-    const result =
+    const {
+      rows,
+      count,
+    } =
       await service.getPendingForHR({
         limit,
         offset,
@@ -461,11 +392,6 @@ exports.hrPending = async (
           req.query.toDate ||
           null,
       });
-
-    const {
-      rows,
-      count,
-    } = result;
 
     return ok(
       res,
@@ -490,10 +416,6 @@ exports.hrPending = async (
   }
 };
 
-/* ============================================================
-   HR action
-   ============================================================ */
-
 exports.hrAction = async (
   req,
   res
@@ -507,33 +429,9 @@ exports.hrAction = async (
     const hrPrId =
       getLoggedInPrId(req);
 
-    const arId =
-      Number(req.params.id);
-
-    if (
-      !Number.isInteger(arId) ||
-      arId <= 0
-    ) {
-      return bad(
-        res,
-        "Invalid request ID"
-      );
-    }
-
-    if (
-      !["APPROVED", "REJECTED"].includes(
-        action
-      )
-    ) {
-      return bad(
-        res,
-        "Invalid HR action"
-      );
-    }
-
     const data =
       await service.hrAction(
-        arId,
+        Number(req.params.id),
         hrPrId,
         action,
         remarks
@@ -542,7 +440,9 @@ exports.hrAction = async (
     return ok(
       res,
       data,
-      `HR ${action.toLowerCase()}`
+      `HR ${String(
+        action || ""
+      ).toLowerCase()}`
     );
   } catch (err) {
     return bad(
@@ -552,63 +452,33 @@ exports.hrAction = async (
   }
 };
 
-/* ============================================================
-   HR revert approved regularization
-   ============================================================ */
-
-exports.cancelHrAction = async (
-  req,
-  res
-) => {
+exports.cancelHrAction = async (req, res) => {
   try {
-    const arId =
-      Number(req.params.arId);
+    const hrPrId = getLoggedInPrId(req);
 
-    if (
-      !Number.isInteger(arId) ||
-      arId <= 0
-    ) {
-      return bad(
-        res,
-        "Invalid regularization ID"
-      );
+    const arId = Number(req.params.id);
+
+    if (!Number.isInteger(arId) || arId <= 0) {
+      return bad(res, "Invalid regularization id");
     }
 
-    const {
-      remarks,
-    } = req.body || {};
+    const remarks = req.body?.remarks || null;
 
-    const hrPrId =
-      getLoggedInPrId(req);
-
-    const data =
-      await service.revertRegularization(
-        arId,
-        hrPrId,
-        remarks
-      );
+    const data = await service.cancelHrAction(
+      arId,
+      hrPrId,
+      remarks
+    );
 
     return ok(
       res,
       data,
-      "Regularization reverted and attendance restored"
+      "Regularization cancelled and attendance reverted"
     );
   } catch (err) {
-    return bad(
-      res,
-      err.message
-    );
+    return fail(res, err);
   }
 };
-
-/* ============================================================
-   Activity Log by employee + date
-
-   GET:
-   /activity-log/by-emp-date
-   ?emp_id=202000005
-   &punch_time=2026-09-08
-   ============================================================ */
 
 exports.getActivityLogByEmpDate =
   async (req, res) => {
@@ -632,9 +502,17 @@ exports.getActivityLogByEmpDate =
         );
       }
 
+      const startOfDay = new Date(
+        `${punch_time}T00:00:00.000Z`
+      );
+
+      const endOfDay = new Date(
+        `${punch_time}T23:59:59.999Z`
+      );
+
       if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(
-          punch_time
+        Number.isNaN(
+          startOfDay.getTime()
         )
       ) {
         return bad(
@@ -643,19 +521,12 @@ exports.getActivityLogByEmpDate =
         );
       }
 
-      const startOfDay =
-        `${punch_time} 00:00:00`;
-
-      const endOfDay =
-        `${punch_time} 23:59:59.999`;
-
       const rows =
         await db.ActivityLog.findAll({
           where: {
             emp_id: String(
               emp_id
             ).trim(),
-
             punch_time: {
               [Op.between]: [
                 startOfDay,
@@ -663,20 +534,15 @@ exports.getActivityLogByEmpDate =
               ],
             },
           },
-
           order: [
-            [
-              "punch_time",
-              "ASC",
-            ],
+            ["punch_time", "ASC"],
           ],
         });
 
       return ok(
         res,
         {
-          emp_id:
-            String(emp_id).trim(),
+          emp_id,
           date: punch_time,
           total: rows.length,
           records: rows,
