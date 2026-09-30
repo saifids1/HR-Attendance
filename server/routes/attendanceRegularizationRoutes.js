@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
+
 const {
   authorizeRole,
   isAdmin,
@@ -14,12 +15,6 @@ router.get(
   "/masters",
   authMiddleware,
   controller.getMasters
-);
-
-router.post(
-  "/raise",
-  authMiddleware,
-  controller.raiseRequest
 );
 
 router.get(
@@ -65,11 +60,25 @@ router.post(
   controller.hrAction
 );
 
+/* ============================================================
+   HR REVERT APPROVED REGULARIZATION
+   ============================================================ */
+
 router.post(
-  "/hr/:id/cancel",
+  "/hr/:arId/revert",
   authMiddleware,
   isAdmin,
   controller.cancelHrAction
+);
+
+/* ============================================================
+   EMPLOYEE CANCEL REQUEST
+   ============================================================ */
+
+router.post(
+  "/:id/cancel",
+  authMiddleware,
+  controller.cancelRequest
 );
 
 router.get(
@@ -78,3 +87,4 @@ router.get(
 );
 
 module.exports = router;
+

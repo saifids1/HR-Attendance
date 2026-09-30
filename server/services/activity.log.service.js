@@ -56,33 +56,35 @@ function normalizeMachineLog(log) {
   };
 }
 
-
-/**
- * Inserts machine logs into activity_log.
- *
- * PostgreSQL unique constraint:
- *
- * (emp_id, punch_time)
- *
- * guarantees that historical logs returned again
- * by the machine are ignored.
- */
 async function syncMachineToActivityLog(client) {
   console.log("[CRON] Machine sync started");
 
   const machineResponse = await getDeviceAttendance();
-    console.log("[CRON] Machine logs fetched:", machineResponse.length);
+
+  console.log(
+    "[CRON] Machine logs fetched:",
+    Array.isArray(machineResponse)
+      ? machineResponse.length
+      : Array.isArray(machineResponse?.data)
+        ? machineResponse.data.length
+        : 0
+  );
+
   const machineLogs = Array.isArray(machineResponse)
     ? machineResponse
     : Array.isArray(machineResponse?.data)
       ? machineResponse.data
       : [];
 
-      // console.log(machineLogs, "logs from activity");
+  // console.log(machineLogs, "logs from activity");
 
   if (machineLogs.length === 0) {
     console.log("[CRON] Machine returned no logs");
-    return;
+
+    return {
+      received: 0,
+      inserted: 0,
+    };
   }
 
   const normalizedLogs = machineLogs
@@ -94,15 +96,12 @@ async function syncMachineToActivityLog(client) {
       "[CRON] Machine returned logs but none were valid"
     );
 
-    return;
+    return {
+      received: machineLogs.length,
+      inserted: 0,
+    };
   }
 
-  /*
-    Build bulk INSERT.
-
-    This is much faster than executing one INSERT
-    for every machine record.
-  */
   const values = [];
   const placeholders = [];
 
@@ -121,7 +120,9 @@ async function syncMachineToActivityLog(client) {
         $${parameterIndex},
         $${parameterIndex + 1},
         $${parameterIndex + 2},
-        $${parameterIndex + 3}
+        $${parameterIndex + 3},
+        TRUE,
+        NULL
       )`
     );
 
@@ -134,7 +135,9 @@ async function syncMachineToActivityLog(client) {
       emp_id,
       punch_time,
       device_ip,
-      device_sn
+      device_sn,
+      is_active,
+      regularization_id
     )
     VALUES
       ${placeholders.join(",")}
@@ -144,14 +147,18 @@ async function syncMachineToActivityLog(client) {
 
   const result = await client.query(query, values);
 
-  /*
-    rowCount = newly inserted rows.
-  */
+  const inserted = result.rowCount || 0;
 
- const inserted = result.rowCount || 0;
-  return { received: normalizedLogs.length, inserted };
+  console.log(
+    `[CRON] Machine sync completed. Received: ${normalizedLogs.length}, Inserted: ${inserted}`
+  );
+
+  return {
+    received: normalizedLogs.length,
+    inserted,
+  };
 }
 
-
-
-module.exports = { syncMachineToActivityLog };
+module.exports = {
+  syncMachineToActivityLog,
+};
