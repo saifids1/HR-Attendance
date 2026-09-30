@@ -1,5 +1,6 @@
 const db = require("../models");
 const { Op,Sequelize } = require("sequelize");
+const sendEmail = require("../utils/mailer");
 const {
   recalculateAttendanceForRegularization,
 } = require("../services/recalculateAttendanceService");
@@ -245,6 +246,483 @@ async function getMasters() {
   return { regularizationTypes, approvalStatuses };
 }
 
+async function getOrganizationEmail(prId) {
+  if (!prId) {
+    return null;
+  }
+
+  const organization = await db.Organizations.findOne({
+    where: {
+      pr_id: Number(prId),
+    },
+    attributes: ["pr_id", "or_official_email"],
+  });
+
+  return organization?.or_official_email
+    ? String(organization.or_official_email).trim()
+    : null;
+}
+
+async function getHrAdminEmails() {
+  const hrUsers = await db.Personal.findAll({
+    attributes: ["pr_id"],
+    include: [
+      {
+        model: db.UserRoleRelation,
+        as: "userRoles",
+        attributes: ["rl_role_id"],
+        required: true,
+        include: [
+          {
+            model: db.UsrRoleMaster,
+            as: "role",
+            attributes: ["rm_role_id", "rm_role_name"],
+            required: true,
+            where: {
+              rm_role_name: "HR-ADMIN",
+            },
+          },
+        ],
+      },
+      {
+        model: db.Organizations,
+        as: "organizations",
+        attributes: ["or_official_email"],
+        required: true,
+        where: {
+          or_official_email: {
+            [Op.ne]: null,
+          },
+        },
+      },
+    ],
+    distinct: true,
+  });
+
+  return [
+    ...new Set(
+      hrUsers
+        .map((user) => {
+          const organizations = user.organizations;
+
+          if (Array.isArray(organizations)) {
+            return organizations
+              .map((organization) => organization.or_official_email)
+              .filter(Boolean);
+          }
+
+          return organizations?.or_official_email
+            ? [organizations.or_official_email]
+            : [];
+        })
+        .flat()
+        .map((email) => String(email).trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function formatEmailDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  const ampm = hours >= 12 ? "PM" : "AM";
+
+  hours = hours % 12 || 12;
+
+  return `${day}-${month}-${year} ${String(hours).padStart(
+    2,
+    "0"
+  )}:${minutes} ${ampm}`;
+}
+
+function formatAttendanceDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const valueString = String(value).substring(0, 10);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valueString)) {
+    return valueString;
+  }
+
+  const [year, month, day] = valueString.split("-");
+
+  return `${day}-${month}-${year}`;
+}
+
+function getEmployeeName(employee) {
+  if (!employee) {
+    return "";
+  }
+
+  return [employee.pr_first_name, employee.pr_last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+async function getRegularizationEmailData(arId, extraData = {}) {
+  const request = await db.AttendanceRegularization.findOne({
+    where: {
+      ar_id: arId,
+    },
+    attributes: [
+      "ar_id",
+      "ar_request_id",
+      "ar_pr_id",
+      "ar_attendance_date",
+      "ar_reason",
+      "ar_status",
+      "ar_manager_id",
+      "ar_manager_action_at",
+      "ar_manager_remarks",
+      "ar_hr_id",
+      "ar_hr_action_at",
+      "ar_hr_remarks",
+      "ar_created_at",
+    ],
+    include: [
+      {
+        model: db.Personal,
+        as: "employee",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+          "pr_contact",
+        ],
+        required: false,
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+            attributes: [
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+            ],
+            required: false,
+          },
+        ],
+      },
+      {
+        model: db.Personal,
+        as: "manager",
+        attributes: [
+          "pr_id",
+          "pr_first_name",
+          "pr_last_name",
+          "pr_email",
+        ],
+        required: false,
+        include: [
+          {
+            model: db.Organizations,
+            as: "organizations",
+            attributes: [
+              "or_emp_id",
+              "or_official_email",
+              "or_official_contact",
+            ],
+            required: false,
+          },
+        ],
+      },
+      {
+        model: db.AttendanceRegularizationItem,
+        as: "items",
+        required: false,
+      },
+    ],
+  });
+
+  if (!request) {
+    return null;
+  }
+
+  const employee = request.employee;
+  const manager = request.manager;
+
+  const employeeOrganizations = employee?.organizations;
+  const managerOrganizations = manager?.organizations;
+
+  const employeeOrganization = Array.isArray(employeeOrganizations)
+    ? employeeOrganizations[0]
+    : employeeOrganizations;
+
+  const managerOrganization = Array.isArray(managerOrganizations)
+    ? managerOrganizations[0]
+    : managerOrganizations;
+
+  const items = request.items || [];
+
+  const itemsSummary = items
+    .map((item) => {
+      const type = item.ari_type_code || "";
+
+      const punchTime = item.ari_punch_time
+        ? formatEmailDate(item.ari_punch_time)
+        : "";
+
+      const remarks = item.ari_remarks
+        ? ` (${item.ari_remarks})`
+        : "";
+
+      if (punchTime) {
+        return `${type} ${punchTime}${remarks}`;
+      }
+
+      return `${type}${remarks}`;
+    })
+    .join(", ");
+
+  const employeeName = getEmployeeName(employee);
+  const managerName = getEmployeeName(manager);
+
+  const employeeEmail =
+    employeeOrganization?.or_official_email ||
+    employee?.pr_email ||
+    null;
+
+  const managerEmail =
+    managerOrganization?.or_official_email ||
+    manager?.pr_email ||
+    null;
+
+  const data = {
+    request_id: request.ar_request_id,
+    attendance_date: formatAttendanceDate(request.ar_attendance_date),
+    applied_at: formatEmailDate(request.ar_created_at),
+    acted_at:
+      formatEmailDate(request.ar_hr_action_at) ||
+      formatEmailDate(request.ar_manager_action_at),
+    reason: request.ar_reason || "",
+    items_summary: itemsSummary,
+    status: request.ar_status,
+    employee_name: employeeName,
+    employee_id: employeeOrganization?.or_emp_id || "",
+    employee_email: employeeEmail || "",
+    manager_name: managerName,
+    manager_id: managerOrganization?.or_emp_id || "",
+    manager_email: managerEmail || "",
+    recipient_name: "",
+    remarks:
+      extraData.remarks ||
+      request.ar_hr_remarks ||
+      request.ar_manager_remarks ||
+      "",
+    manager_remarks:
+      extraData.manager_remarks ||
+      request.ar_manager_remarks ||
+      "",
+    hr_remarks:
+      extraData.hr_remarks ||
+      request.ar_hr_remarks ||
+      "",
+    cancellation_reason:
+      extraData.cancellation_reason ||
+      "",
+    revert_reason:
+      extraData.revert_reason ||
+      "",
+    ...extraData,
+  };
+
+  return {
+    request,
+    employeeEmail,
+    managerEmail,
+    employeeName,
+    managerName,
+    data,
+  };
+}
+
+async function sendRegularizationEmails(
+  arId,
+  templateType,
+  extraData = {}
+) {
+  try {
+    const emailInfo = await getRegularizationEmailData(
+      arId,
+      extraData
+    );
+
+    if (!emailInfo) {
+      return;
+    }
+
+    const {
+      employeeEmail,
+      managerEmail,
+      employeeName,
+      managerName,
+      data,
+    } = emailInfo;
+
+    const hrEmails = await getHrAdminEmails();
+
+    const recipients = [
+      ...new Set(
+        [
+          employeeEmail,
+          managerEmail,
+          ...hrEmails,
+        ]
+          .filter(Boolean)
+          .map((email) => String(email).trim())
+      ),
+    ];
+
+    const employeeData = {
+      ...data,
+      recipient_name: employeeName,
+    };
+
+    const managerData = {
+      ...data,
+      recipient_name: managerName,
+    };
+
+    const hrData = {
+      ...data,
+      recipient_name: "HR Admin",
+    };
+
+    const baseSubject =
+      data.request_id ||
+      `AR-${arId}`;
+
+    const templateMap = {
+      RAISED: {
+        employee: "attendance_regularization_raised_employee",
+        manager: "attendance_regularization_raised_manager",
+        hr: "attendance_regularization_raised_hr",
+      },
+
+      MANAGER_APPROVED: {
+        employee:
+          "attendance_regularization_manager_approved_employee",
+        manager:
+          "attendance_regularization_manager_approved_manager",
+        hr:
+          "attendance_regularization_manager_approved_hr",
+      },
+
+      MANAGER_REJECTED: {
+        employee:
+          "attendance_regularization_manager_rejected_employee",
+        manager:
+          "attendance_regularization_manager_rejected_manager",
+        hr:
+          "attendance_regularization_manager_rejected_hr",
+      },
+
+      HR_APPROVED: {
+        employee:
+          "attendance_regularization_hr_approved_employee",
+        manager:
+          "attendance_regularization_hr_approved_manager",
+        hr:
+          "attendance_regularization_hr_approved_hr",
+      },
+
+      HR_REJECTED: {
+        employee:
+          "attendance_regularization_hr_rejected_employee",
+        manager:
+          "attendance_regularization_hr_rejected_manager",
+        hr:
+          "attendance_regularization_hr_rejected_hr",
+      },
+
+      CANCELLED: {
+        employee:
+          "attendance_regularization_cancelled_employee",
+        manager:
+          "attendance_regularization_cancelled_manager",
+        hr:
+          "attendance_regularization_cancelled_hr",
+      },
+
+      REVERTED: {
+        employee:
+          "attendance_regularization_reverted_employee",
+        manager:
+          "attendance_regularization_reverted_manager",
+        hr:
+          "attendance_regularization_reverted_hr",
+      },
+    };
+
+    const templates = templateMap[templateType];
+
+    if (!templates) {
+      return;
+    }
+
+    const sendTasks = [];
+
+    if (employeeEmail) {
+      sendTasks.push(
+        sendEmail(
+          employeeEmail,
+          `Attendance Regularization - ${baseSubject}`,
+          templates.employee,
+          employeeData
+        )
+      );
+    }
+
+    if (managerEmail) {
+      sendTasks.push(
+        sendEmail(
+          managerEmail,
+          `Attendance Regularization - ${baseSubject}`,
+          templates.manager,
+          managerData
+        )
+      );
+    }
+
+    for (const hrEmail of hrEmails) {
+      sendTasks.push(
+        sendEmail(
+          hrEmail,
+          `Attendance Regularization - ${baseSubject}`,
+          templates.hr,
+          hrData
+        )
+      );
+    }
+
+    await Promise.allSettled(sendTasks);
+  } catch (error) {
+    console.error(
+      "Attendance regularization email notification failed:",
+      error.message
+    );
+  }
+}
+
 async function raiseRequest(payload) {
   const t = await db.sequelize.transaction();
 
@@ -288,24 +766,24 @@ async function raiseRequest(payload) {
     });
 
     const employee = await db.Personal.findByPk(Number(prId), {
-      transaction: t,
-    });
+        transaction: t,
+      });
 
     if (!employee) {
       throw createError("Employee not found", 404);
     }
 
     const existing = await db.AttendanceRegularization.findOne({
-      where: {
-        ar_pr_id: Number(prId),
-        ar_attendance_date: normalizedDate,
-        ar_status: {
-          [Op.in]: ["PENDING_MANAGER", "PENDING_HR", "APPROVED"],
+        where: {
+          ar_pr_id: Number(prId),
+          ar_attendance_date: normalizedDate,
+          ar_status: {
+            [Op.in]: ["PENDING_MANAGER", "PENDING_HR", "APPROVED"],
+          },
         },
-      },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
 
     if (existing) {
       throw createError(
@@ -316,9 +794,9 @@ async function raiseRequest(payload) {
     let managerId = null;
 
     const organization = await db.Organizations.findOne({
-      where: { pr_id: employee.pr_id },
-      transaction: t,
-    });
+        where: { pr_id: employee.pr_id },
+        transaction: t,
+      });
 
     if (organization && organization.or_reporting_to_id) {
       managerId = organization.or_reporting_to_id;
@@ -330,7 +808,7 @@ async function raiseRequest(payload) {
     );
 
 
-    const istNow = new Date(
+ const istNow = new Date(
       Date.now() + 5.5 * 60 * 60 * 1000 // UTC + 5:30
     );
     const day = String(istNow.getUTCDate()).padStart(2, "0");
@@ -342,45 +820,45 @@ async function raiseRequest(payload) {
 
   
     const maxReIdResult = await db.sequelize.query(
-      `
-      SELECT
-        COALESCE(
-          MAX(CAST(RIGHT(ar_request_id, 3) AS INTEGER)),
-          0
-        ) + 1 AS next_request_id
-      FROM attendance_regularization
-      WHERE ar_request_id LIKE :datePrefix || '%'
-      `,
-      {
-        replacements: { datePrefix },
-        transaction: t,
-        type: db.Sequelize.QueryTypes.SELECT,
-      }
-    );
+        `
+        SELECT 
+          COALESCE(
+            MAX(CAST(RIGHT(ar_request_id, 3) AS INTEGER)),
+            0
+          ) + 1 AS next_request_id
+        FROM attendance_regularization
+        WHERE ar_request_id LIKE :datePrefix || '%'
+        `,
+        {
+          replacements: { datePrefix },
+          transaction: t,
+          type: db.Sequelize.QueryTypes.SELECT,
+        }
+      );
 
     const nextRequestId = Number(
       maxReIdResult[0]?.next_request_id || 1
     );
 
-  
+
     const ar_request_id = `${datePrefix}${String(nextRequestId).padStart(
-      3,
-      "0"
-    )}`;
+        3,
+        "0"
+      )}`;
 
     const request = await db.AttendanceRegularization.create(
-      {
-        ar_pr_id: Number(prId),
-        ar_request_id ,
-        ar_attendance_date: normalizedDate,
-        ar_reason: reason || null,
-        ar_status: "PENDING_MANAGER",
-        ar_manager_id: managerId,
-        ar_created_by: Number(prId),
-        ar_created_at: NOW_IST,
-      },
-      { transaction: t }
-    );
+        {
+          ar_pr_id: Number(prId),
+          ar_request_id ,
+          ar_attendance_date: normalizedDate,
+          ar_reason: reason || null,
+          ar_status: "PENDING_MANAGER",
+          ar_manager_id: managerId,
+          ar_created_by: Number(prId),
+          ar_created_at: NOW_IST,
+        },
+        { transaction: t }
+      );
 
     for (const item of normalizedItems) {
       await db.AttendanceRegularizationItem.create(
@@ -408,6 +886,11 @@ async function raiseRequest(payload) {
     );
 
     await t.commit();
+
+    await sendRegularizationEmails(
+      request.ar_id,
+      "RAISED"
+    );
 
     return {
       ar_id: request.ar_id,
@@ -587,7 +1070,7 @@ async function getRequestWithItems(arId) {
     ],
 
     include: [
-    
+
       {
         model: db.Personal,
         as: "employee",
@@ -629,7 +1112,7 @@ async function getRequestWithItems(arId) {
         ],
       },
 
-     
+
       {
         model: db.Personal,
         as: "manager",
@@ -663,7 +1146,7 @@ async function getRequestWithItems(arId) {
         ],
       },
 
-     
+
       {
         model: db.Personal,
         as: "hr",
@@ -697,7 +1180,7 @@ async function getRequestWithItems(arId) {
         ],
       },
 
-      
+
       {
         model: db.AttendanceRegularizationItem,
         as: "items",
@@ -705,7 +1188,7 @@ async function getRequestWithItems(arId) {
         required: false,
       },
 
-      
+
       {
         model: db.AttendanceRegularizationLog,
         as: "logs",
@@ -719,7 +1202,7 @@ async function getRequestWithItems(arId) {
         required: false,
       },
 
-    
+
       {
         model: db.AttendanceRegularizationBackup,
         as: "backup",
@@ -740,7 +1223,7 @@ async function cancelRequest(arId, empPrId) {
       lock: t.LOCK.UPDATE,
     });
 
-    if (!request) {
+ if (!request) {
       throw createError("Regularization request not found", 404);
     }
 
@@ -759,7 +1242,7 @@ async function cancelRequest(arId, empPrId) {
       { transaction: t }
     );
 
-    await db.AttendanceRegularizationLog.create(
+   await db.AttendanceRegularizationLog.create(
       {
         ar_id: arId,
         action_by: empPrId,
@@ -772,6 +1255,15 @@ async function cancelRequest(arId, empPrId) {
     );
 
     await t.commit();
+
+    await sendRegularizationEmails(
+      arId,
+      "CANCELLED",
+      {
+        cancellation_reason:
+          "Cancelled by employee",
+      }
+    );
 
     return request;
   } catch (err) {
@@ -925,7 +1417,7 @@ async function managerAction(arId, managerPrId, action, remarks) {
 
     const now = NOW_IST;
 
-    await request.update(
+   await request.update(
       {
         ar_status: normalizedAction === "APPROVED" ? "PENDING_HR" : "REJECTED",
         ar_manager_action_at: now,
@@ -949,10 +1441,24 @@ async function managerAction(arId, managerPrId, action, remarks) {
     );
 
     await t.commit();
+    await sendRegularizationEmails(
+      arId,
+      normalizedAction === "APPROVED"
+        ? "MANAGER_APPROVED"
+        : "MANAGER_REJECTED",
+      {
+        remarks: remarks || "",
+        manager_remarks:
+          remarks || "",
+      }
+    );
 
     return request;
   } catch (err) {
-    await t.rollback();
+    if (!t.finished) {
+      await t.rollback();
+    }
+
     throw err;
   }
 }
@@ -970,7 +1476,7 @@ async function getPendingForHR(options = {}) {
   if (fromDate || toDate) {
     where.ar_attendance_date = {};
 
-    if (fromDate) {
+if (fromDate) {
       where.ar_attendance_date[Op.gte] = fromDate;
     }
 
@@ -1057,7 +1563,7 @@ async function getPendingForHR(options = {}) {
         ],
         required: false,
       },
-      {
+   {
         model: db.AttendanceRegularizationItem,
         as: "items",
         required: false,
@@ -1090,7 +1596,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
       lock: t.LOCK.UPDATE,
     });
 
-    if (!request) {
+  if (!request) {
       throw createError("Regularization request not found", 404);
     }
 
@@ -1100,7 +1606,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
 
     const now = NOW_IST;
 
-    const items = await db.AttendanceRegularizationItem.findAll({
+   const items = await db.AttendanceRegularizationItem.findAll({
       where: { ar_id: arId },
       order: [["ari_id", "ASC"]],
       transaction: t,
@@ -1108,7 +1614,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
 
     request.setDataValue("items", items);
 
-    if (normalizedAction === "REJECTED") {
+   if (normalizedAction === "REJECTED") {
       await request.update(
         {
           ar_status: "REJECTED",
@@ -1130,12 +1636,22 @@ async function hrAction(arId, hrPrId, action, remarks) {
           remarks: remarks || null,
           action_at: now,
         },
-        { transaction: t }
+      { transaction: t }
       );
 
       await t.commit();
 
-      return { ar_id: arId, status: "REJECTED" };
+      await sendRegularizationEmails(
+        arId,
+        "HR_REJECTED",
+        {
+          remarks: remarks || "",
+          hr_remarks:
+            remarks || "",
+        }
+      );
+
+    return { ar_id: arId, status: "REJECTED" };
     }
 
     const employee = await db.Personal.findByPk(Number(request.ar_pr_id), {
@@ -1143,17 +1659,17 @@ async function hrAction(arId, hrPrId, action, remarks) {
       lock: t.LOCK.UPDATE,
     });
 
-    if (!employee) {
+   if (!employee) {
       throw createError("Employee not found", 404);
     }
 
-    const organization = await db.Organizations.findOne({
+ const organization = await db.Organizations.findOne({
       where: { pr_id: Number(request.ar_pr_id) },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!organization) {
+   if (!organization) {
       throw createError("Employee organization record not found", 404);
     }
 
@@ -1169,11 +1685,11 @@ async function hrAction(arId, hrPrId, action, remarks) {
       request.ar_attendance_date
     );
 
-    const rows = await findAttendanceRows(empId, attendanceDate, t);
+  const rows = await findAttendanceRows(empId, attendanceDate, t);
 
     await createOrReplaceBackup(arId, empId, attendanceDate, rows, hrPrId, t);
 
-    const attendance = await recalculateAttendanceForRegularization({
+ const attendance = await recalculateAttendanceForRegularization({
       transaction: t,
       prId: Number(request.ar_pr_id),
       empId,
@@ -1182,7 +1698,7 @@ async function hrAction(arId, hrPrId, action, remarks) {
       items,
     });
 
-    await request.update(
+  await request.update(
       {
         ar_status: "APPROVED",
         ar_hr_id: hrPrId,
@@ -1203,10 +1719,20 @@ async function hrAction(arId, hrPrId, action, remarks) {
         remarks: remarks || null,
         action_at: now,
       },
-      { transaction: t }
+     { transaction: t }
     );
 
     await t.commit();
+
+    await sendRegularizationEmails(
+      arId,
+      "HR_APPROVED",
+      {
+        remarks: remarks || "",
+        hr_remarks:
+          remarks || "",
+      }
+    );
 
     return {
       ar_id: arId,
@@ -1283,12 +1809,12 @@ async function cancelHrAction(arId, hrPrId, remarks) {
 
     const now = NOW_IST;
 
-    await backup.update(
+  await backup.update(
       { restored_at: now, restored_by: hrPrId },
       { transaction: t }
     );
 
-    await request.update(
+ await request.update(
       {
         ar_status: "PENDING_HR",
         ar_hr_id: hrPrId,
@@ -1311,10 +1837,20 @@ async function cancelHrAction(arId, hrPrId, remarks) {
           "Regularization reverted and original attendance restored",
         action_at: now,
       },
-      { transaction: t }
+       { transaction: t }
     );
 
     await t.commit();
+
+    await sendRegularizationEmails(
+      arId,
+      "REVERTED",
+      {
+        revert_reason:
+          remarks ||
+          "Wrong approval",
+      }
+    );
 
     return {
       ar_id: arId,
@@ -1324,7 +1860,9 @@ async function cancelHrAction(arId, hrPrId, remarks) {
       restored: true,
     };
   } catch (err) {
-    await t.rollback();
+    if (!t.finished) {
+      await t.rollback();
+    }
     throw err;
   }
 }
