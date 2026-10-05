@@ -17,7 +17,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       punch_time: {
-        type: DataTypes.DATE,
+        type: DataTypes.STRING(19),
         allowNull: true,
       },
       device_ip: {

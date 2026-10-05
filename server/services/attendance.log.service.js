@@ -84,9 +84,83 @@ async function syncActivityToAttendanceLogs(client) {
 
   const result = await client.query(insertQuery);
 
+
+  const mobileInsertQuery = `
+    INSERT INTO public.attendance_logs
+    (
+      emp_id,
+      punch_time,
+      device_ip,
+      device_sn,
+      created_at,
+      raw_log,
+      is_active,
+      regularization_id
+    )
+    SELECT
+      TRIM(alm.emp_id),
+
+      alm.punch_time::text::timestamp,
+
+      alm.device_ip,
+      alm.device_sn,
+
+      CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
+
+      jsonb_build_object(
+        'source',
+          'activity_log_mobile',
+
+        'activity_log_mobile_id',
+          alm.id,
+
+        'emp_id',
+          alm.emp_id,
+
+        'from_user_emp_id',
+          alm.from_user_emp_id,
+
+        'punch_time',
+          alm.punch_time::text,
+
+        'punch_type',
+          alm.punch_type,
+
+        'device_ip',
+          alm.device_ip,
+
+        'device_sn',
+          alm.device_sn,
+
+        'image_file_path',
+          alm.image_file_path,
+
+        'latitude',
+          alm.latitude,
+
+        'longitude',
+          alm.longitude
+      ),
+
+      TRUE,
+      NULL
+
+    FROM public.activity_log_mobile alm
+
+    WHERE alm.emp_id IS NOT NULL
+      AND TRIM(alm.emp_id) <> ''
+      AND alm.punch_time IS NOT NULL
+      AND alm.punch_time::text ~ '^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}'
+
+    ON CONFLICT (emp_id, punch_time)
+    DO NOTHING;
+  `;
+
+  const mobileResult = await client.query(mobileInsertQuery);
+
   return {
     updated: 0,
-    inserted: result.rowCount || 0,
+    inserted: (result.rowCount || 0) + (mobileResult.rowCount || 0),
   };
 }
 
