@@ -15,12 +15,12 @@ module.exports = (sequelize, DataTypes) => {
       },
 
       punch_in: {
-        type: DataTypes.DATE,
+        type: DataTypes.STRING,
         allowNull: true,
       },
 
       punch_out: {
-        type: DataTypes.DATE,
+        type: DataTypes.STRING,
         allowNull: true,
       },
 
@@ -78,7 +78,6 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
 
-      // Regularization protection
       is_regularized: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

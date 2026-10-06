@@ -86,6 +86,10 @@ db.AttendanceRegularizationBackup =
     DataTypes
   );
 
+db.ShiftMaster = require("./shift_master")(sequelize, DataTypes);
+db.ShiftMasterDays = require("./shift_master_days")(sequelize, DataTypes);
+db.ShiftMasterBreaks = require("./shift_master_breaks")(sequelize, DataTypes);
+db.EmployeeShiftRoster = require("./employee_shift_roster")( sequelize,  DataTypes);
 /* ---------- Associations ---------- */
 
 // Personal <-> Organizations
@@ -819,6 +823,65 @@ db.AttendanceRegularizationBackup.belongsTo(db.Personal, {
   targetKey: "pr_id",
   as: "restoredBy",
   constraints: false,
+});
+db.ShiftMaster.hasMany(db.ShiftMasterDays, {
+  foreignKey: "Smd_shift_id",
+  sourceKey: "Sm_shift_id",
+  as: "days",
+});
+
+db.ShiftMasterDays.belongsTo(db.ShiftMaster, {
+  foreignKey: "Smd_shift_id",
+  targetKey: "Sm_shift_id",
+  as: "shift",
+});
+
+db.ShiftMaster.hasMany(db.ShiftMasterBreaks, {
+  foreignKey: "Smb_shift_id",
+  sourceKey: "Sm_shift_id",
+  as: "breaks",
+});
+
+db.ShiftMasterBreaks.belongsTo(db.ShiftMaster, {
+  foreignKey: "Smb_shift_id",
+  targetKey: "Sm_shift_id",
+  as: "shift",
+});
+
+db.ShiftMaster.hasMany(db.EmployeeShiftRoster, {
+  foreignKey: "Esr_shift_id",
+  sourceKey: "Sm_shift_id",
+  as: "employeeRosters",
+});
+
+db.EmployeeShiftRoster.belongsTo(db.ShiftMaster, {
+  foreignKey: "Esr_shift_id",
+  targetKey: "Sm_shift_id",
+  as: "shift",
+});
+
+db.Personal.hasMany(db.EmployeeShiftRoster, {
+  foreignKey: "Esr_pr_id",
+  sourceKey: "pr_id",
+  as: "shiftRoster",
+});
+
+db.EmployeeShiftRoster.belongsTo(db.Personal, {
+  foreignKey: "Esr_pr_id",
+  targetKey: "pr_id",
+  as: "employee",
+});
+
+db.ShiftMasterDays.belongsTo(db.AttendanceStatus, {
+  foreignKey: "Smd_attendance_status_id",
+  targetKey: "id",
+  as: "attendanceStatus",
+});
+
+db.AttendanceStatus.hasMany(db.ShiftMasterDays, {
+  foreignKey: "Smd_attendance_status_id",
+  sourceKey: "id",
+  as: "shiftDays",
 });
 
 module.exports = db;
