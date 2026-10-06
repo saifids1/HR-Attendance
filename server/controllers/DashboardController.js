@@ -216,6 +216,10 @@ const getWeeklyEmployeesData = async (req, res) => {
       });
     }
 
+    // ============================================================
+    // DATE HELPERS
+    // ============================================================
+
     const formatDateOnly = (date) => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -224,20 +228,39 @@ const getWeeklyEmployeesData = async (req, res) => {
       return `${year}-${month}-${day}`;
     };
 
+    // ============================================================
+    // CURRENT WEEK - MONDAY TO SUNDAY
+    // ============================================================
+
     const today = new Date();
+
     const dayOfWeek = today.getDay();
-    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+    const diffToMonday =
+      dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
     const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - diffToMonday);
+
+    weekStart.setDate(
+      today.getDate() - diffToMonday
+    );
+
     weekStart.setHours(0, 0, 0, 0);
 
     const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+
+    weekEnd.setDate(
+      weekStart.getDate() + 6
+    );
+
     weekEnd.setHours(23, 59, 59, 999);
 
     const startStr = formatDateOnly(weekStart);
     const endStr = formatDateOnly(weekEnd);
+
+    // ============================================================
+    // FETCH WEEKLY ATTENDANCE
+    // ============================================================
 
     const records = await DailyAttendance.findAll({
       where: {
@@ -246,6 +269,7 @@ const getWeeklyEmployeesData = async (req, res) => {
           [Op.between]: [startStr, endStr],
         },
       },
+
       attributes: [
         "attendance_date",
         "punch_in",
@@ -258,10 +282,35 @@ const getWeeklyEmployeesData = async (req, res) => {
         "is_early_gone",
         "status_id",
       ],
+
+      include: [
+        {
+          model: AttendenceStatus,
+          as: "attendanceStatus",
+          attributes: [
+            "status_name",
+            "background_color",
+            "font_color",
+          ],
+
+          where: {
+            is_active: true,
+          },
+
+          required: false,
+        },
+      ],
+
       raw: true,
+      nest: true,
     });
 
+    // ============================================================
+    // CREATE DATE MAP
+    // ============================================================
+
     const recordMap = {};
+
     records.forEach((r) => {
       let key;
 
@@ -274,41 +323,112 @@ const getWeeklyEmployeesData = async (req, res) => {
       recordMap[key] = r;
     });
 
+    // ============================================================
+    // CREATE WEEKLY RESULT
+    // ============================================================
+
     const result = [];
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
-      d.setDate(weekStart.getDate() + i);
+
+      d.setDate(
+        weekStart.getDate() + i
+      );
 
       const dateStr = formatDateOnly(d);
 
-      const dayName = d.toLocaleDateString("en-US", {
-        weekday: "short",
-      });
+      const dayName = d.toLocaleDateString(
+        "en-US",
+        {
+          weekday: "short",
+        }
+      );
 
       const dow = d.getDay();
 
       const rec = recordMap[dateStr] || null;
 
+      // ==========================================================
+      // STATUS
+      // ==========================================================
+
+      const statusName =
+        rec?.attendanceStatus?.status_name ||
+        (rec ? "Present" : "No Data");
+
+      const backgroundColor =
+        rec?.attendanceStatus?.background_color ||
+        "#FEE2E2";
+
+      const fontColor =
+        rec?.attendanceStatus?.font_color ||
+        "#991B1B";
+
+      // ==========================================================
+      // RESULT
+      // ==========================================================
+
       result.push({
         attendance_date: dateStr,
+
         day_name: dayName,
-        punch_in: rec?.punch_in || null,
-        punch_out: rec?.punch_out || null,
-        total_hours: rec?.total_hours || null,
-        expected_hours: rec?.expected_hours || null,
-        late_arrival: rec?.late_arrival || null,
-        is_late_arrived: rec?.is_late_arrived || null,
-        early_go: rec?.early_go || null,
-        is_early_gone: rec?.is_early_gone || null,
-        status_id: rec?.status_id || null,
-        attendance_status: rec ? "Present" : "No Data",
+
+        punch_in:
+          rec?.punch_in || null,
+
+        punch_out:
+          rec?.punch_out || null,
+
+        total_hours:
+          rec?.total_hours || null,
+
+        expected_hours:
+          rec?.expected_hours || null,
+
+        late_arrival:
+          rec?.late_arrival || null,
+
+        is_late_arrived:
+          rec?.is_late_arrived || null,
+
+        early_go:
+          rec?.early_go || null,
+
+        is_early_gone:
+          rec?.is_early_gone || null,
+
+        status_id:
+          rec?.status_id || null,
+
+        // ========================================================
+        // STATUS
+        // ========================================================
+
+        attendance_status: statusName,
+
+        // ========================================================
+        // STATUS COLORS
+        // ========================================================
+
+        background_color: backgroundColor,
+
+        font_color: fontColor,
+
+        // ========================================================
+        // TARGET HOURS
+        // ========================================================
+
         target_hours:
           dow === 0 || dow === 6
             ? "00:00:00"
             : "09:18:00",
       });
     }
+
+    // ============================================================
+    // RESPONSE
+    // ============================================================
 
     return successResponse(
       res,
@@ -317,7 +437,11 @@ const getWeeklyEmployeesData = async (req, res) => {
       result
     );
   } catch (error) {
-    console.error("Weekly employee data error:", error);
+    console.error(
+      "Weekly employee data error:",
+      error
+    );
+
     return handleDbError(
       res,
       error,
