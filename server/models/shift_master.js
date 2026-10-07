@@ -34,6 +34,26 @@ module.exports = (sequelize, DataTypes) => {
         field: "sm_end_time",
       },
 
+      Sm_expected_hours: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 8.00,
+        validate: {
+          min: 0,
+        },
+        field: "sm_expected_hours",
+      },
+
+      Sm_half_day_hours: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 5.00,
+        validate: {
+          min: 0,
+        },
+        field: "sm_half_day_hours",
+      },
+
       Sm_grace_in_minutes: {
         type: DataTypes.INTEGER,
         allowNull: false,

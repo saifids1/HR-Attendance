@@ -162,17 +162,53 @@ const buildPaginationResponse = (
   };
 };
 
+const validateShiftHours = (
+  expectedHours,
+  halfDayHours
+) => {
+  const expected = Number(expectedHours);
+  const halfDay = Number(halfDayHours);
+
+  if (!Number.isFinite(expected) || expected <= 0) {
+    return {
+      valid: false,
+      message: "Sm_expected_hours must be greater than 0.",
+    };
+  }
+
+  if (!Number.isFinite(halfDay) || halfDay < 0) {
+    return {
+      valid: false,
+      message: "Sm_half_day_hours cannot be negative.",
+    };
+  }
+
+  if (halfDay > expected) {
+    return {
+      valid: false,
+      message:
+        "Sm_half_day_hours cannot be greater than Sm_expected_hours.",
+    };
+  }
+
+  return {
+    valid: true,
+    expected,
+    halfDay,
+  };
+};
+
 exports.createShift = async (req, res) => {
   try {
     const userId = getUserId(req);
-console.log("---------------------------------------------");
-console.log(userId);
-console.log("----------------------------------------------");
+
     const {
       Sm_shift_code,
       Sm_shift_name,
       Sm_start_time,
       Sm_end_time,
+      Sm_expected_hours = 9.00,
+      Sm_half_day_hours = 5.00,
       Sm_grace_in_minutes = 0,
       Sm_grace_out_minutes = 0,
       Sm_half_day_after_minutes = null,
@@ -195,6 +231,18 @@ console.log("----------------------------------------------");
       });
     }
 
+    const hourValidation = validateShiftHours(
+      Sm_expected_hours,
+      Sm_half_day_hours
+    );
+
+    if (!hourValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: hourValidation.message,
+      });
+    }
+
     const existingShift = await ShiftMaster.findOne({
       where: {
         Sm_shift_code,
@@ -213,6 +261,8 @@ console.log("----------------------------------------------");
       Sm_shift_name,
       Sm_start_time,
       Sm_end_time,
+      Sm_expected_hours: hourValidation.expected,
+      Sm_half_day_hours: hourValidation.halfDay,
       Sm_grace_in_minutes,
       Sm_grace_out_minutes,
       Sm_half_day_after_minutes,
@@ -324,12 +374,7 @@ exports.getShiftById = async (req, res) => {
       });
     }
 
-console.log("---------------------------------------------");
-console.log(req);
     const shift = await ShiftMaster.findByPk(id);
-    console.log(shift);
-
-console.log("----------------------------------------------");
 
     if (!shift) {
       return res.status(404).json({
@@ -416,6 +461,8 @@ exports.updateShift = async (req, res) => {
       Sm_shift_name,
       Sm_start_time,
       Sm_end_time,
+      Sm_expected_hours,
+      Sm_half_day_hours,
       Sm_grace_in_minutes,
       Sm_grace_out_minutes,
       Sm_half_day_after_minutes,
@@ -449,6 +496,30 @@ exports.updateShift = async (req, res) => {
       }
     }
 
+    const finalExpectedHours =
+      Sm_expected_hours !== undefined
+        ? Sm_expected_hours
+        : shift.Sm_expected_hours;
+
+    const finalHalfDayHours =
+      Sm_half_day_hours !== undefined
+        ? Sm_half_day_hours
+        : shift.Sm_half_day_hours;
+
+    const hourValidation = validateShiftHours(
+      finalExpectedHours,
+      finalHalfDayHours
+    );
+
+    if (!hourValidation.valid) {
+      await transaction.rollback();
+
+      return res.status(400).json({
+        success: false,
+        message: hourValidation.message,
+      });
+    }
+
     const updateData = {};
 
     if (Sm_shift_code !== undefined) {
@@ -465,6 +536,16 @@ exports.updateShift = async (req, res) => {
 
     if (Sm_end_time !== undefined) {
       updateData.Sm_end_time = Sm_end_time;
+    }
+
+    if (Sm_expected_hours !== undefined) {
+      updateData.Sm_expected_hours =
+        hourValidation.expected;
+    }
+
+    if (Sm_half_day_hours !== undefined) {
+      updateData.Sm_half_day_hours =
+        hourValidation.halfDay;
     }
 
     if (Sm_grace_in_minutes !== undefined) {

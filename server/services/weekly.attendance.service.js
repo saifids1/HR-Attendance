@@ -3,170 +3,485 @@ const BACKFILL_START_DATE =
 
 async function generateWeeklyAttendance(client) {
   const query = `
-WITH stale_pairs AS
+WITH current_day AS
 (
-  SELECT DISTINCT
+  SELECT
+    (
+      CURRENT_TIMESTAMP
+      AT TIME ZONE 'Asia/Kolkata'
+    )::DATE AS attendance_date
+),
+
+punch_data AS
+(
+  SELECT
     TRIM(al.emp_id) AS emp_id,
-    (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
-      AS attendance_date
+
+    al.punch_time
+    AT TIME ZONE 'Asia/Kolkata'
+    AS punch_local,
+
+    al.created_at
 
   FROM public.attendance_logs al
 
   WHERE al.emp_id IS NOT NULL
     AND TRIM(al.emp_id) <> ''
     AND al.punch_time IS NOT NULL
+    AND al.is_active = TRUE
+),
 
-    AND NOT EXISTS
-    (
-      SELECT 1
-      FROM public.weekly_attendance da
-      WHERE da.emp_id = TRIM(al.emp_id)
-        AND da.attendance_date =
-            (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
-        AND da.updated_at >= al.created_at
-    )
+first_punch_per_emp AS
+(
+  SELECT
+    emp_id,
+
+    MIN(
+      punch_local::DATE
+    ) AS first_punch_date
+
+  FROM punch_data
+
+  GROUP BY
+    emp_id
+),
+
+employee_start_dates AS
+(
+  SELECT
+    TRIM(o.or_emp_id) AS emp_id,
+
+    GREATEST(
+      COALESCE(
+        o.or_joining_date,
+        '${BACKFILL_START_DATE}'::DATE
+      ),
+
+      COALESCE(
+        fp.first_punch_date,
+        '${BACKFILL_START_DATE}'::DATE
+      ),
+
+      '${BACKFILL_START_DATE}'::DATE
+    ) AS start_date,
+
+    o.or_leaving_date
+
+  FROM public.organizations o
+
+  LEFT JOIN first_punch_per_emp fp
+    ON fp.emp_id =
+       TRIM(o.or_emp_id)
+
+  WHERE o.or_emp_id IS NOT NULL
+    AND TRIM(o.or_emp_id) <> ''
+    AND COALESCE(
+      o.or_is_active,
+      TRUE
+    ) = TRUE
+),
+
+backfill_pairs AS
+(
+  SELECT
+    e.emp_id,
+    d.attendance_date
+
+  FROM employee_start_dates e
+
+  CROSS JOIN LATERAL
+  (
+    SELECT
+      generate_series(
+        e.start_date,
+
+        LEAST(
+          COALESCE(
+            e.or_leaving_date,
+            (
+              CURRENT_TIMESTAMP
+              AT TIME ZONE 'Asia/Kolkata'
+            )::DATE
+          ),
+
+          (
+            CURRENT_TIMESTAMP
+            AT TIME ZONE 'Asia/Kolkata'
+          )::DATE
+        ),
+
+        INTERVAL '1 day'
+      )::DATE AS attendance_date
+  ) d
+
+  WHERE d.attendance_date <=
+  (
+    CURRENT_TIMESTAMP
+    AT TIME ZONE 'Asia/Kolkata'
+  )::DATE
+
+  AND NOT EXISTS
+  (
+    SELECT 1
+    FROM public.weekly_attendance wa
+
+    WHERE wa.emp_id =
+          e.emp_id
+
+      AND wa.attendance_date =
+          d.attendance_date
+  )
 ),
 
 today_pairs AS
 (
   SELECT
     TRIM(o.or_emp_id) AS emp_id,
-    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
-      AS attendance_date
+
+    cd.attendance_date
 
   FROM public.organizations o
 
+  CROSS JOIN current_day cd
+
   WHERE o.or_emp_id IS NOT NULL
     AND TRIM(o.or_emp_id) <> ''
-    AND COALESCE(o.or_is_active, TRUE) = TRUE
 
-    AND (
+    AND COALESCE(
+      o.or_is_active,
+      TRUE
+    ) = TRUE
+
+    AND
+    (
       o.or_joining_date IS NULL
       OR o.or_joining_date <=
-         (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
+         cd.attendance_date
     )
 
-    AND (
+    AND
+    (
       o.or_leaving_date IS NULL
       OR o.or_leaving_date >=
-         (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
+         cd.attendance_date
     )
 ),
 
-backfill_pairs AS
+stale_punch_candidates AS
 (
   SELECT
-    TRIM(o.or_emp_id) AS emp_id,
+    pd.emp_id,
+    pd.punch_local,
+    pd.created_at,
     d.attendance_date
 
-  FROM
+  FROM punch_data pd
+
+  CROSS JOIN LATERAL
   (
-    SELECT generate_series(
-      '${BACKFILL_START_DATE}'::DATE,
-      (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE,
-      INTERVAL '1 day'
-    )::DATE AS attendance_date
-  ) d
+    VALUES
+      (
+        pd.punch_local::DATE
+      ),
+      (
+        (
+          pd.punch_local::DATE
+          - INTERVAL '1 day'
+        )::DATE
+      )
+  ) d(attendance_date)
+),
 
-  CROSS JOIN public.organizations o
+stale_resolved AS
+(
+  SELECT DISTINCT
+    spc.emp_id,
+    spc.attendance_date
 
-  WHERE o.or_emp_id IS NOT NULL
-    AND TRIM(o.or_emp_id) <> ''
-    AND COALESCE(o.or_is_active, TRUE) = TRUE
+  FROM stale_punch_candidates spc
 
-    AND (
+  JOIN public.organizations o
+    ON TRIM(o.or_emp_id) =
+       spc.emp_id
+
+  LEFT JOIN LATERAL
+  (
+    SELECT
+      r.*
+
+    FROM public.employee_shift_roster r
+
+    WHERE r.esr_pr_id =
+          o.pr_id
+
+      AND r.esr_isactive = TRUE
+
+      AND r.esr_effective_from <=
+          spc.attendance_date
+
+      AND
+      (
+        r.esr_effective_to IS NULL
+        OR r.esr_effective_to >=
+           spc.attendance_date
+      )
+
+    ORDER BY
+      r.esr_effective_from DESC,
+      r.esr_roster_id DESC
+
+    LIMIT 1
+  ) r ON TRUE
+
+  JOIN public.shift_master sm
+    ON sm.sm_shift_id =
+       r.esr_shift_id
+
+   AND sm.sm_isactive = TRUE
+
+  WHERE COALESCE(
+    o.or_is_active,
+    TRUE
+  ) = TRUE
+
+    AND
+    (
       o.or_joining_date IS NULL
-      OR o.or_joining_date <= d.attendance_date
+      OR o.or_joining_date <=
+         spc.attendance_date
     )
 
-    AND (
+    AND
+    (
       o.or_leaving_date IS NULL
-      OR o.or_leaving_date >= d.attendance_date
+      OR o.or_leaving_date >=
+         spc.attendance_date
+    )
+
+    AND spc.punch_local BETWEEN
+
+    (
+      spc.attendance_date
+      + sm.sm_start_time
+      -
+      MAKE_INTERVAL(
+        mins => COALESCE(
+          sm.sm_grace_in_minutes,
+          0
+        )
+      )
+    )
+
+    AND
+
+    (
+      CASE
+        WHEN COALESCE(
+          sm.sm_is_overnight,
+          FALSE
+        ) = TRUE
+
+        THEN
+          spc.attendance_date
+          + INTERVAL '1 day'
+          + sm.sm_end_time
+
+        ELSE
+          spc.attendance_date
+          + sm.sm_end_time
+      END
+      +
+      MAKE_INTERVAL(
+        mins => COALESCE(
+          sm.sm_grace_out_minutes,
+          0
+        )
+      )
     )
 
     AND NOT EXISTS
     (
       SELECT 1
-      FROM public.weekly_attendance da
-      WHERE da.emp_id = TRIM(o.or_emp_id)
-        AND da.attendance_date = d.attendance_date
+      FROM public.weekly_attendance wa
+
+      WHERE wa.emp_id =
+            spc.emp_id
+
+        AND wa.attendance_date =
+            spc.attendance_date
+
+        AND wa.updated_at >=
+            spc.created_at
     )
+),
+
+stale_pairs AS
+(
+  SELECT
+    emp_id,
+    attendance_date
+
+  FROM stale_resolved
 ),
 
 target_pairs AS
 (
-  SELECT emp_id, attendance_date
-  FROM stale_pairs
+  SELECT
+    emp_id,
+    attendance_date
+  FROM backfill_pairs
 
   UNION
 
-  SELECT emp_id, attendance_date
+  SELECT
+    emp_id,
+    attendance_date
   FROM today_pairs
 
   UNION
 
-  SELECT emp_id, attendance_date
-  FROM backfill_pairs
+  SELECT
+    emp_id,
+    attendance_date
+  FROM stale_pairs
 ),
 
-distinct_target_dates AS
+employees AS
 (
-  SELECT DISTINCT attendance_date
-  FROM target_pairs
+  SELECT DISTINCT
+    tp.emp_id,
+    tp.attendance_date,
+    o.pr_id
+
+  FROM target_pairs tp
+
+  JOIN public.organizations o
+    ON TRIM(o.or_emp_id) =
+       tp.emp_id
+
+  WHERE COALESCE(
+    o.or_is_active,
+    TRUE
+  ) = TRUE
+
+    AND
+    (
+      o.or_joining_date IS NULL
+      OR o.or_joining_date <=
+         tp.attendance_date
+    )
+
+    AND
+    (
+      o.or_leaving_date IS NULL
+      OR o.or_leaving_date >=
+         tp.attendance_date
+    )
 ),
 
-active_setting AS
+employee_shift AS
 (
   SELECT
-    s.id,
-    s.office_start_time,
-    s.office_end_time,
-    s.grace_period_minutes,
-    s.half_day_after_minutes,
-    s.early_go_minutes
+    e.emp_id,
+    e.attendance_date,
+    e.pr_id,
 
-  FROM public.attendance_settings s
+    r.esr_roster_id,
+    r.esr_shift_id,
+    r.esr_assignment_type,
 
-  WHERE s.is_active = TRUE
+    sm.sm_shift_code,
+    sm.sm_shift_name,
+    sm.sm_start_time,
+    sm.sm_end_time,
+    sm.sm_grace_in_minutes,
+    sm.sm_grace_out_minutes,
+    sm.sm_half_day_after_minutes,
+    sm.sm_expected_hours,
+    sm.sm_half_day_hours,
+    sm.sm_early_go_minutes,
+    sm.sm_is_overnight,
 
-  ORDER BY s.id DESC
+    smd.smd_shift_day_id,
+    smd.smd_day_of_week,
+    smd.smd_day_name,
+    smd.smd_attendance_status_id
 
-  LIMIT 1
+  FROM employees e
+
+  LEFT JOIN LATERAL
+  (
+    SELECT
+      r.*
+
+    FROM public.employee_shift_roster r
+
+    WHERE r.esr_pr_id =
+          e.pr_id
+
+      AND r.esr_isactive = TRUE
+
+      AND r.esr_effective_from <=
+          e.attendance_date
+
+      AND
+      (
+        r.esr_effective_to IS NULL
+        OR r.esr_effective_to >=
+           e.attendance_date
+      )
+
+    ORDER BY
+      r.esr_effective_from DESC,
+      r.esr_roster_id DESC
+
+    LIMIT 1
+  ) r ON TRUE
+
+  LEFT JOIN public.shift_master sm
+    ON sm.sm_shift_id =
+       r.esr_shift_id
+
+   AND sm.sm_isactive = TRUE
+
+  LEFT JOIN public.shift_master_days smd
+    ON smd.smd_shift_id =
+       sm.sm_shift_id
+
+   AND smd.smd_day_of_week =
+       EXTRACT(
+         DOW FROM e.attendance_date
+       )::INTEGER
+
+   AND smd.smd_isactive = TRUE
 ),
 
-day_rule AS
+shift_rule AS
 (
   SELECT
-    d.attendance_date,
+    es.*,
 
-    s.id AS setting_id,
-    s.grace_period_minutes,
-    s.half_day_after_minutes,
-    s.early_go_minutes,
+    es.attendance_date
+    + es.sm_start_time
+    AS expected_start,
 
-    r.full_day_hours,
-    r.half_day_hours,
+    CASE
+      WHEN COALESCE(
+        es.sm_is_overnight,
+        FALSE
+      ) = TRUE
 
-    COALESCE(r.is_working_day, TRUE) AS is_working_day,
+      THEN
+        es.attendance_date
+        + INTERVAL '1 day'
+        + es.sm_end_time
 
-    COALESCE(
-      r.start_time,
-      s.office_start_time
-    ) AS start_time,
+      ELSE
+        es.attendance_date
+        + es.sm_end_time
+    END AS expected_end
 
-    COALESCE(
-      r.end_time,
-      s.office_end_time
-    ) AS end_time
-
-  FROM distinct_target_dates d
-
-  CROSS JOIN active_setting s
-
-  LEFT JOIN public.attendance_weekly_rules r
-    ON r.attendance_setting_id = s.id
-   AND r.day_of_week =
-       EXTRACT(ISODOW FROM d.attendance_date)::INTEGER
+  FROM employee_shift es
 ),
 
 holiday_info AS
@@ -179,7 +494,12 @@ holiday_info AS
     h.is_paid,
     h.remarks
 
-  FROM distinct_target_dates d
+  FROM
+  (
+    SELECT DISTINCT
+      attendance_date
+    FROM target_pairs
+  ) d
 
   LEFT JOIN LATERAL
   (
@@ -191,10 +511,16 @@ holiday_info AS
 
     FROM public.holidays h2
 
-    WHERE h2.holiday_date = d.attendance_date
-      AND COALESCE(h2.is_active, TRUE) = TRUE
+    WHERE h2.holiday_date =
+          d.attendance_date
 
-    ORDER BY h2.holiday_id
+      AND COALESCE(
+        h2.is_active,
+        TRUE
+      ) = TRUE
+
+    ORDER BY
+      h2.holiday_id
 
     LIMIT 1
   ) h ON TRUE
@@ -203,32 +529,53 @@ holiday_info AS
 statuses AS
 (
   SELECT
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'present'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'present'
     ) AS present_id,
 
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'working'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'working'
     ) AS working_id,
 
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'half day'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'half day'
     ) AS half_day_id,
 
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'holiday'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'holiday'
     ) AS holiday_id,
 
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'weekly off'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'weekly off'
     ) AS weekly_off_id,
 
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'absent'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'absent'
     ) AS absent_id,
 
-    MAX(id) FILTER (
-      WHERE LOWER(TRIM(status_name)) = 'leave'
+    MAX(id) FILTER
+    (
+      WHERE LOWER(
+        TRIM(status_name)
+      ) = 'leave'
     ) AS leave_id
 
   FROM public.attendence_status
@@ -236,90 +583,63 @@ statuses AS
   WHERE is_active = TRUE
 ),
 
-employees AS
-(
-  SELECT DISTINCT
-    tp.emp_id,
-    tp.attendance_date
-
-  FROM target_pairs tp
-
-  JOIN public.organizations o
-    ON TRIM(o.or_emp_id) = tp.emp_id
-
-  WHERE COALESCE(o.or_is_active, TRUE) = TRUE
-
-    AND (
-      o.or_joining_date IS NULL
-      OR o.or_joining_date <= tp.attendance_date
-    )
-
-    AND (
-      o.or_leaving_date IS NULL
-      OR o.or_leaving_date >= tp.attendance_date
-    )
-),
-
-punch_data AS
-(
-  SELECT
-    TRIM(al.emp_id) AS emp_id,
-
-    (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
-      AS attendance_date,
-
-    al.punch_time AT TIME ZONE 'Asia/Kolkata'
-      AS punch_local
-
-  FROM public.attendance_logs al
-
-  WHERE al.emp_id IS NOT NULL
-    AND TRIM(al.emp_id) <> ''
-    AND al.punch_time IS NOT NULL
-
-    /*
-      Only active punches should participate
-      in attendance calculation.
-    */
-    AND al.is_active = TRUE
-
-    AND EXISTS
-    (
-      SELECT 1
-      FROM employees e
-      WHERE e.emp_id = TRIM(al.emp_id)
-        AND e.attendance_date =
-            (al.punch_time AT TIME ZONE 'Asia/Kolkata')::DATE
-    )
-),
-
 punches AS
 (
   SELECT
-    e.emp_id,
-    e.attendance_date,
+    sr.emp_id,
+    sr.attendance_date,
 
-    MIN(p.punch_local) AS punch_in,
+    MIN(
+      pd.punch_local
+    ) AS punch_in,
 
     CASE
-      WHEN MIN(p.punch_local) IS NULL
+      WHEN MIN(pd.punch_local) IS NULL
         THEN NULL
 
-      WHEN MIN(p.punch_local) = MAX(p.punch_local)
+      WHEN MIN(pd.punch_local) =
+           MAX(pd.punch_local)
         THEN NULL
 
-      ELSE MAX(p.punch_local)
+      ELSE
+        MAX(pd.punch_local)
     END AS punch_out
 
-  FROM employees e
+  FROM shift_rule sr
 
-  LEFT JOIN punch_data p
-    ON p.emp_id = e.emp_id
-   AND p.attendance_date = e.attendance_date
+  LEFT JOIN punch_data pd
+    ON pd.emp_id =
+       sr.emp_id
+
+   AND pd.punch_local BETWEEN
+
+   (
+     sr.expected_start
+     -
+     MAKE_INTERVAL(
+       mins => COALESCE(
+         sr.sm_grace_in_minutes,
+         0
+       )
+     )
+   )
+
+   AND
+
+   (
+     sr.expected_end
+     +
+     MAKE_INTERVAL(
+       mins => COALESCE(
+         sr.sm_grace_out_minutes,
+         0
+       )
+     )
+   )
 
   GROUP BY
-    e.emp_id,
-    e.attendance_date
+    sr.emp_id,
+    sr.attendance_date
 ),
 
 leave_info AS
@@ -328,17 +648,24 @@ leave_info AS
     e.emp_id,
     e.attendance_date,
 
-    MAX(lr.lr_leave_request_id) AS leave_request_id
+    MAX(
+      lr.lr_leave_request_id
+    ) AS leave_request_id
 
   FROM employees e
 
   JOIN public.organizations o
-    ON TRIM(o.or_emp_id) = e.emp_id
+    ON TRIM(o.or_emp_id) =
+       e.emp_id
 
   JOIN public.leave_requests lr
-    ON lr.lr_pr_id = o.pr_id
+    ON lr.lr_pr_id =
+       o.pr_id
+
    AND e.attendance_date BETWEEN
-       lr.lr_from_date AND lr.lr_to_date
+       lr.lr_from_date
+       AND lr.lr_to_date
+
    AND lr.lr_status_id = 2
 
   GROUP BY
@@ -349,7 +676,6 @@ leave_info AS
 calculated AS
 (
   SELECT
-
     p.emp_id,
     p.attendance_date,
 
@@ -363,17 +689,28 @@ calculated AS
       WHEN p.punch_out IS NULL
         THEN INTERVAL '0'
 
-      ELSE p.punch_out - p.punch_in
+      ELSE
+        p.punch_out -
+        p.punch_in
     END AS total_hours,
 
     CASE
       WHEN h.holiday_id IS NOT NULL
         THEN INTERVAL '0'
 
-      WHEN dr.is_working_day = FALSE
+      WHEN sr.esr_shift_id IS NULL
         THEN INTERVAL '0'
 
-      ELSE dr.end_time - dr.start_time
+      WHEN sr.smd_attendance_status_id =
+           sid.weekly_off_id
+        THEN INTERVAL '0'
+
+      WHEN sr.sm_expected_hours IS NULL
+        THEN INTERVAL '0'
+
+      ELSE
+        sr.sm_expected_hours *
+        INTERVAL '1 hour'
     END AS expected_hours,
 
     CASE
@@ -383,21 +720,33 @@ calculated AS
       WHEN h.holiday_id IS NOT NULL
         THEN 0
 
-      WHEN dr.is_working_day = FALSE
+      WHEN li.leave_request_id IS NOT NULL
         THEN 0
 
-      WHEN p.punch_in::TIME <= dr.start_time
+      WHEN sr.smd_attendance_status_id =
+           sid.weekly_off_id
         THEN 0
 
-      ELSE GREATEST(
-        0,
-        FLOOR(
-          EXTRACT(
-            EPOCH FROM
-            (p.punch_in::TIME - dr.start_time)
-          ) / 60
-        )::INTEGER
-      )
+      WHEN sr.expected_start IS NULL
+        THEN 0
+
+      WHEN p.punch_in <=
+           sr.expected_start
+        THEN 0
+
+      ELSE
+        GREATEST(
+          0,
+          FLOOR(
+            EXTRACT(
+              EPOCH FROM
+              (
+                p.punch_in -
+                sr.expected_start
+              )
+            ) / 60
+          )::INTEGER
+        )
     END AS late_arrival,
 
     CASE
@@ -407,14 +756,25 @@ calculated AS
       WHEN h.holiday_id IS NOT NULL
         THEN FALSE
 
-      WHEN dr.is_working_day = FALSE
+      WHEN li.leave_request_id IS NOT NULL
         THEN FALSE
 
-      WHEN p.punch_in::TIME >
+      WHEN sr.smd_attendance_status_id =
+           sid.weekly_off_id
+        THEN FALSE
+
+      WHEN sr.expected_start IS NULL
+        THEN FALSE
+
+      WHEN p.punch_in >
            (
-             dr.start_time +
+             sr.expected_start
+             +
              MAKE_INTERVAL(
-               mins => dr.grace_period_minutes
+               mins => COALESCE(
+                 sr.sm_grace_in_minutes,
+                 0
+               )
              )
            )
         THEN TRUE
@@ -429,27 +789,33 @@ calculated AS
       WHEN h.holiday_id IS NOT NULL
         THEN 0
 
-      WHEN dr.is_working_day = FALSE
+      WHEN li.leave_request_id IS NOT NULL
         THEN 0
 
-      WHEN p.punch_out::TIME >=
-           (
-             dr.end_time -
-             MAKE_INTERVAL(
-               mins => dr.early_go_minutes
-             )
-           )
+      WHEN sr.smd_attendance_status_id =
+           sid.weekly_off_id
         THEN 0
 
-      ELSE GREATEST(
-        0,
-        FLOOR(
-          EXTRACT(
-            EPOCH FROM
-            (dr.end_time - p.punch_out::TIME)
-          ) / 60
-        )::INTEGER
-      )
+      WHEN sr.expected_end IS NULL
+        THEN 0
+
+      WHEN p.punch_out >=
+           sr.expected_end
+        THEN 0
+
+      ELSE
+        GREATEST(
+          0,
+          FLOOR(
+            EXTRACT(
+              EPOCH FROM
+              (
+                sr.expected_end -
+                p.punch_out
+              )
+            ) / 60
+          )::INTEGER
+        )
     END AS early_go,
 
     CASE
@@ -459,14 +825,25 @@ calculated AS
       WHEN h.holiday_id IS NOT NULL
         THEN FALSE
 
-      WHEN dr.is_working_day = FALSE
+      WHEN li.leave_request_id IS NOT NULL
         THEN FALSE
 
-      WHEN p.punch_out::TIME <
+      WHEN sr.smd_attendance_status_id =
+           sid.weekly_off_id
+        THEN FALSE
+
+      WHEN sr.expected_end IS NULL
+        THEN FALSE
+
+      WHEN p.punch_out <
            (
-             dr.end_time -
+             sr.expected_end
+             -
              MAKE_INTERVAL(
-               mins => dr.early_go_minutes
+               mins => COALESCE(
+                 sr.sm_early_go_minutes,
+                 0
+               )
              )
            )
         THEN TRUE
@@ -478,20 +855,36 @@ calculated AS
       WHEN h.holiday_id IS NOT NULL
         THEN sid.holiday_id
 
-      WHEN dr.is_working_day = FALSE
+      WHEN li.leave_request_id IS NOT NULL
+        THEN sid.leave_id
+
+      WHEN sr.esr_shift_id IS NULL
+        THEN sid.absent_id
+
+      WHEN sr.smd_attendance_status_id =
+           sid.weekly_off_id
         THEN sid.weekly_off_id
 
-      WHEN li.leave_request_id IS NOT NULL
+      WHEN sr.smd_attendance_status_id =
+           sid.holiday_id
+        THEN sid.holiday_id
+
+      WHEN sr.smd_attendance_status_id =
+           sid.leave_id
         THEN sid.leave_id
 
       WHEN p.punch_in IS NULL
         THEN sid.absent_id
 
-      WHEN p.punch_in::TIME >=
+      WHEN sr.sm_half_day_after_minutes IS NOT NULL
+           AND sr.expected_start IS NOT NULL
+           AND p.punch_in >=
            (
-             dr.start_time +
+             sr.expected_start
+             +
              MAKE_INTERVAL(
-               mins => dr.half_day_after_minutes
+               mins =>
+               sr.sm_half_day_after_minutes
              )
            )
         THEN sid.half_day_id
@@ -499,29 +892,60 @@ calculated AS
       WHEN p.punch_out IS NULL
         THEN sid.working_id
 
-      WHEN (p.punch_out - p.punch_in) <
+      WHEN sr.sm_half_day_hours IS NOT NULL
+           AND
            (
-             dr.half_day_hours *
-             INTERVAL '1 hour'
+             EXTRACT(
+               EPOCH FROM
+               (
+                 p.punch_out -
+                 p.punch_in
+               )
+             ) / 3600
            )
+           <
+           sr.sm_half_day_hours
         THEN sid.half_day_id
 
-      ELSE sid.present_id
+      WHEN sr.sm_expected_hours IS NOT NULL
+           AND
+           (
+             EXTRACT(
+               EPOCH FROM
+               (
+                 p.punch_out -
+                 p.punch_in
+               )
+             ) / 3600
+           )
+           >=
+           sr.sm_expected_hours
+        THEN sid.present_id
+
+      ELSE sid.working_id
     END AS status_id
 
   FROM punches p
 
-  JOIN day_rule dr
-    ON dr.attendance_date = p.attendance_date
+  LEFT JOIN shift_rule sr
+    ON sr.emp_id =
+       p.emp_id
+
+   AND sr.attendance_date =
+       p.attendance_date
 
   CROSS JOIN statuses sid
 
   LEFT JOIN holiday_info h
-    ON h.attendance_date = p.attendance_date
+    ON h.attendance_date =
+       p.attendance_date
 
   LEFT JOIN leave_info li
-    ON li.emp_id = p.emp_id
-   AND li.attendance_date = p.attendance_date
+    ON li.emp_id =
+       p.emp_id
+
+   AND li.attendance_date =
+       p.attendance_date
 )
 
 INSERT INTO public.weekly_attendance
@@ -539,7 +963,6 @@ INSERT INTO public.weekly_attendance
   early_go,
   is_early_gone,
   status_id,
-
   is_regularized,
   regularization_id,
   regularized_at,
@@ -553,8 +976,11 @@ SELECT
   total_hours,
   expected_hours,
 
-  CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
-  CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata',
+  CURRENT_TIMESTAMP
+  AT TIME ZONE 'Asia/Kolkata',
+
+  CURRENT_TIMESTAMP
+  AT TIME ZONE 'Asia/Kolkata',
 
   emp_id,
   late_arrival,
@@ -570,19 +996,43 @@ SELECT
 
 FROM calculated
 
-ON CONFLICT (emp_id, attendance_date)
+ON CONFLICT
+(
+  emp_id,
+  attendance_date
+)
 
 DO UPDATE SET
-  punch_in = EXCLUDED.punch_in,
-  punch_out = EXCLUDED.punch_out,
-  total_hours = EXCLUDED.total_hours,
-  expected_hours = EXCLUDED.expected_hours,
-  late_arrival = EXCLUDED.late_arrival,
-  is_late_arrived = EXCLUDED.is_late_arrived,
-  early_go = EXCLUDED.early_go,
-  is_early_gone = EXCLUDED.is_early_gone,
-  status_id = EXCLUDED.status_id,
-  updated_at = CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+  punch_in =
+    EXCLUDED.punch_in,
+
+  punch_out =
+    EXCLUDED.punch_out,
+
+  total_hours =
+    EXCLUDED.total_hours,
+
+  expected_hours =
+    EXCLUDED.expected_hours,
+
+  late_arrival =
+    EXCLUDED.late_arrival,
+
+  is_late_arrived =
+    EXCLUDED.is_late_arrived,
+
+  early_go =
+    EXCLUDED.early_go,
+
+  is_early_gone =
+    EXCLUDED.is_early_gone,
+
+  status_id =
+    EXCLUDED.status_id,
+
+  updated_at =
+    CURRENT_TIMESTAMP
+    AT TIME ZONE 'Asia/Kolkata'
 
 WHERE weekly_attendance.is_regularized = FALSE;
 `;
