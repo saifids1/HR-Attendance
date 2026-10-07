@@ -2,10 +2,7 @@ const db = require("../models");
 const { sequelize } = require("../db/SequelizeDB");
 const { Op, fn, col, literal, where: seqWhere } = require("sequelize");
 
-const {
-  successResponse,
-  handleDbError,
-} = require("../utils/response");
+const { successResponse, handleDbError } = require("../utils/response");
 
 const {
   Organizations,
@@ -26,15 +23,11 @@ const getActiveEmployeeCount = async (req, res) => {
       res,
       200,
       "Active employee count fetched successfully",
-      { active_employee_count }
+      { active_employee_count },
     );
   } catch (error) {
     console.error("Active employee count error:", error);
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch active employee count"
-    );
+    return handleDbError(res, error, "Failed to fetch active employee count");
   }
 };
 
@@ -71,14 +64,14 @@ const getActive_Present_EmployeeCount = async (req, res) => {
       res,
       200,
       "Active present employee count fetched successfully",
-      { today_present_count }
+      { today_present_count },
     );
   } catch (error) {
     console.error("Active present employee count error:", error);
     return handleDbError(
       res,
       error,
-      "Failed to fetch active present employee count"
+      "Failed to fetch active present employee count",
     );
   }
 };
@@ -109,7 +102,7 @@ const getActive_Absent_EmployeeCount = async (req, res) => {
         res,
         200,
         "Active absent employee count fetched successfully",
-        { today_absent_count: 0 }
+        { today_absent_count: 0 },
       );
     }
 
@@ -124,25 +117,25 @@ const getActive_Absent_EmployeeCount = async (req, res) => {
     });
 
     const presentSet = new Set(
-      presentRows.map((r) => r.emp_id).filter(Boolean)
+      presentRows.map((r) => r.emp_id).filter(Boolean),
     );
 
     const today_absent_count = empIds.filter(
-      (id) => !presentSet.has(id)
+      (id) => !presentSet.has(id),
     ).length;
 
     return successResponse(
       res,
       200,
       "Active absent employee count fetched successfully",
-      { today_absent_count }
+      { today_absent_count },
     );
   } catch (error) {
     console.error("Active absent employee count error:", error);
     return handleDbError(
       res,
       error,
-      "Failed to fetch active absent employee count"
+      "Failed to fetch active absent employee count",
     );
   }
 };
@@ -171,10 +164,7 @@ const getActive_Employee_Department_Count = async (req, res) => {
       };
     });
 
-    const total = counts.reduce(
-      (sum, c) => sum + c.number_of_users,
-      0
-    );
+    const total = counts.reduce((sum, c) => sum + c.number_of_users, 0);
 
     const result = counts
       .map((c) => ({
@@ -182,9 +172,7 @@ const getActive_Employee_Department_Count = async (req, res) => {
         number_of_users: c.number_of_users,
         percent:
           total > 0
-            ? Number(
-                ((c.number_of_users * 100) / total).toFixed(2)
-              )
+            ? Number(((c.number_of_users * 100) / total).toFixed(2))
             : 0,
       }))
       .sort((a, b) => b.number_of_users - a.number_of_users);
@@ -193,14 +181,14 @@ const getActive_Employee_Department_Count = async (req, res) => {
       res,
       200,
       "Active Department employee count fetched successfully",
-      result
+      result,
     );
   } catch (error) {
     console.error("Active Department employee count error:", error);
     return handleDbError(
       res,
       error,
-      "Failed to fetch active Department employee count"
+      "Failed to fetch active Department employee count",
     );
   }
 };
@@ -216,68 +204,169 @@ const getWeeklyEmployeesData = async (req, res) => {
       });
     }
 
+    // ============================================================
+    // CURRENT WEEK - MONDAY TO SUNDAY
+    // ============================================================
+
+    const [weekRow] = await sequelize.query(
+      `
+        SELECT
+          (
+            CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata'
+          )::DATE AS today
+      `,
+      {
+        type: sequelize.QueryTypes.SELECT,
+      },
+    );
+
+    const today = new Date(weekRow.today);
+
+    const dayOfWeek = today.getDay();
+
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+    const weekStart = new Date(today);
+
+    weekStart.setDate(today.getDate() - diffToMonday);
+
+    const weekEnd = new Date(weekStart);
+
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    // Format YYYY-MM-DD
     const formatDateOnly = (date) => {
       const year = date.getFullYear();
+
       const month = String(date.getMonth() + 1).padStart(2, "0");
+
       const day = String(date.getDate()).padStart(2, "0");
 
       return `${year}-${month}-${day}`;
     };
 
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - diffToMonday);
-    weekStart.setHours(0, 0, 0, 0);
-
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-
     const startStr = formatDateOnly(weekStart);
     const endStr = formatDateOnly(weekEnd);
 
-    const records = await DailyAttendance.findAll({
-      where: {
-        emp_id,
-        attendance_date: {
-          [Op.between]: [startStr, endStr],
+    // ============================================================
+    // FETCH WEEKLY ATTENDANCE
+    // WITH ATTENDANCE STATUS COLORS
+    // ============================================================
+
+    const records = await sequelize.query(
+      `
+        SELECT
+
+          da.attendance_date,
+
+          da.punch_in,
+
+          da.punch_out,
+
+          da.total_hours,
+
+          da.expected_hours,
+
+          da.late_arrival,
+
+          da.is_late_arrived,
+
+          da.early_go,
+
+          da.is_early_gone,
+
+          da.status_id,
+
+          /*
+           * STATUS
+           */
+          COALESCE(
+            NULLIF(
+              TRIM(ast.status_name),
+              ''
+            ),
+            'Present'
+          ) AS status_name,
+
+          /*
+           * BACKGROUND COLOR
+           */
+          COALESCE(
+            NULLIF(
+              TRIM(ast.background_color),
+              ''
+            ),
+            '#FEE2E2'
+          ) AS background_color,
+
+          /*
+           * FONT COLOR
+           */
+          COALESCE(
+            NULLIF(
+              TRIM(ast.font_color),
+              ''
+            ),
+            '#991B1B'
+          ) AS font_color
+
+        FROM public.daily_attendance da
+
+        /*
+         * ATTENDANCE STATUS TABLE
+         */
+        LEFT JOIN public.attendence_status ast
+          ON ast.id = da.status_id
+          AND COALESCE(
+            ast.is_active,
+            TRUE
+          ) = TRUE
+
+        WHERE TRIM(da.emp_id) = TRIM(:emp_id)
+
+          AND da.attendance_date
+            BETWEEN :startDate AND :endDate
+
+        ORDER BY da.attendance_date ASC
+      `,
+      {
+        replacements: {
+          emp_id,
+          startDate: startStr,
+          endDate: endStr,
         },
+
+        type: sequelize.QueryTypes.SELECT,
       },
-      attributes: [
-        "attendance_date",
-        "punch_in",
-        "punch_out",
-        "total_hours",
-        "expected_hours",
-        "late_arrival",
-        "is_late_arrived",
-        "early_go",
-        "is_early_gone",
-        "status_id",
-      ],
-      raw: true,
-    });
+    );
+
+    // ============================================================
+    // CREATE DATE MAP
+    // ============================================================
 
     const recordMap = {};
+
     records.forEach((r) => {
       let key;
 
       if (typeof r.attendance_date === "string") {
         key = r.attendance_date.substring(0, 10);
       } else {
-        key = formatDateOnly(r.attendance_date);
+        key = formatDateOnly(new Date(r.attendance_date));
       }
 
       recordMap[key] = r;
     });
 
+    // ============================================================
+    // CREATE MONDAY - SUNDAY RESULT
+    // ============================================================
+
     const result = [];
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
+
       d.setDate(weekStart.getDate() + i);
 
       const dateStr = formatDateOnly(d);
@@ -290,39 +379,83 @@ const getWeeklyEmployeesData = async (req, res) => {
 
       const rec = recordMap[dateStr] || null;
 
+      // ==========================================================
+      // STATUS
+      // ==========================================================
+
+      const attendanceStatus = rec?.status_name || "No Data";
+
+      // ==========================================================
+      // COLORS FROM ATTENDENCE_STATUS TABLE
+      // ==========================================================
+
+      const backgroundColor = rec?.background_color || "#FEE2E2";
+
+      const fontColor = rec?.font_color || "#991B1B";
+
+      // ==========================================================
+      // RESULT
+      // ==========================================================
+
       result.push({
         attendance_date: dateStr,
+
         day_name: dayName,
+
         punch_in: rec?.punch_in || null,
+
         punch_out: rec?.punch_out || null,
+
         total_hours: rec?.total_hours || null,
+
         expected_hours: rec?.expected_hours || null,
+
         late_arrival: rec?.late_arrival || null,
+
         is_late_arrived: rec?.is_late_arrived || null,
+
         early_go: rec?.early_go || null,
+
         is_early_gone: rec?.is_early_gone || null,
+
         status_id: rec?.status_id || null,
-        attendance_status: rec ? "Present" : "No Data",
-        target_hours:
-          dow === 0 || dow === 6
-            ? "00:00:00"
-            : "09:18:00",
+
+        // ========================================================
+        // STATUS
+        // ========================================================
+
+        attendance_status: attendanceStatus,
+
+        // ========================================================
+        // STATUS COLORS
+        // ========================================================
+
+        background_color: backgroundColor,
+
+        font_color: fontColor,
+
+        // ========================================================
+        // TARGET HOURS
+        // ========================================================
+
+        target_hours: dow === 0 || dow === 6 ? "00:00:00" : "09:18:00",
       });
     }
+
+    // ============================================================
+    // RESPONSE
+    // ============================================================
 
     return successResponse(
       res,
       200,
       "Weekly employee data fetched successfully",
-      result
+      result,
     );
   } catch (error) {
     console.error("Weekly employee data error:", error);
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch weekly employee data"
-    );
+
+    return handleDbError(res, error, "Failed to fetch weekly employee data");
   }
 };
 
@@ -408,10 +541,7 @@ const getEmployeeWeeklyPieChartData = async (req, res) => {
 
       const statusName = rec?.status?.status_name;
 
-      if (
-        statusName === "Present" ||
-        statusName === "Working"
-      ) {
+      if (statusName === "Present" || statusName === "Working") {
         present_days++;
       } else if (statusName === "Absent") {
         absent_days++;
@@ -419,8 +549,7 @@ const getEmployeeWeeklyPieChartData = async (req, res) => {
     });
 
     const total_days = weekDates.length;
-    const other_days =
-      total_days - present_days - absent_days;
+    const other_days = total_days - present_days - absent_days;
 
     const pct = (value) => {
       if (total_days === 0) {
@@ -458,18 +587,15 @@ const getEmployeeWeeklyPieChartData = async (req, res) => {
       res,
       200,
       "Employee weekly pie chart data fetched successfully",
-      responseData
+      responseData,
     );
   } catch (error) {
-    console.error(
-      "Employee weekly pie chart data error:",
-      error
-    );
+    console.error("Employee weekly pie chart data error:", error);
 
     return handleDbError(
       res,
       error,
-      "Failed to fetch employee weekly pie chart data"
+      "Failed to fetch employee weekly pie chart data",
     );
   }
 };
@@ -494,19 +620,11 @@ const getMonthlyEmployeesData = async (req, res) => {
 
     const today = new Date();
 
-    const monthStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      1
-    );
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
     monthStart.setHours(0, 0, 0, 0);
 
-    const monthEnd = new Date(
-      today.getFullYear(),
-      today.getMonth() + 1,
-      0
-    );
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
     monthEnd.setHours(0, 0, 0, 0);
 
@@ -571,8 +689,7 @@ const getMonthlyEmployeesData = async (req, res) => {
 
       let attendance_status = "Absent";
       if (rec && rec.status_id) {
-        attendance_status =
-          statusLabels[rec.status_id] || "Absent";
+        attendance_status = statusLabels[rec.status_id] || "Absent";
       }
 
       result.push({
@@ -588,10 +705,7 @@ const getMonthlyEmployeesData = async (req, res) => {
         is_early_gone: rec?.is_early_gone || null,
         status_id: rec?.status_id || null,
         attendance_status,
-        target_hours:
-          dow === 0 || dow === 6
-            ? "00:00:00"
-            : "09:18:00",
+        target_hours: dow === 0 || dow === 6 ? "00:00:00" : "09:18:00",
       });
 
       cursor.setDate(cursor.getDate() + 1);
@@ -601,15 +715,11 @@ const getMonthlyEmployeesData = async (req, res) => {
       res,
       200,
       "Monthly employee data fetched successfully",
-      result
+      result,
     );
   } catch (error) {
     console.error("Monthly employee data error:", error);
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch monthly employee data"
-    );
+    return handleDbError(res, error, "Failed to fetch monthly employee data");
   }
 };
 
@@ -747,15 +857,11 @@ const getYearlyEmployeesData = async (req, res) => {
       res,
       200,
       "Yearly employee data fetched successfully",
-      result
+      result,
     );
   } catch (error) {
     console.error("Yearly employee data error:", error);
-    return handleDbError(
-      res,
-      error,
-      "Failed to fetch yearly employee data"
-    );
+    return handleDbError(res, error, "Failed to fetch yearly employee data");
   }
 };
 
